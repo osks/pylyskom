@@ -4,7 +4,6 @@
 # (C) 1999-2002 Kent Engström. Released under GPL.
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 
-import urllib.parse
 import socket
 import time
 import string
@@ -735,7 +734,7 @@ class ReqCreateText(Request):
                       (self.id,
                        len(text), text,
                        misc_info.to_string(),
-                       c.array_to_string(aux_items)))
+                       c.array_to_string(aux_items).encode('latin1')))
         
     def parse_response(self):
         # --> Text-No
@@ -2048,7 +2047,7 @@ class Connection:
         self.req_histo = None # Histogram of request types
 
         # Receive buffer
-        self.rb = b""    # Buffer for data received from socket
+        self.rb = ""    # Buffer for data received from socket
         self.rb_len = 0 # Length of the buffer
         self.rb_pos = 0 # Position of first unread byte in buffer
 
@@ -2060,7 +2059,7 @@ class Connection:
 
         # Wait for answer "LysKOM\n"
         resp = self.receive_string(7) # FIXME: receive line here
-        if resp != b"LysKOM\n":
+        if resp != "LysKOM\n":
             raise BadInitialResponse
 
     # ASYNCHRONOUS MESSAGES HANDLERS
@@ -2347,7 +2346,7 @@ class Connection:
         self.ensure_receive_buffer_size(1)
         res = self.rb[self.rb_pos]
         self.rb_pos = self.rb_pos + 1
-        return chr(res)
+        return res
 
 #
 # CLASS for a connection with...
@@ -2398,9 +2397,8 @@ class CachedConnection(Connection):
         return ReqGetTextStat(self, no).response()
 
     def fetch_subject(self, no):
-        encoding = self.text_encoding(no)
         # FIXME: we assume that the subject is not longer than 200 chars.
-        subject = ReqGetText(self, no, 0, 200).response().decode(encoding)
+        subject = ReqGetText(self, no, 0, 200).response()
         pos = subject.find("\n")
         if pos != -1:
             subject = subject[:pos]
@@ -2575,46 +2573,30 @@ class CachedConnection(Connection):
     # Get unread texts for a certain person in a certain conference
     # Return a list of tuples (local no, global no)
     #
-    def get_unread_texts(self, person_no, conf_no):
-        print('THIS get_unread_texts SHOULD NEVER BE CALLED!')
-        unread = []
-        # FIXME: Should use protocol version 11 where applicable
-        ms = ReqQueryReadTexts11(self, person_no, conf_no).response()
-
-        # Start asking for translations
-        ask_for = ms.last_text_read + 1
-        more_to_fetch = 1
-        while more_to_fetch:
-            try:
-                mapping = ReqLocalToGlobal(self, conf_no,
-                                           ask_for, 255).response()
-                for local_num, global_num in mapping.list:
-                    if not self.text_in_read_ranges(local_num, ms.read_ranges):
-                        unread.append(global_num)
-                        ask_for = mapping.range_end
-                        more_to_fetch = mapping.later_texts_exists
-            except NoSuchLocalText:
-                # No unread texts
-                more_to_fetch = 0
-
-        return unread
-
-    def text_encoding(self, text_no):
-        textstat = self.textstats[text_no]
-        try:
-            content_type =\
-                self.first_aux_items_with_tag(textstat.aux_items, 
-                                              komauxitems.AI_CONTENT_TYPE)\
-                                              .data.decode('latin1')
-        except AttributeError:
-            return 'latin1'
-
-        try:
-            encoding = urllib.parse.parse_qs(content_type)['charset'][0]
-        except KeyError:
-            encoding = 'latin1'
-        return encoding
-
+#    def get_unread_texts(self, person_no, conf_no):
+#        print('THIS get_unread_texts SHOULD NEVER BE CALLED!')
+#        unread = []
+#        # FIXME: Should use protocol version 11 where applicable
+#        ms = ReqQueryReadTexts11(self, person_no, conf_no).response()
+#
+#        # Start asking for translations
+#        ask_for = ms.last_text_read + 1
+#        more_to_fetch = 1
+#        while more_to_fetch:
+#            try:
+#                mapping = ReqLocalToGlobal(self, conf_no,
+#                                           ask_for, 255).response()
+#                for local_num, global_num in mapping.list:
+#                    if not self.text_in_read_ranges(local_num, ms.read_ranges):
+#                        unread.append(global_num)
+#                        ask_for = mapping.range_end
+#                        more_to_fetch = mapping.later_texts_exists
+#            except NoSuchLocalText:
+#                # No unread texts
+#                more_to_fetch = 0
+#
+#        return unread
+#
 
 
 class CachedUserConnection(CachedConnection):
@@ -2644,7 +2626,7 @@ class CachedUserConnection(CachedConnection):
 
     def get_member_confs(self):
         result = []
-        ms_list = ReqGetMembership(self, self._user_no, 0, 10000, want_read_texts=0).response()
+        ms_list = ReqGetMembership11(self, self._user_no, 0, 10000, 0, 0).response()
         for ms in ms_list:
             if not ms.type.passive:
                 result.append(ms.conference)
@@ -2658,8 +2640,8 @@ class CachedUserConnection(CachedConnection):
     def fetch_membership(self, no):
         return ReqQueryReadTexts11(self, self._user_no, no, 1, 0).response()
     
-    def fetch_unread(self, no):
-        return len(self.get_unread_texts(no))
+    def fetch_unread(self, conf_no):
+        return len(self.get_unread_texts(conf_no))
 
     def get_unread_texts(self, conf_no):
         unread = []
