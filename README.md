@@ -6,12 +6,12 @@ pylyskom is a Python library for talking with LysKOM servers.
 
 pylyskom was originally based on python-lyskom. The following files
 originates from python-lyskom: kom.py, komauxitems.py, aux-items.txt
-and make_komauxitems.
+and make_komauxitems. Most of the changes since then comes from
+httpkom's use of kom.py, and pylyskom was created as an attempt to
+separate those changes from httpkom, so they could be used by others.
 
 The source code for pylyskom can be found at:
 https://github.com/osks/pylyskom
-
-httpkom uses python-lyskom, which is also released under GPL. 
 
 
 Copyright and license
