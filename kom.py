@@ -1,8 +1,10 @@
 # -*- coding: iso-8859-1 -*-
 # LysKOM Protocol A version 10/11 client interface for Python
-# $Id: kom.py,v 1.40 2004/07/18 19:58:24 astrand Exp $
+# $Id: kom.py,v 1.40 2004-07-18 19:58:24 astrand Exp $
 # (C) 1999-2002 Kent Engström. Released under GPL.
+# (C) 2008 Henrik Rindlöw. Released under GPL.
 
+import urllib.parse
 import socket
 import time
 import string
@@ -17,7 +19,7 @@ digits = "01234567890"
 float_chars = digits + "eE.-+"
 
 ord_0 = ord("0")
-MAX_TEXT_SIZE = int(2**31L-1)
+MAX_TEXT_SIZE = int(2**31-1)
 
 # All errors belong to this class
 class Error(Exception): pass
@@ -207,13 +209,13 @@ class Request:
 class ReqLogout(Request):
     def __init__(self, c):
         self.register(c)
-        c.send_string("%d 1\n" % self.id)
+        c.send_string(("%d 1\n" % self.id).encode('latin1'))
 
 # change-conference [2] (1) Recommended
 class ReqChangeConference(Request):
     def __init__(self, c, conf_no):
         self.register(c)
-        c.send_string("%d 2 %d\n" % (self.id, conf_no))
+        c.send_string(("%d 2 %d\n" % (self.id, conf_no)).encode('latin1'))
 
 # change-name [3] (1) Recommended
 class ReqChangeName(Request):
@@ -226,7 +228,8 @@ class ReqChangeName(Request):
 class ReqChangeWhatIAmDoing(Request):
     def __init__(self, c, what):
         self.register(c)
-        c.send_string("%d 4 %dH%s\n" % (self.id, len(what), what))
+        c.send_string(("%d 4 %dH%s\n" % (self.id, 
+                                          len(what), what)).encode('latin1'))
 
 # create-person-old [5] (1) Obsolete (10) Use create-person (89)
 # get-person-stat-old [6] (1) Obsolete (1) Use get-person-stat (49)
@@ -329,8 +332,9 @@ class ReqGetText(Request):
                  start_char = 0,
                  end_char = MAX_TEXT_SIZE):
         self.register(c)
-        c.send_string("%d 25 %d %d %d\n" %
-                      (self.id, text_no, start_char, end_char))
+        c.send_string(("%d 25 %d %d %d\n" % 
+                       (self.id, text_no, 
+                        start_char, end_char)).encode('latin1'))
 
     def parse_response(self):
         # --> string
@@ -342,11 +346,11 @@ class ReqGetText(Request):
 class ReqMarkAsRead(Request):
     def __init__(self, c, conf_no, texts):
         self.register(c)
-        c.send_string("%d 27 %d %s\n" %
-                      (self.id,
-                       conf_no,
-                       c.array_of_int_to_string(texts)))
-
+        c.send_string(("%d 27 %d %s\n" %
+                       (self.id,
+                        conf_no,
+                        c.array_of_int_to_string(texts))).encode('latin1'))
+                      
 # create-text-old [28] (1) Obsolete (10) Use create-text (86)
 
 # delete-text [29] (1) Recommended
@@ -386,13 +390,13 @@ class ReqSubComment(Request):
 # get-map [34] (1) Obsolete (10) Use local-to-global (103)
 class ReqGetMap(Request):
     def __init__(self, c, conf_no, first_local_no, no_of_texts):
-	self.register(c)
-	c.send_string("%d 34 %d %d %d\n" %
+        self.register(c)
+        c.send_string("%d 34 %d %d %d\n" %
 		      (self.id, conf_no, first_local_no, no_of_texts))
 
     def parse_response(self):
 	# --> Text-List
-	return self.c.parse_object(TextList)
+        return self.c.parse_object(TextList)
 
 # get-time [35] (1) Recommended
 class ReqGetTime(Request):
@@ -479,7 +483,7 @@ class ReqGetPersonStat(Request):
 class ReqGetUnreadConfs(Request):
     def __init__(self, c, person_no):
         self.register(c)
-        c.send_string("%d 52 %d\n" % (self.id, person_no))
+        c.send_string(("%d 52 %d\n" % (self.id, person_no)).encode('latin1'))
 
     def parse_response(self):
         # --> ARRAY Conf-No
@@ -489,8 +493,9 @@ class ReqGetUnreadConfs(Request):
 class ReqSendMessage(Request):
     def __init__(self, c, conf_no, message):
         self.register(c)
-        c.send_string("%d 53 %d %dH%s\n" %
-                      (self.id, conf_no, len(message), message))
+        c.send_string(("%d 53 %d %dH%s\n" %
+                       (self.id, conf_no, len(message), 
+                        message)).encode('latin1'))
 
 # get-session-info [54] (1) Obsolete (9) Use who-is-on-dynamic (83)
 
@@ -554,8 +559,9 @@ class ReqFindPreviousTextNo(Request):
 class ReqLogin(Request):
     def __init__(self, c, person_no, password, invisible = 1):
         self.register(c)
-        c.send_string("%d 62 %d %dH%s %d\n" %
-                      (self.id, person_no, len(password), password, invisible))
+        c.send_string(("%d 62 %d %dH%s %d\n" %
+                      (self.id, person_no, len(password), password, 
+                       invisible)).encode('latin1'))
 
 # who-is-on-ident [63] (4) Obsolete (9) Use who-is-on-dynamic (83) and
 #                                           get-static-session-info (84)
@@ -570,10 +576,10 @@ class ReqLogin(Request):
 class ReqSetClientVersion(Request):
     def __init__(self, c, client_name, client_version):
         self.register(c)
-        c.send_string("%d 69 %dH%s %dH%s\n" %
-                      (self.id,
-                       len(client_name), client_name,
-                       len(client_version), client_version))
+        c.send_string (("%d 69 %dH%s %dH%s\n" %
+                        (self.id,
+                         len(client_name), client_name,
+                         len(client_version), client_version)).encode('latin1'))
 
 # get-client-name [70] (6) Recommended
 class ReqGetClientName(Request):
@@ -632,8 +638,9 @@ class ReqGetVersionInfo(Request):
 class ReqLookupZName(Request):
     def __init__(self, c, name, want_pers = 0, want_confs = 0):
         self.register(c)
-        c.send_string("%d 76 %dH%s %d %d\n" %
-                      (self.id, len(name), name, want_pers, want_confs))
+        c.send_string(("%d 76 %dH%s %d %d\n" %
+                       (self.id, len(name), name, 
+                        want_pers, want_confs)).encode('latin1'))
 
     def parse_response(self):
         # --> ARRAY ConfZInfo
@@ -650,7 +657,7 @@ class ReqSetLastRead(Request):
 class ReqGetUconfStat(Request):
     def __init__(self, c, conf_no):
         self.register(c)
-        c.send_string("%d 78 %d\n" % (self.id, conf_no))
+        c.send_string(("%d 78 %d\n" % (self.id, conf_no)).encode('latin1'))
 
     def parse_response(self):
         # --> UConference
@@ -666,9 +673,10 @@ class ReqSetInfo(Request):
 class ReqAcceptAsync(Request):
     def __init__(self, c, request_list):
         self.register(c)
-        c.send_string("%d 80 %s\n" %
+        c.send_string(("%d 80 %s\n" %
                       (self.id,
-                       c.array_of_int_to_string(request_list)))
+                       c.array_of_int_to_string(request_list)))\
+                          .encode('latin1'))
 
 # query-async [81] (9) Recommended
 class ReqQueryAsync(Request):
@@ -780,8 +788,8 @@ class ReqCreatePerson(Request):
 class ReqGetTextStat(Request):
     def __init__(self, c, text_no):
         self.register(c)
-        c.send_string("%d 90 %d\n" %
-                      (self.id, text_no))
+        c.send_string(("%d 90 %d\n" %
+                      (self.id, text_no)).encode('latin1'))
 
     def parse_response(self):
         # --> TextStat
@@ -791,7 +799,7 @@ class ReqGetTextStat(Request):
 class ReqGetConfStat(Request):
     def __init__(self, c, conf_no):
         self.register(c)
-        c.send_string("%d 91 %d\n" % (self.id, conf_no))
+        c.send_string(("%d 91 %d\n" % (self.id, conf_no)).encode('latin1'))
 
     def parse_response(self):
         # --> Conference
@@ -821,7 +829,7 @@ class ReqModifyConfInfo(Request):
 class ReqGetInfo(Request):
     def __init__(self, c):
         self.register(c)
-        c.send_string("%d 94\n" % (self.id))
+        c.send_string(("%d 94\n" % (self.id)).encode('latin1'))
 
     def parse_response(self):
         # --> Info
@@ -862,10 +870,6 @@ class ReqQueryReadTexts10(Request):
         # --> Membership10
         return self.c.parse_object(Membership10)
 
-# The old version is the default version, in order not to
-# break backwards compatibility for existing users of kom.py
-ReqQueryReadTexts = ReqQueryReadTexts10
-
 # get-membership-10 [99] (10) Obsolete (11) Use get-membership (108)
 
 class ReqGetMembership10(Request):
@@ -878,10 +882,6 @@ class ReqGetMembership10(Request):
     def parse_response(self):
         # --> ARRAY Membership10
         return self.c.parse_array(Membership10)
-
-# The old version is the default version, in order not to
-# break backwards compatibility for existing users of kom.py
-ReqGetMembership = ReqGetMembership10
 
 # add-member [100] (10) Recommended
 class ReqAddMember(Request):
@@ -913,8 +913,9 @@ class ReqSetMembershipType(Request):
 class ReqLocalToGlobal(Request):
     def __init__(self, c, conf_no, first_local_no, no_of_existing_texts):
         self.register(c)
-        c.send_string("%d 103 %d %d %d\n" % \
-                      (self.id, conf_no, first_local_no, no_of_existing_texts))
+        c.send_string(("%d 103 %d %d %d\n" % \
+                      (self.id, conf_no, first_local_no, 
+                       no_of_existing_texts)).encode('latin1'))
 
     def parse_response(self):
         # --> Text-Mapping
@@ -949,23 +950,21 @@ class ReqSetPersFlags(Request):
 ### --- New in protocol version 11 ---
 
 # query-read-texts [107] (11) Recommended
-# The old version (no 98) is the default version, in order not to
-# break backwards compatibility for existing users of kom.py
 class ReqQueryReadTexts11(Request):
     def __init__(self, c, person_no, conf_no,
                  want_read_ranges, max_ranges):
         self.register(c)
-        c.send_string("%d 107 %d %d %d %d\n" % (self.id, person_no, conf_no,
+        c.send_string(("%d 107 %d %d %d %d\n" % (self.id, person_no, conf_no,
                                                 want_read_ranges,
-                                                max_ranges))
+                                                max_ranges)).encode('latin1'))
 
     def parse_response(self):
         # --> Membership11
         return self.c.parse_object(Membership11)
 
+ReqQueryReadTexts = ReqQueryReadTexts11
+
 # get-membership [108] (11) Recommended
-# The old version (no 99) is the default version, in order not to
-# break backwards compatibility for existing users of kom.py
 class ReqGetMembership11(Request):
     def __init__(self, c, person_no, first, no_of_confs,
                  want_read_ranges, max_ranges):
@@ -978,6 +977,8 @@ class ReqGetMembership11(Request):
     def parse_response(self):
         # --> ARRAY Membership11
         return self.c.parse_array(Membership11)
+
+ReqGetMembership = ReqGetMembership11
 
 # mark-as-unread [109] (11) Recommended
 class ReqMarkAsUnread(Request):
@@ -1471,8 +1472,8 @@ class CookedMiscInfo:
             self.comment_in_list:
             list = list + r.get_tuples()
         return "%d { %s}" % (len(list),
-                             string.join(map(lambda x: "%d %d " % \
-                                             (x[0], x[1]), list), ""))
+                             "".join(["%d %d " % \
+                                          (x[0], x[1]) for x in list]))
                              
 
 # AUX INFO
@@ -1542,7 +1543,7 @@ class AuxItem:
 # Functions operating on lists of AuxItems
 
 def all_aux_items_with_tag(ail, tag):
-    return filter(lambda x, tag=tag: x.tag == tag, ail)
+    return list(filter(lambda x, tag=tag: x.tag == tag, ail))
      
 def first_aux_items_with_tag(ail, tag):
     all = all_aux_items_with_tag(ail, tag)
@@ -1799,10 +1800,6 @@ class Membership10:
         self.added_at = c.parse_object(Time)
         self.type = c.parse_object(MembershipType)
 
-# The old version is the default version, in order not to
-# break backwards compatibility for existing users of kom.py
-Membership = Membership10
-
 class ReadRange:
     def __init__(self, first_read = 0, last_read = 0):
         self.first_read = first_read
@@ -1831,6 +1828,8 @@ class Membership11:
         self.added_at = c.parse_object(Time)
         self.type = c.parse_object(MembershipType)
 
+Membership = Membership11
+
 class Member:
     def parse(self, c):
         self.member  = c.parse_int()
@@ -1842,8 +1841,8 @@ class Member:
 
 class TextList:
     def parse(self, c):
-	self.first_local_no = c.parse_int()
-	self.texts = c.parse_array_of_int()
+        self.first_local_no = c.parse_int()
+        self.texts = c.parse_array_of_int()
 
 # TEXT MAPPING
 
@@ -2049,7 +2048,7 @@ class Connection:
         self.req_histo = None # Histogram of request types
 
         # Receive buffer
-        self.rb = ""    # Buffer for data received from socket
+        self.rb = b""    # Buffer for data received from socket
         self.rb_len = 0 # Length of the buffer
         self.rb_pos = 0 # Position of first unread byte in buffer
 
@@ -2057,19 +2056,19 @@ class Connection:
         self.async_handlers = {}
         
         # Send initial string 
-        self.send_string("A%dH%s\n" % (len(user), user))
+        self.send_string(("A%dH%s\n" % (len(user), user)).encode('latin1'))
 
         # Wait for answer "LysKOM\n"
         resp = self.receive_string(7) # FIXME: receive line here
-        if resp <> "LysKOM\n":
+        if resp != b"LysKOM\n":
             raise BadInitialResponse
 
     # ASYNCHRONOUS MESSAGES HANDLERS
     
     def add_async_handler(self, msg_no, handler):
-        if not async_dict.has_key(msg_no):
+        if msg_no not in async_dict:
             raise UnimplementedAsync
-        if self.async_handlers.has_key(msg_no):
+        if msg_no in self.async_handlers:
             self.async_handlers[msg_no].append(handler)
         else:
             self.async_handlers[msg_no] = [handler]
@@ -2090,11 +2089,11 @@ class Connection:
 
     # Wait for a request to be answered, return response or signal error
     def wait_and_dequeue(self, id):
-        while not self.resp_queue.has_key(id) and \
-              not self.error_queue.has_key(id):
+        while id not in self.resp_queue and \
+              id not in self.error_queue:
             #print "Request", id,"not responded to, getting some more"
             self.parse_server_message()
-        if self.resp_queue.has_key(id):
+        if id in self.resp_queue:
             # Response
             ret = self.resp_queue[id]
             del self.resp_queue[id]
@@ -2103,7 +2102,7 @@ class Connection:
             # Error
             (error_no, error_status) = self.error_queue[id]
             del self.error_queue[id]
-            raise error_dict[error_no], error_status
+            raise error_dict[error_no](error_status)
 
     # Parse all present data
     def parse_present_data(self):
@@ -2126,11 +2125,11 @@ class Connection:
         
     # Show request histogram
     def show_req_histo(self):
-        l = map(lambda x: (-x[1], x[0]), self.req_histo.items())
+        l = [(-x[1], x[0]) for x in list(self.req_histo.items())]
         l.sort()
-        print "Count  Request"
+        print("Count  Request")
         for (negcount, name) in l:
-            print "%5d: %s" % (-negcount, name)
+            print("%5d: %s" % (-negcount, name))
     
     # PARSING SERVER MESSAGES
 
@@ -2154,40 +2153,40 @@ class Connection:
     def parse_response(self):
         id = self.parse_int()
         #print "Response for",id,"coming"
-        if self.req_queue.has_key(id):
+        if id in self.req_queue:
             # Delegate parsing to the ReqXXXX class
             resp = self.req_queue[id].parse_response()
             # Remove request and add response
             del self.req_queue[id]
             self.resp_queue[id] = resp
         else:
-            raise BadRequestId, id
+            raise BadRequestId(id)
 
     # Parse error
     def parse_error(self):
         id = self.parse_int()
         error_no = self.parse_int()
         error_status = self.parse_int()
-        if self.req_queue.has_key(id):
+        if id in self.req_queue:
             # Remove request and add error
             del self.req_queue[id]
             self.error_queue[id] = (error_no, error_status)
         else:
-            raise BadRequestId, id
+            raise BadRequestId(id)
 
     # Parse asynchronous message
     def parse_asynchronous_message(self):
         no_args = self.parse_int()
         msg_no = self.parse_int()
 
-        if async_dict.has_key(msg_no):
+        if msg_no in async_dict:
             msg = async_dict[msg_no]()
             msg.parse(self)
-            if self.async_handlers.has_key(msg_no):
+            if msg_no in self.async_handlers:
                 for handler in self.async_handlers[msg_no]:
                     handler(msg,self)
         else:
-            raise UnimplementedAsync, msg_no
+            raise UnimplementedAsync(msg_no)
         
     # PARSING KOM DATA TYPES
 
@@ -2211,23 +2210,21 @@ class Connection:
             if left == "*":
                 # Special case of unwanted data
                 return []
-            elif left <> "{": raise ProtocolError
+            elif left != "{": raise ProtocolError
             for i in range(0, len):
                 obj = element_class()
                 obj.parse(self)
                 res.append(obj)
             right = self.parse_first_non_ws()
-            if right <> "}": raise ProtocolError
+            if right != "}": raise ProtocolError
         else:
             star = self.parse_first_non_ws()
-            if star <> "*": raise ProtocolError
+            if star != "*": raise ProtocolError
         return res
 
     def array_to_string(self, array):
-        return "%d { %s }" % (len(array),
-                              string.join(map(lambda x: x.to_string(),
-                                              array),
-                                          " "))
+        return "%d { %s }" % (len(array), 
+                              " ".join([x.to_string() for x in array]))
                              
     def parse_array_of_basictype(self, basic_type_parser):
         len = self.parse_int()
@@ -2237,14 +2234,14 @@ class Connection:
             if left == "*":
                 # Special case of unwanted data
                 return []
-            elif left <> "{": raise ProtocolError
+            elif left != "{": raise ProtocolError
             for i in range(0, len):
                 res.append(basic_type_parser())
             right = self.parse_first_non_ws()
-            if right <> "}": raise ProtocolError
+            if right != "}": raise ProtocolError
         else:
             star = self.parse_first_non_ws()
-            if star <> "*": raise ProtocolError
+            if star != "*": raise ProtocolError
         return res
 
     def parse_array_of_int(self):
@@ -2252,7 +2249,7 @@ class Connection:
 
     def array_of_int_to_string(self, array):
         return "%d { %s }" % (len(array),
-                             string.join(map(str, array), " "))
+                             " ".join(list(map(str, array))))
                              
     def parse_array_of_string(self):
         return self.parse_array_of_basictype(self.parse_string)
@@ -2306,14 +2303,14 @@ class Connection:
     # Parse a string (Hollerith notation)
     def parse_string(self):
         (len, h) = self.parse_int_and_next()
-        if h <> "H": raise ProtocolError
+        if h != "H": raise ProtocolError
         return self.receive_string(len)
     
     # LOW LEVEL ROUTINES FOR SENDING AND RECEIVING
 
     # Send a raw string
     def send_string(self, s):
-        #print ">>>",s
+        #print(">>>",s)
         while len(s) > 0:
             done = self.socket.send(s)
             s = s[done:]
@@ -2329,7 +2326,7 @@ class Connection:
             #      (present, size, wanted)
             data = self.socket.recv(wanted)
             if len(data) == 0: raise ReceiveError
-            #print "<<<", data
+            #print("<<<", data)
             self.rb = self.rb[self.rb_pos:] + data
             self.rb_pos = 0
             self.rb_len = len(self.rb)
@@ -2350,7 +2347,7 @@ class Connection:
         self.ensure_receive_buffer_size(1)
         res = self.rb[self.rb_pos]
         self.rb_pos = self.rb_pos + 1
-        return res
+        return chr(res)
 
 #
 # CLASS for a connection with...
@@ -2401,10 +2398,11 @@ class CachedConnection(Connection):
         return ReqGetTextStat(self, no).response()
 
     def fetch_subject(self, no):
+        encoding = self.text_encoding(no)
         # FIXME: we assume that the subject is not longer than 200 chars.
-        subject = ReqGetText(self, no, 0, 200).response()
-        pos = string.find(subject, "\n")
-        if pos <> -1:
+        subject = ReqGetText(self, no, 0, 200).response().decode(encoding)
+        pos = subject.find("\n")
+        if pos != -1:
             subject = subject[:pos]
         return subject
 
@@ -2464,13 +2462,13 @@ class CachedConnection(Connection):
     # Common operation: get name of conference (via uconference)
     def conf_name(self, conf_no, default = "", include_no = 0):
         try:
-            conf_name = self.uconferences[conf_no].name
+            conf_name = self.uconferences[conf_no].name.decode('latin1')
             if include_no:
                 return "%s (#%d)" % (conf_name, conf_no)
             else:
                 return conf_name
         except:
-            if string.find(default, "%d") <> -1:
+            if default.find("%d") != -1:
                 return default % conf_no
             else:
                 return default
@@ -2496,7 +2494,7 @@ class CachedConnection(Connection):
             matches = ReqLookupZName(self, name,
                                      want_pers = want_pers,
                                      want_confs = want_confs).response()
-            return map(lambda x: (x.conf_no, x.name), matches)
+            return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
     def regexp_lookup(self, regexp, want_pers, want_confs,
                       case_sensitive=0):
@@ -2510,7 +2508,7 @@ class CachedConnection(Connection):
         matches = ReqReZLookup(self, regexp,
                                want_pers = want_pers,
                                want_confs = want_confs).response()
-        return map(lambda x: (x.conf_no, x.name), matches)
+        return [(x.conf_no, x.name) for x in matches]
 
     def _case_insensitive_regexp(self, regexp):
         """Make regular expression case insensitive"""
@@ -2555,16 +2553,33 @@ class CachedConnection(Connection):
 
         return result
 
+    # Check if text_no is included in any read_range
+    def text_in_read_ranges(self, text_no, read_ranges):
+        for range in read_ranges:
+            if range.first_read <= text_no <= range.last_read:
+                return True
+        return False
+    
+    # return all texts excluded from read_ranges
+    def read_ranges_to_gaps_and_last(self, read_ranges):
+        gaps = []
+        last = 1
+        for range in read_ranges:
+            gap = range.first_read - last
+            if gap > 0:
+                gaps.append((last, gap))
+            last = range.last_read + 1
+        return gaps, last
 
     #
     # Get unread texts for a certain person in a certain conference
     # Return a list of tuples (local no, global no)
     #
-
     def get_unread_texts(self, person_no, conf_no):
+        print('THIS get_unread_texts SHOULD NEVER BE CALLED!')
         unread = []
         # FIXME: Should use protocol version 11 where applicable
-        ms = ReqQueryReadTexts10(self, person_no, conf_no).response()
+        ms = ReqQueryReadTexts11(self, person_no, conf_no).response()
 
         # Start asking for translations
         ask_for = ms.last_text_read + 1
@@ -2573,9 +2588,9 @@ class CachedConnection(Connection):
             try:
                 mapping = ReqLocalToGlobal(self, conf_no,
                                            ask_for, 255).response()
-                for tuple in mapping.list:
-                    if tuple[0] not in ms.read_texts:
-                        unread.append(tuple)
+                for local_num, global_num in mapping.list:
+                    if not self.text_in_read_ranges(local_num, ms.read_ranges):
+                        unread.append(global_num)
                         ask_for = mapping.range_end
                         more_to_fetch = mapping.later_texts_exists
             except NoSuchLocalText:
@@ -2583,6 +2598,23 @@ class CachedConnection(Connection):
                 more_to_fetch = 0
 
         return unread
+
+    def text_encoding(self, text_no):
+        textstat = self.textstats[text_no]
+        try:
+            content_type =\
+                self.first_aux_items_with_tag(textstat.aux_items, 
+                                              komauxitems.AI_CONTENT_TYPE)\
+                                              .data.decode('latin1')
+        except AttributeError:
+            return 'latin1'
+
+        try:
+            encoding = urllib.parse.parse_qs(content_type)['charset'][0]
+        except KeyError:
+            encoding = 'latin1'
+        return encoding
+
 
 
 class CachedUserConnection(CachedConnection):
@@ -2619,41 +2651,57 @@ class CachedUserConnection(CachedConnection):
         return result
 
     def is_unread(self, conf_no, local_no):
-        if local_no <= self.memberships[conf_no].last_text_read:
-            return 0
-        elif local_no in self.memberships[conf_no].read_texts:
-            return 0
-        else:
-            return 1
+        return not self.text_in_read_ranges(local_no,
+                                            self.memberships[conf_no]\
+                                                .read_ranges)
         
     def fetch_membership(self, no):
-        # FIXME: Investigate switch to protocol version 11?
-        return ReqQueryReadTexts10(self, self._user_no, no).response()
+        return ReqQueryReadTexts11(self, self._user_no, no, 1, 0).response()
     
-    # NOTE: No more than 500 unread texts are examined
     def fetch_unread(self, no):
-        no_unread = 0
-        ms = self.memberships[no]
+        return len(self.get_unread_texts(no))
+
+    def get_unread_texts(self, conf_no):
+        unread = []
+        self.memberships.invalidate(conf_no)
+        ms = self.memberships[conf_no]
 
         # Start asking for translations
-        ask_for = ms.last_text_read + 1
+#        ask_for = ms.last_text_read + 1
+#        more_to_fetch = 1
+#        while more_to_fetch:
+#            try:
+#                mapping = ReqLocalToGlobal(self, conf_no,
+#                                           ask_for, 255).response()
+#                for (local_num, global_num) in mapping.list:
+#                    if not self.text_in_read_ranges(local_num, ms.read_ranges):
+#                        unread.append(global_num)
+#                        ask_for = mapping.range_end
+#                        more_to_fetch = mapping.later_texts_exists
+#            except NoSuchLocalText:
+#                # No unread texts
+#                more_to_fetch = 0
+        gaps, last = self.read_ranges_to_gaps_and_last(ms.read_ranges)
+        for first, gap_len in gaps:
+            while gap_len > 0:
+                if gap_len > 255:
+                    n = 255
+                else:
+                    n = gap_len
+                gap_len -= n
+                mapping = ReqLocalToGlobal(self, conf_no, first, n).response()
+                unread.extend([e[1] for e in mapping.list])
         more_to_fetch = 1
         while more_to_fetch:
             try:
-                mapping = ReqLocalToGlobal(self, no,
-                                           ask_for, 255).response()
-                for (local_num, global_num) in mapping.list:
-                    if (local_num not in ms.read_texts) and global_num:
-                        no_unread = no_unread + 1
-                        if no_unread > 500:
-                            return no_unread
-                ask_for = mapping.range_end
+                mapping = ReqLocalToGlobal(self, conf_no, last, 255).response()
+                unread.extend([e[1] for e in mapping.list])
+                last = mapping.range_end
                 more_to_fetch = mapping.later_texts_exists
             except NoSuchLocalText:
                 # No unread texts
                 more_to_fetch = 0
-
-        return no_unread
+        return unread
 
     # Handlers for asynchronous messages (internal use)
     def cah_deleted_text(self, msg, c):
@@ -2672,7 +2720,8 @@ class CachedUserConnection(CachedConnection):
 
     def cah_leave_conf(self, msg, c):
         CachedConnection.cah_leave_conf(self, msg, c)
-        self.member_confs.remove(msg.conf_no)
+        if msg.conf_no in self.member_confs:
+            self.member_confs.remove(msg.conf_no)
         
     def cah_new_recipient(self, msg, c):
         CachedConnection.cah_new_recipient(self, msg, c)
@@ -2710,7 +2759,8 @@ class Cache:
         self.name = name
 
     def __getitem__(self, no):
-        if self.dict.has_key(no):
+        #print('%s[%d]' % (self.name, no))
+        if no in self.dict:
             self.cached = self.cached + 1
             return self.dict[no]
         else:
@@ -2722,11 +2772,11 @@ class Cache:
         self.dict[no] = val
 
     def invalidate(self, no):
-        if self.dict.has_key(no):
+        if no in self.dict:
             del self.dict[no]
 
     def report(self):
-        print "Cache %s: %d cached, %d uncached" % (self.name,
+        print("Cache %s: %d cached, %d uncached" % (self.name,
                                                     self.cached,
-                                                    self.uncached)
+                                                    self.uncached))
         
