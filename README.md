@@ -18,7 +18,9 @@ Copyright and license
 ---------------------
 
 Copyright (C) 2012-2013 Oskar Skoog
+
 Copyright (C) 2008 Henrik Rindlöw
+
 Copyright (C) 1999-2003 Kent Engström, Peter Liljenberg, 
                         Peter Åstrand, Erik Forsberg,
                         Ragnar Ouchterlony.
