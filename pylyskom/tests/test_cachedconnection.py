@@ -1,8 +1,9 @@
 from pylyskom import kom
+from pylyskom.connection import CachedConnection, Requests, RequestFactory
 
 
 def test_read_ranges_to_gaps_and_last_with_empty_list():
-    c = kom.CachedConnection(None)
+    c = CachedConnection(None)
     read_ranges = []
     
     gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
@@ -11,7 +12,7 @@ def test_read_ranges_to_gaps_and_last_with_empty_list():
     assert last == 1
 
 def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
-    c = kom.CachedConnection()
+    c = CachedConnection()
     read_ranges = [ kom.ReadRange() ]
     
     gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
@@ -20,7 +21,7 @@ def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
     assert last == 1
 
 def test_read_ranges_to_gaps_and_last():
-    c = kom.CachedConnection()
+    c = CachedConnection()
     read_ranges = [ kom.ReadRange(1, 1),
                     kom.ReadRange(2, 3),
                     kom.ReadRange(5, 5),
@@ -63,8 +64,8 @@ def test_get_unread_texts_from_membership_small():
     membership.read_ranges = [
         kom.ReadRange(1, 1), kom.ReadRange(2, 3), kom.ReadRange(5, 5), kom.ReadRange(8, 10) ]
     last_text = 12
-    c = kom.CachedConnection(kom.RequestFactory({
-                kom.Requests.LocalToGlobal: create_local_to_global(last_text) }))
+    c = CachedConnection(RequestFactory({
+                Requests.LocalToGlobal: create_local_to_global(last_text) }))
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
@@ -76,8 +77,8 @@ def test_get_unread_texts_from_membership_large():
     membership.read_ranges = [
         kom.ReadRange(1, 300), kom.ReadRange(1000, 2000), kom.ReadRange(2100, 3000) ]
     highest_local = 4000
-    c = kom.CachedConnection(kom.RequestFactory({
-                kom.Requests.LocalToGlobal: create_local_to_global(highest_local) }))
+    c = CachedConnection(RequestFactory({
+                Requests.LocalToGlobal: create_local_to_global(highest_local) }))
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
@@ -105,8 +106,8 @@ def test_get_unread_texts_from_membership_fetches_the_correct_mappings():
     membership = kom.Membership()
     membership.conference = 1
     membership.read_ranges = [ kom.ReadRange(last_text, last_text) ]
-    c = kom.CachedConnection(kom.RequestFactory({
-                kom.Requests.LocalToGlobal: create_local_to_global(last_text) }))
+    c = CachedConnection(RequestFactory({
+                Requests.LocalToGlobal: create_local_to_global(last_text) }))
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
