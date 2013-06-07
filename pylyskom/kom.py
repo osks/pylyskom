@@ -2023,10 +2023,52 @@ class Stats:
 
 
 
-# TODO: We don't want to use strings. If we use declared constants we
-# can get pyflakes to check things for us.
+class Requests(object):
+    """Used as an enum.
+    """
+    (AcceptAsync,
+     LocalToGlobal,
+     ChangeConference,
+     MarkAsRead,
+     MarkAsUnread,
+     MarkText,
+     UnmarkText,
+     QueryReadTexts,
+     QueryReadTexts11,
+     GetMembership,
+     GetMembership11,
+     GetTextStat,
+     GetPersonStat,
+     GetPersonStat,
+     GetUconfStat,
+     LookupZName,
+     ReZLookup,
+     Login,
+     Logout,
+     GetCollateTable) = range(20)
+
+
 kom_request_to_class = {
-    "local-to-global": ReqLocalToGlobal,
+    Requests.AcceptAsync: ReqAcceptAsync,
+    Requests.LocalToGlobal: ReqLocalToGlobal,
+    Requests.ChangeConference: ReqChangeConference,
+    Requests.MarkAsRead: ReqMarkAsRead,
+    Requests.MarkAsUnread: ReqMarkAsUnread,
+    Requests.QueryReadTexts: ReqQueryReadTexts11,
+    Requests.QueryReadTexts11: ReqQueryReadTexts11,
+    Requests.MarkText: ReqMarkText,
+    Requests.UnmarkText: ReqUnmarkText,
+    Requests.GetMembership: ReqGetMembership11,
+    Requests.GetMembership11: ReqGetMembership11,
+    Requests.GetTextStat: ReqGetTextStat,
+    Requests.GetPersonStat: ReqGetPersonStat,
+    Requests.GetUconfStat: ReqGetUconfStat,
+    Requests.LookupZName: ReqLookupZName,
+    Requests.ReZLookup: ReqReZLookup,
+    Requests.Login: ReqLogin,
+    Requests.Logout: ReqLogout,
+    Requests.GetCollateTable: ReqGetCollateTable,
+    # ... todo ...
 }
 
 class RequestFactory(object):
@@ -2050,6 +2092,7 @@ class Connection(object):
 
     def __init__(self, request_factory=default_request_factory):
         self.rfactory = request_factory
+        self.socket = None
         
         # Requests
         self.req_id = 0      # Last used ID (i.e. increment before use)
@@ -2096,7 +2139,7 @@ class Connection(object):
         else:
             self.async_handlers[msg_no] = [handler]
             if not skip_accept_async:
-                ReqAcceptAsync(self, self.async_handlers.keys())
+                self.rfactory.new(Requests.AcceptAsync)(self, self.async_handlers.keys())
 
     # REQUEST QUEUE
     
@@ -2415,16 +2458,16 @@ class CachedConnection(Connection):
 
     # Fetching functions (internal use)
     def fetch_uconference(self, no):
-        return ReqGetUconfStat(self, no).response()
+        return self.rfactory.new(Requests.GetUconfStat)(self, no).response()
 
     def fetch_conference(self, no):
-        return ReqGetConfStat(self, no).response()
+        return self.rfactory.new(Requests.GetConfStat)(self, no).response()
 
     def fetch_person(self, no):
-        return ReqGetPersonStat(self, no).response()
+        return self.rfactory.new(Requests.GetPersonStat)(self, no).response()
 
     def fetch_textstat(self, no):
-        return ReqGetTextStat(self, no).response()
+        return self.rfactory.new(Requests.GetTextStat)(self, no).response()
 
     # Handlers for asynchronous messages (internal use)
     # FIXME: Most of these handlers should do more clever things than just
@@ -2513,9 +2556,10 @@ class CachedConnection(Connection):
                 return []
         else:
             # Alphabetical case
-            matches = ReqLookupZName(self, name,
-                                     want_pers = want_pers,
-                                     want_confs = want_confs).response()
+            matches = self.rfactory.new(Requests.LookupZName)(
+                self, name,
+                want_pers = want_pers,
+                want_confs = want_confs).response()
             return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
     def regexp_lookup(self, regexp, want_pers, want_confs,
@@ -2527,7 +2571,7 @@ class CachedConnection(Connection):
         if not case_sensitive:
             regexp = self._case_insensitive_regexp(regexp)
 
-        matches = ReqReZLookup(self, regexp,
+        matches = self.rfactory.new(Requests.ReZLookup)(self, regexp,
                                want_pers = want_pers,
                                want_confs = want_confs).response()
         return [(x.conf_no, x.name.decode('latin1')) for x in matches]
@@ -2536,7 +2580,7 @@ class CachedConnection(Connection):
         """Make regular expression case insensitive"""
         result = ""
         # FIXME: Cache collate_table
-        collate_table = ReqGetCollateTable(self).response()
+        collate_table = self.rfactory.new(Requests.GetCollateTable)(self).response()
         inside_brackets = 0
         for c in regexp:
             if c == "[":
@@ -2608,7 +2652,7 @@ class CachedConnection(Connection):
                     n = gap_len
                 gap_len -= n
                 try:
-                    mapping = ReqLocalToGlobal(
+                    mapping = self.rfactory.new(Requests.LocalToGlobal)(
                         self, membership.conference, first_local, n).response()
                     unread.extend([e[1] for e in mapping.list if e[1] != 0])
                     first_local = mapping.range_end
@@ -2622,7 +2666,7 @@ class CachedConnection(Connection):
         first_local = last
         while more_to_fetch:
             try:
-                mapping = ReqLocalToGlobal(
+                mapping = self.rfactory.new(Requests.LocalToGlobal)(
                     self, membership.conference, first_local, 255).response()
                 unread.extend([e[1] for e in mapping.list if e[1] != 0])
                 first_local = mapping.range_end
@@ -2635,12 +2679,12 @@ class CachedConnection(Connection):
         return [ text_no for text_no in unread if text_no != 0]
 
     def mark_text(self, text_no, mark_type):
-        ReqMarkText(self, text_no, mark_type).response()
+        self.rfactory.new(Requests.MarkText)(self, text_no, mark_type).response()
         # textstat.misc_info.no_of_marks is now invalid
         self.textstats.invalidate(text_no)
 
     def unmark_text(self, text_no):
-        ReqUnmarkText(self, text_no).response()
+        self.rfactory.new(Requests.UnmarkText)(self, text_no).response()
         # textstat.misc_info.no_of_marks is now invalid
         self.textstats.invalidate(text_no)
 
@@ -2666,11 +2710,11 @@ class CachedPersonConnection(CachedConnection):
         self._memberships_by_position = dict()
 
     def login(self, pers_no, password):
-        ReqLogin(self, pers_no, password, invisible=0).response()
+        self.rfactory.new(Requests.Login)(self, pers_no, password, invisible=0).response()
         self._pers_no = pers_no
 
     def logout(self):
-        ReqLogout(self).response()
+        self.rfactory.new(Requests.Logout)(self).response()
         # Invalidate caches that are/were for the current person
         self._pers_no = 0
         self._memberships_by_position = dict()
@@ -2689,20 +2733,20 @@ class CachedPersonConnection(CachedConnection):
         # current conference to be able to invalidate the membership
         # correctly.
         prev_conf_no = self._current_conference_no
-        ReqChangeConference(self, conf_no).response()
+        self.rfactory.new(Requests.ChangeConference)(self, conf_no).response()
         self._current_conference_no = conf_no
         if prev_conf_no != 0:
             self._invalidate_membership(prev_conf_no)
 
     def mark_as_read_local(self, conf_no, local_text_no):
         try:
-            ReqMarkAsRead(self, conf_no, [local_text_no]).response()
+            self.rfactory.new(Requests.MarkAsRead)(self, conf_no, [local_text_no]).response()
         except NotMember:
             pass
 
     def mark_as_unread_local(self, conf_no, local_text_no):
         try:
-            ReqMarkAsUnread(self, conf_no, local_text_no).response()
+            self.rfactory.new(Requests.MarkAsUnread)(self, conf_no, local_text_no).response()
         except NotMember:
             pass
 
@@ -2738,7 +2782,8 @@ class CachedPersonConnection(CachedConnection):
         """Get memberships for a person.
         """
         if want_read_ranges:
-            return ReqGetMembership11(self, pers_no, 0, no_of_confs, 1, 0).response()
+            return self.rfactory.new(Requests.GetMembership11)(
+                self, pers_no, 0, no_of_confs, 1, 0).response()
         else:
             if pers_no == self._pers_no:
                 # We cache the result for the current person and without
@@ -2746,25 +2791,28 @@ class CachedPersonConnection(CachedConnection):
                 # correctly.
                 memberships = self._get_cached_memberships_by_position(first, no_of_confs)
                 if memberships is None:
-                    memberships = ReqGetMembership11(
+                    memberships = self.rfactory.new(Requests.GetMembership11)(
                         self, self._pers_no, first, no_of_confs, 0, 0).response()
                     self._update_cached_memberships_by_position(memberships)
                 return memberships
             else:
-                return ReqGetMembership11(self, pers_no, 0, no_of_confs, 0, 0).response()
+                return self.rfactory.new(Requests.GetMembership11)(
+                    self, pers_no, 0, no_of_confs, 0, 0).response()
 
     def get_membership(self, pers_no, conf_no, want_read_ranges=False):
         """Get a membership for a person
         """
         if want_read_ranges:
-            return ReqQueryReadTexts(self, pers_no, conf_no, 1, 0).response()
+            return self.rfactory.new(Requests.QueryReadTexts)(
+                self, pers_no, conf_no, 1, 0).response()
         else:
             if pers_no == self._pers_no:
                 # If it's a membership for the current person and
                 # without read ranges, use the cache.
                 return self._memberships[conf_no]
             else:
-                return ReqQueryReadTexts(self, pers_no, conf_no, 0, 0).response()
+                return self.rfactory.new(Requests.QueryReadTexts)(
+                    self, pers_no, conf_no, 0, 0).response()
 
     def fetch_membership(self, conf_no):
         """Fetch the membership for a conf the current person. Does not
@@ -2774,7 +2822,8 @@ class CachedPersonConnection(CachedConnection):
         # person, because we don't receive async leave/join messages
         # for other persons. We also only cache memberships without
         # read ranges, because it is easier to invalidate correctly.
-        return ReqQueryReadTexts11(self, self._pers_no, conf_no, 0, 0).response()
+        return self.rfactory.new(Requests.QueryReadTexts11)(
+            self, self._pers_no, conf_no, 0, 0).response()
     
     # Handlers for asynchronous messages (internal use)
     def cah_leave_conf(self, msg, c):
