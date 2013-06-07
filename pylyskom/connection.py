@@ -23,12 +23,13 @@ class Requests(object):
      GetTextStat,
      GetPersonStat,
      GetPersonStat,
+     GetConfStat,
      GetUconfStat,
      LookupZName,
      ReZLookup,
      Login,
      Logout,
-     GetCollateTable) = range(20)
+     GetCollateTable) = range(21)
 
 
 _kom_request_to_class = {
@@ -45,6 +46,7 @@ _kom_request_to_class = {
     Requests.GetMembership11: kom.ReqGetMembership11,
     Requests.GetTextStat: kom.ReqGetTextStat,
     Requests.GetPersonStat: kom.ReqGetPersonStat,
+    Requests.GetConfStat: kom.ReqGetConfStat,
     Requests.GetUconfStat: kom.ReqGetUconfStat,
     Requests.LookupZName: kom.ReqLookupZName,
     Requests.ReZLookup: kom.ReqReZLookup,
