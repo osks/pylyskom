@@ -41,3 +41,9 @@
 @item mx-envelope-sender [10103] (text)
 @item mx-mime-file-name [10104] (text)
 @item mx-allow-envelope-sender-regexp [10105] (conference, letterbox)
+
+@item komfeeder-unique-id [24000] (text)
+@item komfeeder-url [24001] (conference, text)
+@item komfeeder-title [24002] (conference)
+@item komfeeder-author [24003] (text)
+@item komfeeder-date [24004] (text)
