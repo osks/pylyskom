@@ -78,9 +78,10 @@ class KomSession(object):
             self.conn, name.encode('latin1'), passwd.encode('latin1'), flags).response()
         return KomPerson(pers_no)
 
-    def create_conf(self, name):
+    def create_conference(self, name, aux_items=None):
         conf_type = kom.ConfType()
-        aux_items = []
+        if aux_items is None:
+            aux_items = []
         conf_no = kom.ReqCreateConf(
             self.conn, name.encode('latin1'), conf_type, aux_items).response()
         return conf_no
@@ -303,7 +304,7 @@ class KomConference(object):
             self.first_local_no = conf.first_local_no
             self.no_of_texts = conf.no_of_texts
             self.expire = conf.expire
-            # auxitems?
+            self.aux_items = conf.aux_items
 
 
 class KomUConference(object):
