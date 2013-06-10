@@ -729,7 +729,7 @@ class ReqCreateText(Request):
                       (self.id,
                        len(text), text,
                        misc_info.to_string(),
-                       c.array_to_string(aux_items).encode('latin1')))
+                       c.array_to_string(aux_items)))
         
     def parse_response(self):
         # --> Text-No

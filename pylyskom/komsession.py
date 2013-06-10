@@ -213,24 +213,23 @@ class KomSession(object):
         mime_type[2]['charset'] = 'utf-8'
         content_type = mime_type_tuple_to_str(mime_type)
         
-        # TODO: how would this work with images?
-        fulltext = str()
-        fulltext += komtext.subject.encode('utf-8') + "\n"
-        if (mime_type[0] == 'text'):
-            fulltext += komtext.body.encode('utf-8')
-        else:
-            fulltext += komtext.body
+        # TODO: how would we handle images? Since we hard code charset
+        # to utf-8 above, we will always encode to utf-8 here for now.
+        fulltext = komtext.subject + "\n" + komtext.body
+        fulltext = fulltext.encode('utf-8')
         
         if komtext.aux_items is None:
             aux_items = []
         else:
             aux_items = komtext.aux_items
         
+        # We need to make sure all aux items are encoded.
+        creating_software = "%s %s" % (self.client_name, self.client_version)
         aux_items.append(kom.AuxItem(komauxitems.AI_CREATING_SOFTWARE,
-                                     data="%s %s" % (self.client_name, self.client_version)))
+                                     data=creating_software.encode('utf-8')))
         aux_items.append(kom.AuxItem(komauxitems.AI_CONTENT_TYPE,
-                                     data=content_type))
-        
+                                     data=content_type.encode('utf-8')))
+
         text_no = kom.ReqCreateText(self.conn, fulltext, misc_info, aux_items).response()
         return text_no
 
