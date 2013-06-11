@@ -43,11 +43,11 @@ AI_MX_MIME_MISC = 10102 # (text)
 AI_MX_ENVELOPE_SENDER = 10103 # (text)
 AI_MX_MIME_FILE_NAME = 10104 # (text)
 AI_MX_ALLOW_ENVELOPE_SENDER_REGEXP = 10105 # (conference, letterbox)
-AI_KOMFEEDER_UNIQUE_ID = 24000 # (text)
-AI_KOMFEEDER_URL = 24001 # (conference, text)
-AI_KOMFEEDER_TITLE = 24002 # (conference)
-AI_KOMFEEDER_AUTHOR = 24003 # (text)
-AI_KOMFEEDER_DATE = 24004 # (text)
+AI_KOMFEEDER_UNIQUE_ID = 10400 # (text)
+AI_KOMFEEDER_URL = 10401 # (conference, text)
+AI_KOMFEEDER_TITLE = 10402 # (conference)
+AI_KOMFEEDER_AUTHOR = 10403 # (text)
+AI_KOMFEEDER_DATE = 10404 # (text)
 
 aux_item_number_to_name = {
   AI_CONTENT_TYPE: "content-type",
