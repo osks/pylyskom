@@ -4,7 +4,7 @@ import socket
 import mimeparse
 
 import kom, komauxitems
-from connection import CachedPersonConnection
+from connection import CachedPersonConnection, Requests
 from utils import decode_text, mime_type_tuple_to_str, parse_content_type
 
 
@@ -28,7 +28,7 @@ class KomSession(object):
         httpkom_user = "httpkom%" + socket.getfqdn()
         self.conn = CachedPersonConnection()
         self.conn.connect(self.host, self.port, user=httpkom_user)
-        kom.ReqSetClientVersion(self.conn, client_name, client_version)
+        self.conn.request(Requests.SetClientVersion, client_name, client_version)
         self.client_name = client_name
         self.client_version = client_version
         self.session_no = self.who_am_i()
@@ -37,7 +37,7 @@ class KomSession(object):
         """Session number 0 means this session (a logged in user can
         disconnect its other sessions).
         """
-        kom.ReqDisconnect(self.conn, session_no).response()
+        self.conn.request(Requests.Disconnect, session_no).response()
         
         # Check if we disconnected our own session
         if session_no == 0 or session_no == self.session_no:
@@ -61,10 +61,10 @@ class KomSession(object):
         return self.conn.get_person_no()
 
     def who_am_i(self):
-        return kom.ReqWhoAmI(self.conn).response()
+        return self.conn.request(Requests.WhoAmI).response()
 
     def user_is_active(self):
-        kom.ReqUserActive(self.conn).response()
+        self.conn.request(Requests.UserActive).response()
 
     def is_logged_in(self):
         return self.conn.is_logged_in()
@@ -74,16 +74,16 @@ class KomSession(object):
         
     def create_person(self, name, passwd):
         flags = kom.PersonalFlags()
-        pers_no = kom.ReqCreatePerson(
-            self.conn, name.encode('latin1'), passwd.encode('latin1'), flags).response()
+        pers_no = self.conn.request(Requests.CreatePerson, name.encode('latin1'),
+                                    passwd.encode('latin1'), flags).response()
         return KomPerson(pers_no)
 
     def create_conference(self, name, aux_items=None):
         conf_type = kom.ConfType()
         if aux_items is None:
             aux_items = []
-        conf_no = kom.ReqCreateConf(
-            self.conn, name.encode('latin1'), conf_type, aux_items).response()
+        conf_no = self.conn.request(Requests.CreateConf, name.encode('latin1'), conf_type,
+                                    aux_items).response()
         return conf_no
     
     def lookup_name(self, name, want_pers, want_confs):
@@ -115,10 +115,10 @@ class KomSession(object):
     
     def add_membership(self, pers_no, conf_no, priority, where):
         mtype = kom.MembershipType()
-        kom.ReqAddMember(self.conn, conf_no, pers_no, priority, where, mtype).response()
+        self.conn.request(Requests.AddMember, conf_no, pers_no, priority, where, mtype).response()
     
     def delete_membership(self, pers_no, conf_no):
-        kom.ReqSubMember(self.conn, conf_no, pers_no).response()
+        self.conn.request(Requests.SubMember, conf_no, pers_no).response()
 
     def get_membership(self, pers_no, conf_no):
         membership = self.conn.get_membership(pers_no, conf_no, want_read_ranges=False)
@@ -134,7 +134,7 @@ class KomSession(object):
             # RegGetUnreadConfs never returns passive memberships so
             # that combination is not valid.
             assert passive == False
-            conf_nos = kom.ReqGetUnreadConfs(self.conn, pers_no).response()
+            conf_nos = self.conn.request(Requests.GetUnreadConfs, pers_no).response()
             # This may return conferences that don't have any unread
             # texts in them. We have to live with this, because we
             # don't want to get the unread texts in this case. It's
@@ -162,7 +162,7 @@ class KomSession(object):
         return memberships, has_more
 
     def get_membership_unreads(self, pers_no):
-        conf_nos = kom.ReqGetUnreadConfs(self.conn, pers_no).response()
+        conf_nos = self.conn.request(Requests.GetUnreadConfs, pers_no).response()
         memberships = [ self.get_membership_unread(pers_no, conf_no)
                         for conf_no in conf_nos ]
         return [ m for m in memberships if m.no_of_unread > 0 ]
@@ -178,7 +178,7 @@ class KomSession(object):
 
     def get_text(self, text_no):
         text_stat = self.get_text_stat(text_no)
-        text = kom.ReqGetText(self.conn, text_no).response()
+        text = self.conn.request(Requests.GetText, text_no).response()
         return KomText(text_no=text_no, text=text, text_stat=text_stat)
 
     # TODO: offset/start number, so we can paginate. we probably need
@@ -188,7 +188,8 @@ class KomSession(object):
         starting from {offset}.
         """
         #local_no_ceiling = 0 # means the higest numbered texts (i.e. the last)
-        text_mapping = kom.ReqLocalToGlobalReverse(self.conn, conf_no, 0, no_of_texts).response()
+        text_mapping = self.conn.request(
+            Requests.LocalToGlobalReverse, conf_no, 0, no_of_texts).response()
         texts = [ KomText(text_no=m[1], text=None, text_stat=self.get_text_stat(m[1]))
                   for m in text_mapping.list if m[1] != 0 ]
         texts.reverse()
@@ -231,7 +232,7 @@ class KomSession(object):
         aux_items.append(kom.AuxItem(komauxitems.AI_CONTENT_TYPE,
                                      data=content_type.encode('utf-8')))
 
-        text_no = kom.ReqCreateText(self.conn, fulltext, misc_info, aux_items).response()
+        text_no = self.conn.request(Requests.CreateText, fulltext, misc_info, aux_items).response()
         return text_no
 
     def mark_as_read(self, text_no):
@@ -245,10 +246,10 @@ class KomSession(object):
             self.conn.mark_as_unread_local(mi.recpt, mi.loc_no)
 
     def set_unread(self, conf_no, no_of_unread):
-        kom.ReqSetUnread(self.conn, conf_no, no_of_unread).response()
+        self.conn.request(Requests.SetUnread, conf_no, no_of_unread).response()
 
     def get_marks(self):
-        return kom.ReqGetMarks(self.conn).response()
+        return self.conn.request(Requests.GetMarks).response()
 
     def mark_text(self, text_no, mark_type):
         self.conn.mark_text(text_no, mark_type)
