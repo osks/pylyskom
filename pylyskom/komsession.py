@@ -52,8 +52,9 @@ class KomSession(object):
     
     def login(self, pers_no, password):
         self.conn.login(pers_no, password)
-        return KomPerson(pers_no)
-        
+        person_stat = self.conn.persons[pers_no]
+        return KomPerson(pers_no, person_stat)
+
     def logout(self):
         self.conn.logout()
 
@@ -260,8 +261,30 @@ class KomSession(object):
 
 
 class KomPerson(object):
-    def __init__(self, pers_no):
+    def __init__(self, pers_no, person_stat=None):
         self.pers_no = pers_no
+        
+        if person_stat is None:
+            #self.username = None
+            #self.privileges = None
+            #self.flags = None
+            #self.last_login = None
+            self.user_area = None
+            #self.total_time_present = None
+            #self.sessions = None
+            #self.created_lines = None
+            #self.created_bytes = None
+            #self.read_texts = None
+            #self.no_of_text_fetches = None
+            #self.user_area = None
+            #self.created_persons = None
+            #self.created_confs = None
+            #self.first_created_local_no = None
+            #self.no_of_created_texts = None
+            #self.no_of_marks = None
+            #self.no_of_cons = None
+        else:
+            self.user_area = person_stat.user_area
 
 
 class KomMembership(object):
@@ -337,7 +360,7 @@ class KomText(object):
             self.aux_items = None
         else:
             mime_type, encoding = parse_content_type(
-                self._get_content_type_from_text_stat(text_stat))
+                KomText._get_content_type_from_text_stat(text_stat))
             self.content_type = mime_type_tuple_to_str(mime_type)
             
             self.creation_time = text_stat.creation_time
@@ -347,34 +370,44 @@ class KomText(object):
             self.comment_to_list = text_stat.misc_info.comment_to_list
             self.comment_in_list = text_stat.misc_info.comment_in_list
             self.aux_items = text_stat.aux_items
-            
-            # text_stat is required for this
-            if text is not None:
-                # If a text has no linefeeds, it only has a body
-                if text.find('\n') == -1:
-                    self.subject = "" # Should probably be None instead?
-                    rawbody = text
-                else:
-                    rawsubject, rawbody = text.split('\n', 1)
-                    # TODO: should we always decode the subject?
-                    self.subject = decode_text(rawsubject, encoding)
-                
-                if mime_type[0] == 'text':
-                    # Only decode body if media type is text, and not
-                    # an image, for example.  Also, if the subject is
-                    # empty, everything becomes the subject, which
-                    # will get decoded.  Figure out how to handle all
-                    # this. Assume empty subject means everything in
-                    # body?
-                    self.body = decode_text(rawbody, encoding)
-                else:
-                    self.body = rawbody
-            else:
-                self.subject = None
-                self.body = None
+            self.subject, self.body = KomText._decode_text(text, mime_type, encoding)
 
-    
-    def _get_content_type_from_text_stat(self, text_stat):
+    @staticmethod
+    def _decode_text(text, mime_type, encoding):
+        if text is None:
+            return None, None
+
+        subject = None
+        body = None
+
+        # text_stat is required for this
+        if mime_type[0] == "x-kom" and mime_type[1] == "user-area":
+            body = decode_text(text, encoding)
+        else:
+            # If a text has no linefeeds, it only has a body
+            if text.find('\n') == -1:
+                subject = "" # Should probably be None instead?
+                rawbody = text
+            else:
+                rawsubject, rawbody = text.split('\n', 1)
+                # TODO: should we always decode the subject?
+                subject = decode_text(rawsubject, encoding)
+        
+            if mime_type[0] == 'text':
+                # Only decode body if media type is text, and not
+                # an image, for example.  Also, if the subject is
+                # empty, everything becomes the subject, which
+                # will get decoded.  Figure out how to handle all
+                # this. Assume empty subject means everything in
+                # body?
+                body = decode_text(rawbody, encoding)
+            else:
+                body = rawbody
+        
+        return subject, body
+
+    @staticmethod
+    def _get_content_type_from_text_stat(text_stat):
         try:
             contenttype = kom.first_aux_items_with_tag(
                 text_stat.aux_items, komauxitems.AI_CONTENT_TYPE).data.decode('latin1')
