@@ -2,6 +2,8 @@
 
 import mimeparse
 
+import kom
+
 
 def decode_text(text, encoding, backup_encoding='latin1'):
     if encoding is None:
@@ -38,3 +40,75 @@ def mime_type_tuple_to_str(mime_type):
     l = [t]
     l.extend(params)
     return ";".join(l)
+
+def parse_hollerith_string(hstring):
+    if not hstring:
+        return None, hstring
+
+    i = 0
+    
+    # Skip all leading whitespaces
+    c = hstring[i]
+    while c in kom.WHITESPACE:
+        i += 1
+        c = hstring[i]
+
+    # Parse length
+    length = 0
+    while c in kom.DIGITS:
+        length = length * 10 + (ord(c) - kom.ORD_0)
+        i += 1
+        c = hstring[i]
+    
+    if c != "H":
+        raise Exception("Not a valid hollerith string")
+    
+    i += 1 # skip "H"
+    hend = i + length
+    return hstring[i:hend], hstring[hend:]
+
+
+def to_hollerith_string(s):
+    return "%dH%s" % (len(s), s)
+
+
+def decode_user_area(user_area):
+    """Decodes the user area to a dictionary where the keys are the
+    block names and the values are the hollerith string encoded block
+    content.
+    """
+    h_block_names, h_blocks = parse_hollerith_string(user_area)
+    
+    def parse_block_names(hstring):
+        # Parse block names
+        block_names = []
+        h_block_name, hstring = parse_hollerith_string(hstring)
+        while h_block_name:
+            block_names.append(h_block_name)
+            h_block_name, hstring = parse_hollerith_string(hstring)
+        return block_names
+
+    def parse_blocks(hstring, block_names):
+        blocks = {}
+        for block_name in block_names:
+            h_block, hstring = parse_hollerith_string(hstring)
+            blocks[block_name] = h_block
+        return blocks
+    
+    block_names = parse_block_names(h_block_names)
+    blocks = parse_blocks(h_blocks, block_names)
+    return blocks
+
+
+def encode_user_area(blocks):
+    """Encodes a dictionary to a user area. The keys should be the
+    block names and the values are the hollerith string encoded
+    blocks. The block names will be sorted alphabetically.
+    """
+    h_block_names = ""
+    h_blocks = ""
+    for block_name in sorted(blocks.keys()):
+        h_block_names += " " + to_hollerith_string(block_name)
+        h_blocks += " " + to_hollerith_string(blocks[block_name])
+
+    return to_hollerith_string(h_block_names) + h_blocks

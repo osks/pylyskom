@@ -7,6 +7,6 @@ pyflakes:
 	pyflakes ./pylyskom
 
 test: pyflakes
-	py.test ./pylyskom
+	py.test ./tests
 
 .PHONY: auxitems test pyflakes

@@ -1,45 +1,8 @@
 from pylyskom import kom
 from pylyskom.connection import CachedConnection, Requests, RequestFactory
 
+from mocks import MockResponse
 
-def test_read_ranges_to_gaps_and_last_with_empty_list():
-    c = CachedConnection(None)
-    read_ranges = []
-    
-    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
-    
-    assert len(gaps) == 0
-    assert last == 1
-
-def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
-    c = CachedConnection()
-    read_ranges = [ kom.ReadRange() ]
-    
-    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
-    
-    assert len(gaps) == 0
-    assert last == 1
-
-def test_read_ranges_to_gaps_and_last():
-    c = CachedConnection()
-    read_ranges = [ kom.ReadRange(1, 1),
-                    kom.ReadRange(2, 3),
-                    kom.ReadRange(5, 5),
-                    kom.ReadRange(8, 10) ]
-    
-    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
-    
-    assert last == 11
-    assert len(gaps) == 2
-    assert gaps == [(4, 1), (6, 2)]
-
-
-class MockResponse(object):
-    def __init__(self, resp):
-        self.resp = resp
-    
-    def response(self):
-        return self.resp
 
 def create_local_to_global(highest_local):
     def local_to_global(conn, conf, first, n):
@@ -58,14 +21,50 @@ def create_local_to_global(highest_local):
         return MockResponse(mapping)
     return local_to_global
 
+
+def create_connection(request_mapping=None):
+    return CachedConnection(RequestFactory(request_mapping))
+    
+
+def test_read_ranges_to_gaps_and_last_with_empty_list():
+    c = create_connection()
+    read_ranges = []
+    
+    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
+    
+    assert len(gaps) == 0
+    assert last == 1
+
+def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
+    c = create_connection()
+    read_ranges = [ kom.ReadRange() ]
+    
+    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
+    
+    assert len(gaps) == 0
+    assert last == 1
+
+def test_read_ranges_to_gaps_and_last():
+    c = create_connection()
+    read_ranges = [ kom.ReadRange(1, 1),
+                    kom.ReadRange(2, 3),
+                    kom.ReadRange(5, 5),
+                    kom.ReadRange(8, 10) ]
+    
+    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
+    
+    assert last == 11
+    assert len(gaps) == 2
+    assert gaps == [(4, 1), (6, 2)]
+
+
 def test_get_unread_texts_from_membership_small():
     membership = kom.Membership()
     membership.conference = 1
     membership.read_ranges = [
         kom.ReadRange(1, 1), kom.ReadRange(2, 3), kom.ReadRange(5, 5), kom.ReadRange(8, 10) ]
     last_text = 12
-    c = CachedConnection(RequestFactory({
-                Requests.LocalToGlobal: create_local_to_global(last_text) }))
+    c = create_connection({ Requests.LocalToGlobal: create_local_to_global(last_text) })
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
@@ -77,8 +76,7 @@ def test_get_unread_texts_from_membership_large():
     membership.read_ranges = [
         kom.ReadRange(1, 300), kom.ReadRange(1000, 2000), kom.ReadRange(2100, 3000) ]
     highest_local = 4000
-    c = CachedConnection(RequestFactory({
-                Requests.LocalToGlobal: create_local_to_global(highest_local) }))
+    c = create_connection({ Requests.LocalToGlobal: create_local_to_global(highest_local) })
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
@@ -106,8 +104,7 @@ def test_get_unread_texts_from_membership_fetches_the_correct_mappings():
     membership = kom.Membership()
     membership.conference = 1
     membership.read_ranges = [ kom.ReadRange(last_text, last_text) ]
-    c = CachedConnection(RequestFactory({
-                Requests.LocalToGlobal: create_local_to_global(last_text) }))
+    c = create_connection({ Requests.LocalToGlobal: create_local_to_global(last_text) })
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
