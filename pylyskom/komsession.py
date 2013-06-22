@@ -24,10 +24,9 @@ class KomSession(object):
         self.client_name = None
         self.client_version = None
     
-    def connect(self, client_name, client_version):
-        httpkom_user = "httpkom%" + socket.getfqdn()
+    def connect(self, username, hostname, client_name, client_version):
         self.conn = CachedPersonConnection()
-        self.conn.connect(self.host, self.port, user=httpkom_user)
+        self.conn.connect(self.host, self.port, user=username + "%" + hostname)
         self.conn.request(Requests.SetClientVersion, client_name, client_version)
         self.client_name = client_name
         self.client_version = client_version
