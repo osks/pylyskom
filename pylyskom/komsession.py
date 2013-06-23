@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import socket
+import json
+
 import mimeparse
 
 import kom, komauxitems
 from connection import CachedPersonConnection, Requests
-from utils import decode_text, mime_type_tuple_to_str, parse_content_type
+from utils import decode_text, mime_type_tuple_to_str, parse_content_type, decode_user_area
 
 
 class KomSessionError(Exception): pass
@@ -16,18 +17,23 @@ class NoRecipients(KomSessionError): pass
 
 class KomSession(object):
     """ A LysKom session. """
-    def __init__(self, host, port=4894):
+    def __init__(self, host, port=4894, connection_factory=CachedPersonConnection):
         self.host = host
         self.port = port
+        # TODO: We actually require the API of a
+        # CachedPersonConnection. We should enhance the Connection
+        # class and make CachedPersonConnection have the same API as
+        # Connection.
+        self._connection_factory = connection_factory
         self.conn = None
         self.session_no = None
         self.client_name = None
         self.client_version = None
     
     def connect(self, username, hostname, client_name, client_version):
-        self.conn = CachedPersonConnection()
+        self.conn = self._connection_factory()
         self.conn.connect(self.host, self.port, user=username + "%" + hostname)
-        self.conn.request(Requests.SetClientVersion, client_name, client_version)
+        self.conn.request(Requests.SetClientVersion, client_name, client_version).response()
         self.client_name = client_name
         self.client_version = client_version
         self.session_no = self.who_am_i()
@@ -51,7 +57,8 @@ class KomSession(object):
     
     def login(self, pers_no, password):
         self.conn.login(pers_no, password)
-        person_stat = self.conn.persons[pers_no]
+        #person_stat = self.conn.persons[pers_no]
+        person_stat = self.conn.request(Requests.GetPersonStat, pers_no).response()
         return KomPerson(pers_no, person_stat)
 
     def logout(self):
@@ -256,6 +263,48 @@ class KomSession(object):
 
     def unmark_text(self, text_no):
         self.conn.unmark_text(text_no)
+
+    def get_user_area_block(self, block_name, json_decode=True):
+        """Get the block with the given block name from the user area
+        for the current person. If there is no user area for the
+        person, or if there is no block with the given name, None will
+        be returned.
+        
+        If json_decode is True (default), the stored block will be
+        passed to json.loads() before it is returned.
+        
+        If json_decode is False, then the block will be returned as a
+        string.
+        """
+        person_stat = self.conn.request(
+            Requests.GetPersonStat, self.conn.get_person_no()).response()
+        text = self.get_text(person_stat.user_area)
+        if text.content_type != 'x-kom/user-area':
+            raise Exception("Unknown content type for user area text: %s" % (text.content_type,))
+        blocks = decode_user_area(text.body)
+        block = blocks.get(block_name, None)
+        if block is not None and json_decode:
+            block = json.loads(block)
+        
+        return block
+    
+    def set_user_area_block(self, block_name, block, json_encode=True):
+        """Set the block with the given block name in the user area
+        for the current person. Will create a new text and set as the
+        new user area for the person. If there already is a block with
+        the given name, it will be over-written. The other blocks in
+        the user area will copied to the new user area.
+        
+        If json_encode is True (default), the block will be passed to
+        json.dumps() before it is saved.
+        
+        If json_encode is False, then the block should be a string
+        that can be hollerith encoded.
+        """
+        #person_stat = self.conn.request(
+        #    Requests.GetPersonStat, self.conn.get_person_no()).response()
+        
+        raise Exception("Not implemented")
 
 
 
