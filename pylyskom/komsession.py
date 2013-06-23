@@ -4,9 +4,8 @@ import json
 
 import mimeparse
 
-import kom, komauxitems
+import kom, komauxitems, utils
 from connection import CachedPersonConnection, Requests
-from utils import decode_text, mime_type_tuple_to_str, parse_content_type, decode_user_area
 
 
 class KomSessionError(Exception): pass
@@ -216,16 +215,25 @@ class KomSession(object):
                     misc_info.comment_to_list.append(ct)
         
         mime_type = mimeparse.parse_mime_type(komtext.content_type)
-        # Because a text consists of both a subject and body, and you
-        # can have a text subject in combination with an image, a
-        # charset is needed to specify the encoding of the subject.
-        mime_type[2]['charset'] = 'utf-8'
-        content_type = mime_type_tuple_to_str(mime_type)
         
-        # TODO: how would we handle images? Since we hard code charset
-        # to utf-8 above, we will always encode to utf-8 here for now.
-        fulltext = komtext.subject + "\n" + komtext.body
-        fulltext = fulltext.encode('utf-8')
+        # TODO: how would we handle images?  Because a text consists
+        # of both a subject and body, and you can have a text subject
+        # in combination with an image, a charset is needed to specify
+        # the encoding of the subject even for images.
+        
+        if mime_type[0] == 'text':
+            # We hard code utf-8 because is The Correct Encoding. :)
+            mime_type[2]['charset'] = 'utf-8'
+            fulltext = komtext.subject + "\n" + komtext.body
+            fulltext = fulltext.encode('utf-8')
+        elif mime_type[0] == 'x-kom' and mime_type[1] == 'user-area':
+            # Charset doesn't seem to be specified for user areas, but
+            # in reality they contain Latin 1 text.
+            fulltext = komtext.body.encode('latin-1')
+        else:
+            raise Exception("Unhandled content type: %s" % (mime_type,))
+
+        content_type = utils.mime_type_tuple_to_str(mime_type)
         
         if komtext.aux_items is None:
             aux_items = []
@@ -278,10 +286,16 @@ class KomSession(object):
         """
         person_stat = self.conn.request(
             Requests.GetPersonStat, self.conn.get_person_no()).response()
+        
+        if person_stat.user_area == 0:
+            # No user area
+            return None
+        
         text = self.get_text(person_stat.user_area)
         if text.content_type != 'x-kom/user-area':
             raise Exception("Unknown content type for user area text: %s" % (text.content_type,))
-        blocks = decode_user_area(text.body)
+
+        blocks = utils.decode_user_area(text.body)
         block = blocks.get(block_name, None)
         if block is not None and json_decode:
             block = json.loads(block)
@@ -301,10 +315,32 @@ class KomSession(object):
         If json_encode is False, then the block should be a string
         that can be hollerith encoded.
         """
-        #person_stat = self.conn.request(
-        #    Requests.GetPersonStat, self.conn.get_person_no()).response()
+        pers_no = self.conn.get_person_no()
+        person_stat = self.conn.request(
+            Requests.GetPersonStat, pers_no).response()
         
-        raise Exception("Not implemented")
+        if person_stat.user_area == 0:
+            # No user area
+            blocks = dict()
+        else:
+            user_area = self.get_text(person_stat.user_area)
+            if user_area.content_type != 'x-kom/user-area':
+                raise Exception("Unknown content type for user area text: %s"
+                                % (user_area.content_type,))
+
+            blocks = utils.decode_user_area(user_area.body)
+        
+        if json_encode:
+            blocks[block_name] = json.dumps(block)
+        else:
+            blocks[block_name] = block
+
+        new_user_area = KomText()
+        new_user_area.content_type = 'x-kom/user-area'
+        new_user_area.body = utils.encode_user_area(blocks)
+        new_user_area_text_no = self.create_text(new_user_area)
+        self.conn.request(Requests.SetUserArea, pers_no, new_user_area_text_no).response()
+        # TODO: Should it remove the old user area?
 
 
 
@@ -407,9 +443,9 @@ class KomText(object):
             self.body = None
             self.aux_items = None
         else:
-            mime_type, encoding = parse_content_type(
+            mime_type, encoding = utils.parse_content_type(
                 KomText._get_content_type_from_text_stat(text_stat))
-            self.content_type = mime_type_tuple_to_str(mime_type)
+            self.content_type = utils.mime_type_tuple_to_str(mime_type)
             
             self.creation_time = text_stat.creation_time
             self.author = text_stat.author
@@ -430,7 +466,7 @@ class KomText(object):
 
         # text_stat is required for this
         if mime_type[0] == "x-kom" and mime_type[1] == "user-area":
-            body = decode_text(text, encoding)
+            body = utils.decode_text(text, encoding)
         else:
             # If a text has no linefeeds, it only has a body
             if text.find('\n') == -1:
@@ -439,7 +475,7 @@ class KomText(object):
             else:
                 rawsubject, rawbody = text.split('\n', 1)
                 # TODO: should we always decode the subject?
-                subject = decode_text(rawsubject, encoding)
+                subject = utils.decode_text(rawsubject, encoding)
         
             if mime_type[0] == 'text':
                 # Only decode body if media type is text, and not
@@ -448,7 +484,7 @@ class KomText(object):
                 # will get decoded.  Figure out how to handle all
                 # this. Assume empty subject means everything in
                 # body?
-                body = decode_text(rawbody, encoding)
+                body = utils.decode_text(rawbody, encoding)
             else:
                 body = rawbody
         
