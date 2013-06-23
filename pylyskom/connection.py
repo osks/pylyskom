@@ -22,7 +22,6 @@ class Requests(object):
      GetMembership,
      GetMembership11,
      GetPersonStat,
-     GetPersonStat,
      GetText,
      GetTextStat,
      GetUconfStat,
@@ -43,7 +42,7 @@ class Requests(object):
      SubMember,
      UnmarkText,
      UserActive,
-     WhoAmI) = range(35)
+     WhoAmI) = range(34)
     # range() is used to make sure that each "enum type" get a different value
 
 
@@ -456,6 +455,17 @@ class CachedConnection(Connection):
         Connection.connect(self, host, port, user, localbind)
         
         # Caches
+        #
+        # TODO: Instead of exposing these dictionary like cache
+        # objects, we could override the request method in the
+        # Connection class, and call the cache objects if the request
+        # type matches the cache. Then we could have a the same
+        # interface as Connection, which makes it easier to use and
+        # test (fewer methods). IMPORTANT: It would however make it
+        # less clear that we might get a cached response and that
+        # could be dangerous. Sometime it is okay with cached
+        # responses, and sometimes it is not. How can we make it
+        # possible to force no cached?
         self.uconferences = Cache(self.fetch_uconference, "UConference")
         self.conferences = Cache(self.fetch_conference, "Conference")
         self.persons = Cache(self.fetch_person, "Person")
@@ -729,6 +739,8 @@ class CachedPersonConnection(CachedConnection):
 
     def login(self, pers_no, password):
         self.request(Requests.Login, pers_no, password, invisible=0).response()
+        # We need to know the current person to be able to have and
+        # invalidate caches.
         self._pers_no = pers_no
 
     def logout(self):
