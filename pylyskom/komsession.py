@@ -231,7 +231,7 @@ class KomSession(object):
             # in reality they contain Latin 1 text.
             fulltext = komtext.body.encode('latin-1')
         else:
-            raise Exception("Unhandled content type: %s" % (mime_type,))
+            raise KomSessionError("Unhandled content type: %s" % (mime_type,))
 
         content_type = utils.mime_type_tuple_to_str(mime_type)
         
@@ -293,7 +293,8 @@ class KomSession(object):
         
         text = self.get_text(person_stat.user_area)
         if text.content_type != 'x-kom/user-area':
-            raise Exception("Unknown content type for user area text: %s" % (text.content_type,))
+            raise KomSessionError(
+                "Unknown content type for user area text: %s" % (text.content_type,))
 
         blocks = utils.decode_user_area(text.body)
         block = blocks.get(block_name, None)
@@ -320,13 +321,14 @@ class KomSession(object):
             Requests.GetPersonStat, pers_no).response()
         
         if person_stat.user_area == 0:
-            # No user area
+            # No existing user area, initiate a new dictionary of
+            # blocks.
             blocks = dict()
         else:
             user_area = self.get_text(person_stat.user_area)
             if user_area.content_type != 'x-kom/user-area':
-                raise Exception("Unknown content type for user area text: %s"
-                                % (user_area.content_type,))
+                raise KomSessionError(
+                    "Unknown content type for user area text: %s" % (user_area.content_type,))
 
             blocks = utils.decode_user_area(user_area.body)
         
