@@ -272,11 +272,11 @@ class KomSession(object):
     def unmark_text(self, text_no):
         self.conn.unmark_text(text_no)
 
-    def get_user_area_block(self, block_name, json_decode=True):
+    def get_user_area_block(self, pers_no, block_name, json_decode=True):
         """Get the block with the given block name from the user area
-        for the current person. If there is no user area for the
-        person, or if there is no block with the given name, None will
-        be returned.
+        for the given person. If there is no user area for the person,
+        or if there is no block with the given name, None will be
+        returned.
         
         If json_decode is True (default), the stored block will be
         passed to json.loads() before it is returned.
@@ -284,8 +284,7 @@ class KomSession(object):
         If json_decode is False, then the block will be returned as a
         string.
         """
-        person_stat = self.conn.request(
-            Requests.GetPersonStat, self.conn.get_person_no()).response()
+        person_stat = self.conn.request(Requests.GetPersonStat, pers_no).response()
         
         if person_stat.user_area == 0:
             # No user area
@@ -303,9 +302,9 @@ class KomSession(object):
         
         return block
     
-    def set_user_area_block(self, block_name, block, json_encode=True):
+    def set_user_area_block(self, pers_no, block_name, block, json_encode=True):
         """Set the block with the given block name in the user area
-        for the current person. Will create a new text and set as the
+        for the given person. Will create a new text and set as the
         new user area for the person. If there already is a block with
         the given name, it will be over-written. The other blocks in
         the user area will copied to the new user area.
@@ -316,9 +315,7 @@ class KomSession(object):
         If json_encode is False, then the block should be a string
         that can be hollerith encoded.
         """
-        pers_no = self.conn.get_person_no()
-        person_stat = self.conn.request(
-            Requests.GetPersonStat, pers_no).response()
+        person_stat = self.conn.request(Requests.GetPersonStat, pers_no).response()
         
         if person_stat.user_area == 0:
             # No existing user area, initiate a new dictionary of

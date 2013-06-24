@@ -43,7 +43,7 @@ def test_get_user_area__example():
     c.mock_request(Requests.GetText, lambda *args, **kwargs: MockResponse('8H 5Hjskom 70H{"filtered-authors": [18, 4711], "annat": "R\u00e4ksm\u00f6rg\u00e5s"}'.encode('latin-1')))
     ks = create_komsession(pers_no, lambda: c)
     
-    block = ks.get_user_area_block('jskom')
+    block = ks.get_user_area_block(42, 'jskom')
     
     assert block is not None
     assert 'filtered-authors' in block
@@ -52,7 +52,7 @@ def test_get_user_area__example():
     assert block['annat'] == u"Räksmörgås"
 
 
-def test_get_user_area__gets_the_user_area_text_no_for_the_logged_in_person():
+def test_get_user_area__gets_the_user_area_for_the_given_person():
     p = MockPerson(user_area=12345)
     c = create_mockconnection()
     ks = create_komsession(17, lambda: c)
@@ -61,11 +61,16 @@ def test_get_user_area__gets_the_user_area_text_no_for_the_logged_in_person():
                    lambda *args, **kwargs: MockResponse('8H 5Hjskom 3Hhej'.encode('latin-1')))
     
     
-    block = ks.get_user_area_block('jskom', json_decode=False)
+    pers_no = 42
+    block = ks.get_user_area_block(pers_no, 'jskom', json_decode=False)
     
     
     assert block == "hej"
     
+    get_person_stat_calls = c.mock_get_request_calls(Requests.GetPersonStat)
+    assert len(get_person_stat_calls) == 2 # first is for login
+    assert get_person_stat_calls[1]['args'][0] == pers_no
+
     get_textstat_calls = c.mock_get_request_calls(Requests.GetTextStat)
     assert len(get_textstat_calls) == 1
     assert get_textstat_calls[0]['args'][0] == p.user_area
@@ -87,7 +92,7 @@ def test_set_user_area__sets_correct_content_type_on_new_user_area():
                    lambda *args, **kwargs: MockResponse(67890))
 
 
-    ks.set_user_area_block('jskom', {})
+    ks.set_user_area_block(42, 'jskom', {})
     
     
     create_text_requests = c.mock_get_request_calls(Requests.CreateText)
@@ -109,7 +114,7 @@ def test_set_user_area__copies_old_user_area_text_if_person_already_has_user_are
             '17H 6Hcommon 5Hjskom 6Hfoobar 0H'.encode('latin1')))
 
 
-    ks.set_user_area_block('jskom', { 'filtered-authors': [18, 4711] })
+    ks.set_user_area_block(42, 'jskom', { 'filtered-authors': [18, 4711] })
     
     
     # Check CreateText request
@@ -120,17 +125,17 @@ def test_set_user_area__copies_old_user_area_text_if_person_already_has_user_are
 
 
 def test_set_user_area__creates_new_user_area_for_person_that_has_no_previous_user_area():
-    pers_no = 17
+    pers_no = 42
     new_ua_text_no = 67890
     c = create_mockconnection()
-    ks = create_komsession(pers_no, lambda: c)
+    ks = create_komsession(17, lambda: c)
     c.mock_request(Requests.GetPersonStat,
                    lambda *args, **kwargs: MockResponse(MockPerson(user_area=0)))
     c.mock_request(Requests.CreateText,
                    lambda *args, **kwargs: MockResponse(new_ua_text_no))
 
 
-    ks.set_user_area_block('jskom', { 'filtered-authors': [18, 4711] })
+    ks.set_user_area_block(pers_no, 'jskom', { 'filtered-authors': [18, 4711] })
     
     
     # Check CreateText request
@@ -158,7 +163,7 @@ def test_set_user_area__person_has_user_area_but_text_does_not_exist():
     c.mock_request(Requests.GetTextStat, get_text_stat)
 
     try:
-        ks.set_user_area_block('jskom', {}) # should throw NoSuchText
+        ks.set_user_area_block(42, 'jskom', {}) # should throw NoSuchText
         assert False
     except kom.NoSuchText as e:
         # this is what should happen
@@ -171,20 +176,37 @@ def test_set_user_area__person_has_user_area_but_text_does_not_exist():
     assert len(c.mock_get_request_calls(Requests.SetUserArea)) == 0
 
 
+def test_set_user_area__gets_the_user_area_for_the_given_person():
+    pers_no = 42
+    c = create_mockconnection()
+    ks = create_komsession(17, lambda: c)
+    c.mock_request(Requests.GetPersonStat,
+                   lambda *args, **kwargs: MockResponse(MockPerson(user_area=0)))
+    c.mock_request(Requests.CreateText, lambda *args, **kwargs: MockResponse(67890))
+
+
+    ks.set_user_area_block(pers_no, 'jskom', {})
+    
+    
+    get_person_stat_calls = c.mock_get_request_calls(Requests.GetPersonStat)
+    assert len(get_person_stat_calls) == 2 # first is for login
+    assert get_person_stat_calls[1]['args'][0] == pers_no
+
+
 def test_set_user_area__sets_user_area_for_the_correct_person_and_text_no():
     c = create_mockconnection()
     c.mock_request(Requests.GetPersonStat,
                    lambda *args, **kwargs: MockResponse(MockPerson(user_area=0)))
 
-    pers_no = 17
+    pers_no = 42
     new_ua_text_no = 67890
     c.mock_request(Requests.CreateText,
                    lambda *args, **kwargs: MockResponse(new_ua_text_no))
     c.mock_request(Requests.SetUserArea, lambda *args, **kwargs: MockResponse())
-    ks = create_komsession(pers_no, lambda: c)
+    ks = create_komsession(17, lambda: c)
     
     
-    ks.set_user_area_block('jskom', {})
+    ks.set_user_area_block(pers_no, 'jskom', {})
     
     
     # Check SetUserArea request
