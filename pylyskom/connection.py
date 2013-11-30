@@ -38,12 +38,13 @@ class Requests(object):
      QueryReadTexts11,
      ReZLookup,
      SetClientVersion,
+     SetConnectionTimeFormat,
      SetUnread,
      SetUserArea,
      SubMember,
      UnmarkText,
      UserActive,
-     WhoAmI) = range(35)
+     WhoAmI) = range(36) # UPDATE WHEN ADDING/REMOVING VALUES.
     # range() is used to make sure that each "enum type" get a different value
 
 
@@ -77,6 +78,7 @@ _kom_request_to_class = {
     Requests.QueryReadTexts: kom.ReqQueryReadTexts11,
     Requests.ReZLookup: kom.ReqReZLookup,
     Requests.SetClientVersion: kom.ReqSetClientVersion,
+    Requests.SetConnectionTimeFormat: kom.ReqSetConnectionTimeFormat,
     Requests.SetUnread: kom.ReqSetUnread,
     Requests.SubMember: kom.ReqSubMember,
     Requests.SetUserArea: kom.ReqSetUserArea,
