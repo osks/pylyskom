@@ -36,6 +36,7 @@ class KomSession(object):
         self.client_name = client_name
         self.client_version = client_version
         self.session_no = self.who_am_i()
+        self.conn.request(Requests.SetConnectionTimeFormat, use_utc=1).response()
     
     def disconnect(self, session_no=0):
         """Session number 0 means this session (a logged in user can

@@ -5,6 +5,7 @@
 # (C) 2012-2013 Oskar Skoog. Released under GPL.
 
 import time
+import calendar
 
 
 #
@@ -1284,6 +1285,8 @@ async_dict = {
 # TIME
 
 class Time:
+    """Assumes all dates are in UTC timezone.
+    """
     def __init__(self, ptime = None):
         if ptime is None:
             self.seconds = 0
@@ -1296,7 +1299,7 @@ class Time:
             self.day_of_year = 0 # 0 ... 365
             self.is_dst = 0
         else:
-            (dy,dm,dd,th,tm,ts, wd, yd, dt) = time.localtime(ptime)
+            (dy,dm,dd,th,tm,ts, wd, yd, dt) = time.gmtime(ptime)
             self.seconds = ts
             self.minutes = tm
             self.hours = th
@@ -1331,20 +1334,26 @@ class Time:
             self.is_dst)
 
     def to_python_time(self):
-        return time.mktime((self.year + 1900,
-                            self.month + 1,
-                            self.day,
-                            self.hours,
-                            self.minutes,
-                            self.seconds,
-                            (self.day_of_week - 1) % 7,
-                            self.day_of_year + 1,
-                            self.is_dst))
-                            
+        return calendar.timegm((self.year + 1900,
+                                self.month + 1,
+                                self.day,
+                                self.hours,
+                                self.minutes,
+                                self.seconds,
+                                (self.day_of_week - 1) % 7,
+                                self.day_of_year + 1,
+                                self.is_dst))
+
     def to_date_and_time(self):
         return "%04d-%02d-%02d %02d:%02d:%02d" % \
             (self.year + 1900, self.month + 1, self.day,
              self.hours, self.minutes, self.seconds)
+
+    def to_iso_8601(self):
+        """Example: 1994-11-05T13:15:30Z"""
+        return "%04d-%02d-%02dT%02d:%02d:%02dZ" % (
+            self.year + 1900, self.month + 1, self.day,
+            self.hours, self.minutes, self.seconds)
 
     def __repr__(self):
         return "<Time %s>" % self.to_date_and_time()
