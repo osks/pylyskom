@@ -147,6 +147,15 @@ class Connection(object):
         if resp != "LysKOM\n":
             raise kom.BadInitialResponse
 
+    def close(self):
+        if self.socket is None:
+            return
+
+        self.socket.shutdown(socket.SHUT_RDWR)
+        self.socket.close()
+        self.socket = None
+
+
     # ASYNCHRONOUS MESSAGES HANDLERS
     
     def add_async_handler(self, msg_no, handler, skip_accept_async=False):
