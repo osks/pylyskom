@@ -11,6 +11,10 @@ def decode_text(text, encoding, backup_encoding='latin1'):
     
     try:
         decoded_text = text.decode(encoding)
+    except LookupError:
+        # Failed to find the given encoding (such as "x-unkown", for
+        # example).
+        decoded_text = text.decode(backup_encoding)
     except UnicodeDecodeError:
         # (from iKOM) Fscking clients that can't detect coding...
         decoded_text = text.decode(backup_encoding)
