@@ -27,7 +27,7 @@ For required Python packages, see requirements.txt. Install them with:
 Copyright and license
 ---------------------
 
-Copyright (C) 2012-2013 Oskar Skoog
+Copyright (C) 2012-2014 Oskar Skoog
 
 Copyright (C) 2008 Henrik Rindlöw
 
