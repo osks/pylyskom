@@ -3,6 +3,7 @@
 import functools
 import json
 
+import errno
 import socket
 import mimeparse
 
