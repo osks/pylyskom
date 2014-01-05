@@ -16,6 +16,14 @@ The source code for pylyskom can be found at:
 https://github.com/osks/pylyskom
 
 
+Dependencies
+------------
+
+For required Python packages, see requirements.txt. Install them with:
+
+    $ pip install -r requirements.txt
+
+
 Copyright and license
 ---------------------
 
