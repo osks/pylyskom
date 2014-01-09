@@ -151,9 +151,18 @@ class Connection(object):
         if self.socket is None:
             return
 
-        self.socket.shutdown(socket.SHUT_RDWR)
-        self.socket.close()
-        self.socket = None
+        try:
+            self.socket.close()
+        except socket.error as (eno, msg):
+            if eno in (107, errno.ENOTCONN):
+                # 107: Not connected anymore. Didn't find any errno
+                # name, but the exception says "[Errno 107] Transport
+                # endpoint is not connected".
+                pass
+            else:
+                raise
+        finally:
+            self.socket = None
 
 
     # ASYNCHRONOUS MESSAGES HANDLERS

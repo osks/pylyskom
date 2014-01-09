@@ -67,11 +67,13 @@ class KomSession(object):
     def close(self):
         """Immediately close the connection, without sending a Disconnect request.
         """
-        self.conn.close()
-        self.conn = None
-        self.client_name = None
-        self.client_version = None
-        self.session_no = None
+        try:
+            self.conn.close()
+        finally:
+            self.conn = None
+            self.client_name = None
+            self.client_version = None
+            self.session_no = None
 
     @check_connection
     def disconnect(self, session_no=0):
