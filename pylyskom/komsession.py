@@ -23,7 +23,7 @@ class NoRecipients(KomSessionError): pass
 def check_connection(f):
     @functools.wraps(f)
     def decorated(komsession, *args, **kwargs):
-        if not komsession.is_connected:
+        if not komsession.is_connected():
             raise KomSessionNotConnected()
         try:
             return f(komsession, *args, **kwargs)
