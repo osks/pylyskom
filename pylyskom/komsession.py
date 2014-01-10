@@ -86,7 +86,7 @@ class KomSession(object):
         # disconnect another LysKOM session that the logged in user is
         # a supervisor of).
         if session_no == 0 or session_no == self.session_no:
-            self._close()
+            self.close()
     
     @check_connection
     def login(self, pers_no, password):
