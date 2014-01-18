@@ -22,7 +22,10 @@ def decode_text(text, encoding, backup_encoding='latin1'):
     return decoded_text
 
 def parse_content_type(contenttype):
-    mime_type = mimeparse.parse_mime_type(contenttype)
+    try:
+        mime_type = mimeparse.parse_mime_type(contenttype)
+    except Exception as e:
+        raise kom.Error("Failed to parse mime type '%s'" % (contenttype,))
     
     if mime_type[0] == 'x-kom' and mime_type[1] == 'text':
         mime_type = ('text', 'x-kom-basic', mime_type[2])

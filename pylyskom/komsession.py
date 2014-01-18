@@ -11,8 +11,9 @@ import kom, komauxitems, utils
 from connection import CachedPersonConnection, Requests
 
 
+class KomSessionNotConnected(Exception): pass
+
 class KomSessionError(Exception): pass
-class KomSessionNotConnected(KomSessionError): pass
 class AmbiguousName(KomSessionError): pass
 class NameNotFound(KomSessionError): pass
 class NoRecipients(KomSessionError): pass
