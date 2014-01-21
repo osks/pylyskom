@@ -1,6 +1,7 @@
 # -*- coding: iso-8859-1 -*-
 
 import socket
+import errno
 import select
 
 import kom
