@@ -19,7 +19,14 @@ class NameNotFound(KomSessionError): pass
 class NoRecipients(KomSessionError): pass
 
 
+
+MIRecipient_str_to_type = { 'to': kom.MIR_TO,
+                            'cc': kom.MIR_CC,
+                            'bcc': kom.MIR_BCC }
         
+MICommentTo_str_to_type = { 'comment': kom.MIC_COMMENT,
+                            'footnote': kom.MIC_FOOTNOTE }
+
 
 def check_connection(f):
     @functools.wraps(f)
@@ -42,7 +49,7 @@ class KomSession(object):
     """ A LysKom session. """
     def __init__(self, host, port=4894, connection_factory=CachedPersonConnection):
         self.host = host
-        self.port = port
+        self.port = int(port)
         # TODO: We actually require the API of a
         # CachedPersonConnection. We should enhance the Connection
         # class and make CachedPersonConnection have the same API as
@@ -54,6 +61,12 @@ class KomSession(object):
         self.client_version = None
     
     def connect(self, username, hostname, client_name, client_version):
+        assert not self.is_connected() # todo: raise better exception
+        # decode if not already unicode (assuming utf-8)
+        if isinstance(client_name, str):
+            client_name = client_name.decode('utf-8')
+        if isinstance(client_version, str):
+            client_version = client_version.decode('utf-8')
         self.conn = self._connection_factory()
         self.conn.connect(self.host, self.port, user=username + "%" + hostname)
         self.conn.request(Requests.SetClientVersion, client_name, client_version).response()
@@ -69,7 +82,8 @@ class KomSession(object):
         """Immediately close the connection, without sending a Disconnect request.
         """
         try:
-            self.conn.close()
+            if self.conn is not None:
+                self.conn.close()
         finally:
             self.conn = None
             self.client_name = None
@@ -91,8 +105,8 @@ class KomSession(object):
     
     @check_connection
     def login(self, pers_no, password):
-        self.conn.login(pers_no, password)
-        person_stat = self.conn.request(Requests.GetPersonStat, pers_no).response()
+        self.conn.login(int(pers_no), password)
+        person_stat = self.conn.request(Requests.GetPersonStat, int(pers_no)).response()
         return KomPerson(pers_no, person_stat)
 
     @check_connection
@@ -121,6 +135,12 @@ class KomSession(object):
         
     @check_connection
     def create_person(self, name, passwd):
+        # decode if not already unicode (assuming utf-8)
+        if isinstance(name, str):
+            name = name.decode('utf-8')
+        if isinstance(passwd, str):
+            passwd = passwd.decode('utf-8')
+
         flags = kom.PersonalFlags()
         pers_no = self.conn.request(Requests.CreatePerson, name.encode('latin1'),
                                     passwd.encode('latin1'), flags).response()
@@ -128,6 +148,10 @@ class KomSession(object):
 
     @check_connection
     def create_conference(self, name, aux_items=None):
+        # decode if not already unicode (assuming utf-8)
+        if isinstance(name, str):
+            name = name.decode('utf-8')
+
         conf_type = kom.ConfType()
         if aux_items is None:
             aux_items = []
@@ -261,7 +285,42 @@ class KomSession(object):
         return texts
 
     @check_connection
-    def create_text(self, komtext):
+    def create_text(self, subject, body, content_type, recipient_list=None, comment_to_list=None):
+        # decode if not already unicode (assuming utf-8)
+        if isinstance(subject, str):
+            subject = subject.decode('utf-8')
+        if isinstance(body, str):
+            body = body.decode('utf-8')
+        if isinstance(content_type, str):
+            content_type = content_type.decode('utf-8')
+
+        komtext = KomText()
+        mime_type, _ = utils.parse_content_type(content_type)
+        komtext.content_type = utils.mime_type_tuple_to_str(mime_type)
+        komtext.subject = subject
+        komtext.body = body
+
+        if recipient_list is not None:
+            komtext.recipient_list = []
+            for r in recipient_list:
+                komtext.recipient_list.append(
+                    kom.MIRecipient(type=MIRecipient_str_to_type[r['type']],
+                                    recpt=r['recpt']['conf_no']))
+
+        else:
+            komtext.recipient_list = None
+    
+
+        if comment_to_list is not None:
+            komtext.comment_to_list = []
+            for ct in comment_to_list:
+                komtext.comment_to_list.append(
+                    kom.MICommentTo(type=MICommentTo_str_to_type[ct['type']],
+                                    text_no=ct['text_no']))
+        else:
+            komtext.comment_to_list = None
+
+
         misc_info = kom.CookedMiscInfo()
         
         if komtext.recipient_list is not None:
@@ -280,7 +339,7 @@ class KomSession(object):
         # of both a subject and body, and you can have a text subject
         # in combination with an image, a charset is needed to specify
         # the encoding of the subject even for images.
-        
+
         if mime_type[0] == 'text':
             # We hard code utf-8 because it is The Correct Encoding. :)
             mime_type[2]['charset'] = 'utf-8'
