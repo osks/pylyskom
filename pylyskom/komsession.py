@@ -163,7 +163,6 @@ class KomSession(object):
     def lookup_name(self, name, want_pers, want_confs):
         return self.conn.lookup_name(name, want_pers, want_confs)
 
-    @check_connection
     def lookup_name_exact(self, name, want_pers, want_confs):
         matches = self.lookup_name(name, want_pers, want_confs)
         return self._exact_lookup_match(name, matches)
@@ -175,13 +174,12 @@ class KomSession(object):
         # to work that well.
         return self.conn.regexp_lookup(regexp, want_pers, want_confs, case_sensitive=1)
 
-    @check_connection
     def re_lookup_name_exact(self, regexp, want_pers, want_confs):
         matches = self.re_lookup_name(regexp, want_pers, want_confs)
         return self._exact_lookup_match(regexp, matches)
 
-    @check_connection
-    def _exact_lookup_match(self, lookup, matches):
+    @staticmethod
+    def _exact_lookup_match(lookup, matches):
         if len(matches) == 0:
             raise NameNotFound("recipient not found: %s" % lookup)
         elif len(matches) <> 1:
