@@ -11,13 +11,12 @@ import kom, komauxitems, utils
 from connection import CachedPersonConnection, Requests
 
 
-class KomSessionNotConnected(Exception): pass
-
-class KomSessionError(Exception): pass
+class KomSessionException(Exception): pass
+class KomSessionNotConnected(KomSessionException): pass
+class KomSessionError(KomSessionException): pass
 class AmbiguousName(KomSessionError): pass
 class NameNotFound(KomSessionError): pass
 class NoRecipients(KomSessionError): pass
-
 
 
 MIRecipient_str_to_type = { 'to': kom.MIR_TO,
