@@ -46,13 +46,13 @@ class CachedConnection(Connection):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.add_async_handler(kom.ASYNC_NEW_NAME, self.cah_new_name, True)
-        self.add_async_handler(kom.ASYNC_LEAVE_CONF, self.cah_leave_conf, True)
-        self.add_async_handler(kom.ASYNC_DELETED_TEXT, self.cah_deleted_text, True)
-        self.add_async_handler(kom.ASYNC_NEW_TEXT, self.cah_new_text, True)
-        self.add_async_handler(kom.ASYNC_NEW_RECIPIENT, self.cah_new_recipient, True)
-        self.add_async_handler(kom.ASYNC_SUB_RECIPIENT, self.cah_sub_recipient, True)
-        self.add_async_handler(kom.ASYNC_NEW_MEMBERSHIP, self.cah_new_membership)
+        self.add_async_handler(kom.ASYNC_NEW_NAME, self._cah_new_name, True)
+        self.add_async_handler(kom.ASYNC_LEAVE_CONF, self._cah_leave_conf, True)
+        self.add_async_handler(kom.ASYNC_DELETED_TEXT, self._cah_deleted_text, True)
+        self.add_async_handler(kom.ASYNC_NEW_TEXT, self._cah_new_text, True)
+        self.add_async_handler(kom.ASYNC_NEW_RECIPIENT, self._cah_new_recipient, True)
+        self.add_async_handler(kom.ASYNC_SUB_RECIPIENT, self._cah_sub_recipient, True)
+        self.add_async_handler(kom.ASYNC_NEW_MEMBERSHIP, self._cah_new_membership)
 
     # Fetching functions (internal use)
     def fetch_uconference(self, no):
@@ -70,23 +70,23 @@ class CachedConnection(Connection):
     # Handlers for asynchronous messages (internal use)
     # FIXME: Most of these handlers should do more clever things than just
     # invalidating. 
-    def cah_new_name(self, msg, c):
+    def _cah_new_name(self, msg, c):
         # A new name makes uconferences[].name invalid
         self.uconferences.invalidate(msg.conf_no)
         # A new name makes conferences[].name invalid
         self.conferences.invalidate(msg.conf_no)
 
-    def cah_leave_conf(self, msg, c):
+    def _cah_leave_conf(self, msg, c):
         # Leaving a conference makes conferences[].no_of_members invalid
         self.conferences.invalidate(msg.conf_no)
 
-    def cah_deleted_text(self, msg, c):
+    def _cah_deleted_text(self, msg, c):
         # Deletion of a text makes conferences[].no_of_texts invalid
         ts = msg.text_stat
         for rcpt in ts.misc_info.recipient_list:
             self.conferences.invalidate(rcpt.recpt)
             
-    def cah_new_text(self, msg, c):
+    def _cah_new_text(self, msg, c):
         # A new text. conferences[].no_of_texts and
         # uconferences[].highest_local_no is invalid. Also invalidates
         # the textstats for the commented texts.
@@ -97,7 +97,7 @@ class CachedConnection(Connection):
             self.textstats.invalidate(ct.text_no)
         # FIXME: A new text makes persons[author].no_of_created_texts invalid
 
-    def cah_new_recipient(self, msg, c):
+    def _cah_new_recipient(self, msg, c):
         # Just like a new text; conferences[].no_of_texts and
         # uconferences[].highest_local_no gets invalid. 
         self.conferences.invalidate(msg.conf_no)
@@ -105,13 +105,13 @@ class CachedConnection(Connection):
         # textstats.misc_info_recipient_list gets invalid as well.
         self.textstats.invalidate(msg.text_no)
 
-    def cah_sub_recipient(self, msg, c):
+    def _cah_sub_recipient(self, msg, c):
         # Invalid conferences[].no_of_texts
         self.conferences.invalidate(msg.conf_no)
         # textstats.misc_info_recipient_list gets invalid as well.
         self.textstats.invalidate(msg.text_no)
 
-    def cah_new_membership(self, msg, c):
+    def _cah_new_membership(self, msg, c):
         # Joining a conference makes conferences[].no_of_members invalid
         self.conferences.invalidate(msg.conf_no)
 
