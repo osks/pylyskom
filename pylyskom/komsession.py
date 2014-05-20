@@ -470,8 +470,11 @@ class KomSession(object):
         else:
             blocks[block_name] = block
 
-        text_no = self.create_text('', utils.encode_user_area(blocks), 'x-kom/user-area')
-        self.conn.request(Requests.SetUserArea, pers_no, text_no).response()
+        new_user_area_text_no = self.create_text(
+            subject=None,
+            body=utils.encode_user_area(blocks),
+            content_type='x-kom/user-area')
+        self._conn.request(Requests.SetUserArea, pers_no, new_user_area_text_no).response()
         # TODO: Should it remove the old user area?
 
 
