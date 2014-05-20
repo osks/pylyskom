@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from pylyskom import kom, komauxitems
-from pylyskom.connection import Requests
+from pylyskom.request import Requests
 from pylyskom.komsession import KomSession
 
 from mocks import MockConnection, MockResponse, MockTextStat, MockPerson
@@ -17,8 +17,8 @@ from mocks import MockConnection, MockResponse, MockTextStat, MockPerson
 
 
 def create_komsession(pers_no, connection_factory):
-    ks = KomSession(host=None, port=4894, connection_factory=connection_factory)
-    ks.connect("test", "localhost", "test", "0.1") # needed to create a connection
+    ks = KomSession(connection_factory=connection_factory)
+    ks.connect('host', 'port', "test", "localhost", "test", "0.1")
     ks.login(pers_no, '') # needed because we change the user area for the logged in person
     return ks
 

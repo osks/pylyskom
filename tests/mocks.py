@@ -1,5 +1,6 @@
 from pylyskom.kom import CookedMiscInfo
-from pylyskom.connection import Requests, Cache
+from pylyskom.request import Requests
+from pylyskom.cachedconnection import Cache
 
 
 class MockResponse(object):

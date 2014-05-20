@@ -1,5 +1,7 @@
 from pylyskom import kom
-from pylyskom.connection import CachedConnection, Requests, RequestFactory
+from pylyskom.request import Requests, RequestFactory
+from pylyskom.connection import Connection
+from pylyskom.cachedconnection import CachedConnection
 
 from mocks import MockResponse
 
@@ -23,8 +25,9 @@ def create_local_to_global(highest_local):
 
 
 def create_connection(request_mapping=None):
-    return CachedConnection(RequestFactory(request_mapping))
-    
+    conn = Connection(RequestFactory(request_mapping))
+    return CachedConnection(conn)
+
 
 def test_read_ranges_to_gaps_and_last_with_empty_list():
     c = create_connection()

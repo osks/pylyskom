@@ -53,11 +53,11 @@ def create_connection():
     return CachedPersonConnection(connection)
 
 
+# Idea: rename KomSession to KomClient
+
 class KomSession(object):
     """ A LysKom session. """
-    def __init__(self, host, port=4894, connection_factory=create_connection):
-        self._host = host
-        self._port = int(port)
+    def __init__(self, connection_factory=create_connection):
         # TODO: We actually require the API of a
         # CachedPersonConnection. We should enhance the Connection
         # class and make CachedPersonConnection have the same API as
@@ -68,7 +68,7 @@ class KomSession(object):
         self._client_name = None
         self._client_version = None
     
-    def connect(self, username, hostname, client_name, client_version):
+    def connect(self, host, port, username, hostname, client_name, client_version):
         assert not self.is_connected() # todo: raise better exception
         # decode if not already unicode (assuming utf-8)
         if isinstance(client_name, str):
@@ -76,7 +76,7 @@ class KomSession(object):
         if isinstance(client_version, str):
             client_version = client_version.decode('utf-8')
         self._conn = self._connection_factory()
-        self._conn.connect(self._host, self._port, user=username + "%" + hostname)
+        self._conn.connect(host, port, user=username + "%" + hostname)
         self._conn.request(Requests.SetClientVersion, client_name, client_version).response()
         self._client_name = client_name
         self._client_version = client_version
