@@ -9,6 +9,7 @@ import mimeparse
 
 from . import kom, komauxitems, utils
 from .request import Requests, default_request_factory
+from .connection import Connection
 from .cachedconnection import CachedPersonConnection
 
 
@@ -47,9 +48,14 @@ def check_connection(f):
     return decorated
 
 
+def create_connection():
+    connection = Connection(default_request_factory)
+    return CachedPersonConnection(connection)
+
+
 class KomSession(object):
     """ A LysKom session. """
-    def __init__(self, host, port=4894, connection_factory=CachedPersonConnection):
+    def __init__(self, host, port=4894, connection_factory=create_connection):
         self._host = host
         self._port = int(port)
         # TODO: We actually require the API of a

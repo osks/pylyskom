@@ -13,8 +13,6 @@ from .request import Requests, default_request_factory
 #
 
 class Connection(object):
-    # INITIALIZATION ETC.
-
     def __init__(self, request_factory=default_request_factory):
         self._rfactory = request_factory
         self.socket = None

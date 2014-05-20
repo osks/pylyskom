@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from . import kom
-from .request import Requests, default_request_factory
+from .request import Requests
 from .connection import Connection
 
 
@@ -21,11 +21,16 @@ from .connection import Connection
 #   numbers of all unread text in a conference for a person
 
 class CachedConnection(Connection):
-    def __init__(self, request_factory=default_request_factory):
-        Connection.__init__(self, request_factory)
+    def __init__(self, connection):
+        assert connection is not None
+        self._conn = connection
 
+    # Wrapped Connection methods
+    def request(self, request, *args, **kwargs):
+        return self._conn.request(request, *args, **kwargs)
+    
     def connect(self, host, port = 4894, user = "", localbind=None):
-        Connection.connect(self, host, port, user, localbind)
+        self._conn.connect(host, port, user, localbind)
         
         # Caches
         #
@@ -53,6 +58,15 @@ class CachedConnection(Connection):
         self.add_async_handler(kom.ASYNC_NEW_RECIPIENT, self._cah_new_recipient, True)
         self.add_async_handler(kom.ASYNC_SUB_RECIPIENT, self._cah_sub_recipient, True)
         self.add_async_handler(kom.ASYNC_NEW_MEMBERSHIP, self._cah_new_membership)
+
+    def close(self):
+        self._conn.close()
+
+    def add_async_handler(self, msg_no, handler, skip_accept_async=False):
+        self._conn.add_async_handler(msg_no, handler, skip_accept_async=False)
+
+    
+    # Our methods
 
     # Fetching functions (internal use)
     def fetch_uconference(self, no):
@@ -291,8 +305,8 @@ class CachedConnection(Connection):
 
 
 class CachedPersonConnection(CachedConnection):
-    def __init__(self, request_factory=default_request_factory):
-        CachedConnection.__init__(self, request_factory)
+    def __init__(self, connection):
+        CachedConnection.__init__(self, connection)
 
     def connect(self, host, port = 4894, user = "", localbind=None):
         CachedConnection.connect(self, host, port, user, localbind)
