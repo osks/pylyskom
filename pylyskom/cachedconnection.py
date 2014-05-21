@@ -44,10 +44,10 @@ class CachedConnection(Connection):
         # could be dangerous. Sometime it is okay with cached
         # responses, and sometimes it is not. How can we make it
         # possible to force no cached?
-        self.uconferences = Cache(self.fetch_uconference, "UConference")
-        self.conferences = Cache(self.fetch_conference, "Conference")
-        self.persons = Cache(self.fetch_person, "Person")
-        self.textstats = Cache(self.fetch_textstat, "TextStat")
+        self.uconferences = Cache(self._fetch_uconference, "UConference")
+        self.conferences = Cache(self._fetch_conference, "Conference")
+        self.persons = Cache(self._fetch_person, "Person")
+        self.textstats = Cache(self._fetch_textstat, "TextStat")
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
@@ -69,16 +69,16 @@ class CachedConnection(Connection):
     # Our methods
 
     # Fetching functions (internal use)
-    def fetch_uconference(self, no):
+    def _fetch_uconference(self, no):
         return self.request(Requests.GetUconfStat, no).response()
 
-    def fetch_conference(self, no):
+    def _fetch_conference(self, no):
         return self.request(Requests.GetConfStat, no).response()
 
-    def fetch_person(self, no):
+    def _fetch_person(self, no):
         return self.request(Requests.GetPersonStat, no).response()
 
-    def fetch_textstat(self, no):
+    def _fetch_textstat(self, no):
         return self.request(Requests.GetTextStat, no).response()
 
     # Handlers for asynchronous messages (internal use)
@@ -318,7 +318,7 @@ class CachedPersonConnection(CachedConnection):
         self._current_conference_no = 0
         
         # Caches
-        self._memberships = Cache(self.fetch_membership, "Membership")
+        self._memberships = Cache(self._fetch_membership, "Membership")
         
         # Specific membership cache where the keys are the positions
         # in the membership list for the membership, and the values
@@ -438,7 +438,7 @@ class CachedPersonConnection(CachedConnection):
             else:
                 return self.request(Requests.QueryReadTexts, pers_no, conf_no, 0, 0).response()
 
-    def fetch_membership(self, conf_no):
+    def _fetch_membership(self, conf_no):
         """Fetch the membership for a conf the current person. Does not
         include read ranges.
         """
