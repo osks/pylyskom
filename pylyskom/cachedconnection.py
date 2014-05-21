@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from . import kom
-from .request import Requests
+from .request import Requests, default_request_factory
 from .connection import Connection
 
 
@@ -21,14 +21,11 @@ from .connection import Connection
 #   numbers of all unread text in a conference for a person
 
 class CachedConnection(Connection):
-    def __init__(self, connection):
+    def __init__(self, connection, request_factory=default_request_factory):
         assert connection is not None
         self._conn = connection
+        self._request_factory = request_factory
 
-    # Wrapped Connection methods
-    def request(self, request, *args, **kwargs):
-        return self._conn.request(request, *args, **kwargs)
-    
     def connect(self, host, port = 4894, user = "", localbind=None):
         self._conn.connect(host, port, user, localbind)
         
@@ -62,11 +59,25 @@ class CachedConnection(Connection):
     def close(self):
         self._conn.close()
 
-    def add_async_handler(self, msg_no, handler, skip_accept_async=False):
-        self._conn.add_async_handler(msg_no, handler, skip_accept_async=False)
-
+    def request(self, request, *args, **kwargs):
+        return self._request_factory.new(request)(self._conn, *args, **kwargs)
     
-    # Our methods
+    def add_async_handler(self, msg_no, handler, skip_accept_async=False):
+        """Add an async handler and tell the LysKOM sever to
+        start sending async messages of that type.
+        
+        @param skip_accept_async Don't send an AcceptAsync request to
+        the LysKOM server now. This is an optimization feature. The
+        protocol request registers all async message types at once, so
+        this is useful to be able to only have to send one
+        request. First register all but the last async handlers with
+        skip_accept_async=True, and then register the last one with
+        skip_accept_async=False to send the request.
+        """
+        self._conn.register_async_handler(msg_no, handler)
+        if not skip_accept_async:
+            self.request(Requests.AcceptAsync, self._conn.async_handlers.keys())
+
 
     # Fetching functions (internal use)
     def _fetch_uconference(self, no):

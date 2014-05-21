@@ -5,7 +5,6 @@ import errno
 import select
 
 from . import kom
-from .request import Requests, default_request_factory
 
 
 #
@@ -13,14 +12,14 @@ from .request import Requests, default_request_factory
 #
 
 class Connection(object):
-    def __init__(self, request_factory=default_request_factory):
-        self._rfactory = request_factory
-        self.socket = None
+    def __init__(self, socket):
+        assert socket is not None
+        self._socket = socket
         
         # Requests
-        self.req_id = 0      # Last used ID (i.e. increment before use)
-        self.req_queue = {}  # Requests sent to server, waiting for answers
-        self.resp_queue = {} # Answers received from the server
+        self.req_id = 0       # Last used ID (i.e. increment before use)
+        self.req_queue = {}   # Requests sent to server, waiting for answers
+        self.resp_queue = {}  # Answers received from the server
         self.error_queue = {} # Errors received from the server
         self.req_histo = None # Histogram of request types
         
@@ -32,19 +31,15 @@ class Connection(object):
         # Asynchronous message handlers
         self.async_handlers = {}
 
-    def request(self, request, *args, **kwargs):
-        return self._rfactory.new(request)(self, *args, **kwargs)
-    
     def connect(self, host, port = 4894, user = "", localbind=None):
         # Remember the host and port for later identification of sessions
         self.host = host
         self.port = port
         
         # Create socket and connect
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if None != localbind:
-            self.socket.bind(localbind)
-        self.socket.connect((self.host, self.port))
+            self._socket.bind(localbind)
+        self._socket.connect((self.host, self.port))
 
         # Send initial string 
         self.send_string(("A%dH%s\n" % (len(user), user)).encode('latin1'))
@@ -55,11 +50,11 @@ class Connection(object):
             raise kom.BadInitialResponse
 
     def close(self):
-        if self.socket is None:
+        if self._socket is None:
             return
 
         try:
-            self.socket.close()
+            self._socket.close()
         except socket.error as (eno, msg):
             if eno in (107, errno.ENOTCONN):
                 # 107: Not connected anymore. Didn't find any errno
@@ -69,20 +64,24 @@ class Connection(object):
             else:
                 raise
         finally:
-            self.socket = None
+            self._socket = None
 
 
     # ASYNCHRONOUS MESSAGES HANDLERS
     
-    def add_async_handler(self, msg_no, handler, skip_accept_async=False):
+    def register_async_handler(self, msg_no, handler):
+        """Register a handler for async messages.
+
+        Important: Does not tell the LysKOM server to start sending
+        async messages.
+        """
         if msg_no not in kom.async_dict:
             raise kom.UnimplementedAsync
         if msg_no in self.async_handlers:
             self.async_handlers[msg_no].append(handler)
         else:
             self.async_handlers[msg_no] = [handler]
-            if not skip_accept_async:
-                self.request(Requests.AcceptAsync, self.async_handlers.keys())
+
 
     # REQUEST QUEUE
     
@@ -117,19 +116,29 @@ class Connection(object):
 
     # Parse all present data
     def parse_present_data(self):
-        while select.select([self.socket], [], [], 0)[0]:
-            ch = self.receive_char()
-            if ch in kom.WHITESPACE:
-                continue
-            if ch == "=":
-                self.parse_response()
-            elif ch == "%":
-                self.parse_error()
-            elif ch == ":":
-                self.parse_asynchronous_message()
-            else:
-                raise kom.ProtocolError
+        while select.select([self._socket], [], [], 0)[0]:
+            # this seem to be almost the same as what
+            # parse_server_message() does. (There is a difference in
+            # that parse_first_non_ws() loops until it gets a non-ws
+            # char, where the code below instead continues to the
+            # select in the loop. Not sure if it matters.) Therefor it
+            # was replace by calling parse_server_message().
+
+            #ch = self.receive_char()
+            #if ch in kom.WHITESPACE:
+            #    continue
+            #if ch == "=":
+            #    self.parse_response()
+            #elif ch == "%":
+            #    self.parse_error()
+            #elif ch == ":":
+            #    self.parse_asynchronous_message()
+            #else:
+            #    raise kom.ProtocolError
             
+            self.parse_server_message()
+
+           
     # Enable request histogram
     def enable_req_histo(self):
         self.req_histo = {}
@@ -323,7 +332,7 @@ class Connection(object):
     def send_string(self, s):
         #print(">>>",s)
         while len(s) > 0:
-            done = self.socket.send(s)
+            done = self._socket.send(s)
             s = s[done:]
 
     # Ensure that there are at least N bytes in the receive buffer
@@ -335,7 +344,7 @@ class Connection(object):
             wanted = max(needed,128) # FIXME: Optimize
             #print "Only %d chars present, need %d: asking for %d" % \
             #      (present, size, wanted)
-            data = self.socket.recv(wanted)
+            data = self._socket.recv(wanted)
             if len(data) == 0: raise kom.ReceiveError
             #print("<<<", data)
             self.rb = self.rb[self.rb_pos:] + data

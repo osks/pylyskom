@@ -29,6 +29,12 @@ MICommentTo_str_to_type = { 'comment': kom.MIC_COMMENT,
                             'footnote': kom.MIC_FOOTNOTE }
 
 
+def create_connection():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connection = Connection(s)
+    return CachedPersonConnection(connection)
+
+
 def check_connection(f):
     @functools.wraps(f)
     def decorated(komsession, *args, **kwargs):
@@ -48,13 +54,7 @@ def check_connection(f):
     return decorated
 
 
-def create_connection():
-    connection = Connection(default_request_factory)
-    return CachedPersonConnection(connection)
-
-
 # Idea: rename KomSession to KomClient
-
 class KomSession(object):
     """ A LysKom session. """
     def __init__(self, connection_factory=create_connection):
