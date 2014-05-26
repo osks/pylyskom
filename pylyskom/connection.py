@@ -2,44 +2,48 @@
 
 import socket
 import errno
-import select
+from Queue import Queue
+#import select
 
 from . import kom
 
 
+#    # Parse all present data
+#    def parse_present_data(self):
+#        while select.select([self._socket], [], [], 0)[0]:
+#            # this seem to be almost the same as what
+#            # parse_server_message() does. (There is a difference in
+#            # that parse_first_non_ws() loops until it gets a non-ws
+#            # char, where the code below instead continues to the
+#            # select in the loop. Not sure if it matters.) Therefor it
+#            # was replace by calling parse_server_message().
 #
-# CLASS for a connection
-#
+#            #ch = self.receive_char()
+#            #if ch in kom.WHITESPACE:
+#            #    continue
+#            #if ch == "=":
+#            #    self.parse_ok_reply()
+#            #elif ch == "%":
+#            #    self.parse_error_reply()
+#            #elif ch == ":":
+#            #    self.parse_asynchronous_message()
+#            #else:
+#            #    raise kom.ProtocolError
+#            
+#            self.parse_server_message()
 
-class Connection(object):
-    def __init__(self, socket):
-        assert socket is not None
-        self._socket = socket
-        
-        # Requests
-        self.req_id = 0       # Last used ID (i.e. increment before use)
-        self.req_queue = {}   # Requests sent to server, waiting for answers
-        self.resp_queue = {}  # Answers received from the server
-        self.error_queue = {} # Errors received from the server
-        self.req_histo = None # Histogram of request types
-        
+
+class BaseConnection(object):
+    def __init__(self, sock, user=""):
+        """
+        @param sock Socket connected to a LysKOM server.
+        """
+        self._socket = sock
+
         # Receive buffer
-        self.rb = ""    # Buffer for data received from socket
+        self.rb = ""    # Buffer for data received from connection
         self.rb_len = 0 # Length of the buffer
         self.rb_pos = 0 # Position of first unread byte in buffer
-
-        # Asynchronous message handlers
-        self.async_handlers = {}
-
-    def connect(self, host, port = 4894, user = "", localbind=None):
-        # Remember the host and port for later identification of sessions
-        self.host = host
-        self.port = port
-        
-        # Create socket and connect
-        if None != localbind:
-            self._socket.bind(localbind)
-        self._socket.connect((self.host, self.port))
 
         # Send initial string 
         self.send_string(("A%dH%s\n" % (len(user), user)).encode('latin1'))
@@ -48,6 +52,7 @@ class Connection(object):
         resp = self.receive_string(7) # FIXME: receive line here
         if resp != "LysKOM\n":
             raise kom.BadInitialResponse
+
 
     def close(self):
         if self._socket is None:
@@ -67,147 +72,6 @@ class Connection(object):
             self._socket = None
 
 
-    # ASYNCHRONOUS MESSAGES HANDLERS
-    
-    def register_async_handler(self, msg_no, handler):
-        """Register a handler for async messages.
-
-        Important: Does not tell the LysKOM server to start sending
-        async messages.
-        """
-        if msg_no not in kom.async_dict:
-            raise kom.UnimplementedAsync
-        if msg_no in self.async_handlers:
-            self.async_handlers[msg_no].append(handler)
-        else:
-            self.async_handlers[msg_no] = [handler]
-
-
-    # REQUEST QUEUE
-    
-    # Allocate an ID for a request and register it in the queue
-    def register_request(self, req):
-        self.req_id = self.req_id +1
-        self.req_queue[self.req_id] = req
-        if self.req_histo is not None:
-            name =  req.__class__.__name__
-            try:
-                self.req_histo[name] = self.req_histo[name] + 1
-            except KeyError:
-                self.req_histo[name] = 1
-        return self.req_id
-
-    # Wait for a request to be answered, return response or signal error
-    def wait_and_dequeue(self, id):
-        while id not in self.resp_queue and \
-              id not in self.error_queue:
-            #print "Request", id,"not responded to, getting some more"
-            self.parse_server_message()
-        if id in self.resp_queue:
-            # Response
-            ret = self.resp_queue[id]
-            del self.resp_queue[id]
-            return ret
-        else:
-            # Error
-            (error_no, error_status) = self.error_queue[id]
-            del self.error_queue[id]
-            raise kom.error_dict[error_no](error_status)
-
-    # Parse all present data
-    def parse_present_data(self):
-        while select.select([self._socket], [], [], 0)[0]:
-            # this seem to be almost the same as what
-            # parse_server_message() does. (There is a difference in
-            # that parse_first_non_ws() loops until it gets a non-ws
-            # char, where the code below instead continues to the
-            # select in the loop. Not sure if it matters.) Therefor it
-            # was replace by calling parse_server_message().
-
-            #ch = self.receive_char()
-            #if ch in kom.WHITESPACE:
-            #    continue
-            #if ch == "=":
-            #    self.parse_response()
-            #elif ch == "%":
-            #    self.parse_error()
-            #elif ch == ":":
-            #    self.parse_asynchronous_message()
-            #else:
-            #    raise kom.ProtocolError
-            
-            self.parse_server_message()
-
-           
-    # Enable request histogram
-    def enable_req_histo(self):
-        self.req_histo = {}
-        
-    # Show request histogram
-    def show_req_histo(self):
-        l = [(-x[1], x[0]) for x in list(self.req_histo.items())]
-        l.sort()
-        print("Count  Request")
-        for (negcount, name) in l:
-            print("%5d: %s" % (-negcount, name))
-    
-    # PARSING SERVER MESSAGES
-
-    # Parse one server message
-    # Could be: - answer to request (begins with =)
-    #           - error for request (begins with %)
-    #           - asynchronous message (begins with :)
-    
-    def parse_server_message(self):
-        ch = self.parse_first_non_ws()
-        if ch == "=":
-            self.parse_response()
-        elif ch == "%":
-            self.parse_error()
-        elif ch == ":":
-            self.parse_asynchronous_message()
-        else:
-            raise kom.ProtocolError
-
-    # Parse response
-    def parse_response(self):
-        id = self.parse_int()
-        #print "Response for",id,"coming"
-        if id in self.req_queue:
-            # Delegate parsing to the ReqXXXX class
-            resp = self.req_queue[id].parse_response()
-            # Remove request and add response
-            del self.req_queue[id]
-            self.resp_queue[id] = resp
-        else:
-            raise kom.BadRequestId(id)
-
-    # Parse error
-    def parse_error(self):
-        id = self.parse_int()
-        error_no = self.parse_int()
-        error_status = self.parse_int()
-        if id in self.req_queue:
-            # Remove request and add error
-            del self.req_queue[id]
-            self.error_queue[id] = (error_no, error_status)
-        else:
-            raise kom.BadRequestId(id)
-
-    # Parse asynchronous message
-    def parse_asynchronous_message(self):
-        self.parse_int() # read no_args
-        msg_no = self.parse_int()
-
-        if msg_no in kom.async_dict:
-            msg = kom.async_dict[msg_no]()
-            msg.parse(self)
-            if msg_no in self.async_handlers:
-                for handler in self.async_handlers[msg_no]:
-                    handler(msg,self)
-        else:
-            raise kom.UnimplementedAsync(msg_no)
-        
     # PARSING KOM DATA TYPES
 
     def parse_object(self, classname):
@@ -242,10 +106,6 @@ class Connection(object):
             if star != "*": raise kom.ProtocolError
         return res
 
-    def array_to_string(self, array):
-        return "%d { %s }" % (len(array), 
-                              " ".join([x.to_string() for x in array]))
-                             
     def parse_array_of_basictype(self, basic_type_parser):
         len = self.parse_int()
         res = []
@@ -266,10 +126,6 @@ class Connection(object):
 
     def parse_array_of_int(self):
         return self.parse_array_of_basictype(self.parse_int)
-
-    def array_of_int_to_string(self, array):
-        return "%d { %s }" % (len(array),
-                             " ".join(list(map(str, array))))
                              
     def parse_array_of_string(self):
         return self.parse_array_of_basictype(self.parse_string)
@@ -368,3 +224,132 @@ class Connection(object):
         res = self.rb[self.rb_pos]
         self.rb_pos = self.rb_pos + 1
         return res
+
+
+class Connection(BaseConnection):
+    def __init__(self, sock, user=""):
+        BaseConnection.__init__(self, sock, user)
+
+        self._ref_no = 0           # Last used ID (i.e. increment before use)
+        self._parse_functions = {} # Parse functions for parsing the response
+        
+    def send_request(self, req):
+        self._ref_no += 1
+        self._parse_functions[self._ref_no] = req.parse_response
+        self.send_string("%d %s" % (self._ref_no, req.to_string()))
+        return self._ref_no
+
+    def read_response(self):
+        ch = self.parse_first_non_ws()
+        if ch == "=":
+            return self._parse_ok_reply()
+        elif ch == "%":
+            return self._parse_error_reply()
+        elif ch == ":":
+            return self._parse_asynchronous_message()
+        else:
+            raise kom.ProtocolError()
+
+    def _parse_ok_reply(self):
+        ref_no = self.parse_int()
+        if ref_no not in self._parse_functions:
+            raise kom.BadRequestId(ref_no)
+        resp = self._parse_functions[ref_no](self)
+        del self._parse_functions[ref_no]
+        return ref_no, resp, None
+
+    def _parse_error_reply(self):
+        ref_no = self.parse_int()
+        if ref_no not in self._parse_functions:
+            raise kom.BadRequestId(ref_no)
+        error_no = self.parse_int()
+        error_status = self.parse_int()
+        error = kom.error_dict[error_no](error_status)
+        del self._parse_functions[ref_no]
+        return ref_no, None, error
+
+    def _parse_asynchronous_message(self):
+        self.parse_int() # read no_args
+        msg_no = self.parse_int()
+        if msg_no not in kom.async_dict:
+            raise kom.UnimplementedAsync(msg_no)
+        msg = kom.async_dict[msg_no]()
+        msg.parse(self)
+        return None, (msg_no, msg), None
+        
+
+class Client(object):
+    def __init__(self, conn):
+        self._conn = conn
+
+        self._ok_queue = {}  # Answers received from the server
+        self._error_queue = {} # Errors received from the server
+        self._async_queue = Queue()
+        self._async_handlers = {}
+
+    def close(self):
+        self._conn.close()
+
+    def register_async_handler(self, msg_no, handler):
+        """Register a handler for a type of async message.
+
+        @param msg_no Type of async message.
+
+        @param handler Function that should be called when an async
+        message of the specified type is received.
+
+        Important: Does not tell the LysKOM server to start sending
+        async messages.
+        """
+        if msg_no not in kom.async_dict:
+            raise kom.UnimplementedAsync
+        if msg_no in self._async_handlers:
+            self._async_handlers[msg_no].append(handler)
+        else:
+            self._async_handlers[msg_no] = [handler]
+
+    def register_request(self, req):
+        """Register a request to be sent.
+        """
+        ref_no = self._conn.send_request(req)
+        return ref_no
+
+    def wait_and_dequeue(self, ref_no):
+        """Wait for a request to be answered, return response or raise
+        error.
+        """
+        while ref_no not in self._ok_queue and \
+              ref_no not in self._error_queue:
+            self._read_response()
+
+        if ref_no in self._ok_queue:
+            resp = self._ok_queue[ref_no]
+            del self._ok_queue[ref_no]
+            return resp
+        elif ref_no in self._error_queue:
+            error = self._error_queue[ref_no]
+            del self._error_queue[ref_no]
+            raise error
+        else:
+            raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
+
+    def _read_response(self):
+        ref_no, resp, error = self._conn.read_response()
+        if ref_no is None:
+            # async message
+
+            # TODO: queue or handle?
+            #self._async_queue.put(resp)
+            msg_no, msg = resp
+            self._handle_async_message(msg_no, msg)
+        elif error is not None:
+            # error reply
+            self._error_queue[ref_no] = error
+        else:
+            # ok reply - resp can be None
+            self._ok_queue[ref_no] = resp
+
+    def _handle_async_message(self, msg_no, msg):
+        if msg_no in self._async_handlers:
+            for handler in self._async_handlers[msg_no]:
+                handler(msg, self)

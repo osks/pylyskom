@@ -1,7 +1,9 @@
+from mock import Mock
+
 from pylyskom import kom
 from pylyskom.request import Requests, RequestFactory
 from pylyskom.connection import Connection
-from pylyskom.cachedconnection import CachedConnection
+from pylyskom.cachedconnection import CachingClient
 
 from mocks import MockResponse
 
@@ -25,8 +27,13 @@ def create_local_to_global(highest_local):
 
 
 def create_connection(request_mapping=None):
-    conn = Connection(RequestFactory(request_mapping))
-    return CachedConnection(conn)
+    if request_mapping is None:
+        request_mapping = dict()
+        
+    if Requests.AcceptAsync not in request_mapping:
+        request_mapping[Requests.AcceptAsync] = Mock()
+
+    return CachingClient(Mock(), RequestFactory(request_mapping))
 
 
 def test_read_ranges_to_gaps_and_last_with_empty_list():

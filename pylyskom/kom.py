@@ -1,8 +1,8 @@
-# -*- coding: iso-8859-1 -*-
+# -*- coding: utf-8 -*-
 # LysKOM Protocol A version 10/11 client interface for Python
-# (C) 1999-2002 Kent Engström. Released under GPL.
-# (C) 2008 Henrik Rindlöw. Released under GPL.
-# (C) 2012-2013 Oskar Skoog. Released under GPL.
+# (C) 1999-2002 Kent EngstrÃ¶m. Released under GPL.
+# (C) 2008 Henrik RindlÃ¶w. Released under GPL.
+# (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 import time
 import calendar
@@ -182,78 +182,84 @@ MIC_FOOTNOTE = MI_FOOTN_TO
 #
 # Classes for requests to the server are all subclasses of Request.
 #
-# N.B: the identifier "c" below should be read as "connection"
-#
 
-class Request:
-    def register(self, c):
-        self.id = c.register_request(self)
-        self.c = c
-        
-    def response(self):
-        return self.c.wait_and_dequeue(self.id)
+class Request(object):
+    def to_string(self):
+        # Override and return the request as a string.
+        raise NotImplementedError()
 
-    # Default response parser expects nothing.
-    # Override when appropriate.
-    def parse_response(self):
+    def parse_response(self, conn):
+        # Default response parser expects nothing.
+        # Override when appropriate.
         return None
+
 
 # login-old [0] (1) Obsolete (4) Use login (62)
 
 # logout [1] (1) Recommended
 class ReqLogout(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string(("%d 1\n" % self.id).encode('latin1'))
+    def to_string(self):
+        return "1\n"
 
 # change-conference [2] (1) Recommended
 class ReqChangeConference(Request):
-    def __init__(self, c, conf_no):
-        self.register(c)
-        c.send_string(("%d 2 %d\n" % (self.id, conf_no)).encode('latin1'))
+    def __init__(self, conf_no):
+        self.conf_no = conf_no
+
+    def to_string(self):
+        return "2 %d\n" % (self.conf_no,)
 
 # change-name [3] (1) Recommended
 class ReqChangeName(Request):
-    def __init__(self, c, conf_no, new_name):
-        self.register(c)
-        c.send_string("%d 3 %d %dH%s\n" % (self.id, conf_no,
-                                           len(new_name), new_name))
+    def __init__(self, conf_no, new_name):
+        self.conf_no = conf_no
+        self.new_name = new_name
+
+    def to_string(self):
+        return "3 %d %s\n" % (self.conf_no, to_hstring(self.new_name))
 
 # change-what-i-am-doing [4] (1) Recommended
 class ReqChangeWhatIAmDoing(Request):
-    def __init__(self, c, what):
-        self.register(c)
-        c.send_string(("%d 4 %dH%s\n" % (self.id, 
-                                          len(what), what)).encode('latin1'))
+    def __init__(self, what):
+        self.what = what
+
+    def to_string(self):
+        return "4 %s\n" % (to_hstring(self.what),)
 
 # create-person-old [5] (1) Obsolete (10) Use create-person (89)
 # get-person-stat-old [6] (1) Obsolete (1) Use get-person-stat (49)
 
 # set-priv-bits [7] (1) Recommended
 class ReqSetPrivBits(Request):
-    def __init__(self, c, person_no, privileges):
-        self.register(c)
-        c.send_string("%d 7 %d %s\n" % (self.id,
-                                        person_no,
-                                        privileges.to_string()))
+    def __init__(self, person_no, privileges):
+        self.person_no = person_no
+        self.privileges = privileges
+
+    def to_string(self):
+        return "7 %d %s\n" % (self.person_no, self.privileges.to_string())
 
 # set-passwd [8] (1) Recommended
 class ReqSetPasswd(Request):
-    def __init__(self, c, person_no, old_pwd, new_pwd):
-        self.register(c)
-        c.send_string("%d 8 %d %dH%s %dH%s\n" % (self.id,
-                                                 person_no,
-                                                 len(old_pwd), old_pwd,
-                                                 len(new_pwd), new_pwd))
+    def __init__(self, person_no, old_pwd, new_pwd):
+        self.person_no = person_no
+        self.old_pwd = old_pwd
+        self.new_pwd = new_pwd
+
+    def to_string(self):
+        return "8 %d %s %s\n" % (self.person_no,
+                                 to_hstring(self.old_pwd),
+                                 to_hstring(self.new_pwd))
 
 # query-read-texts-old [9] (1) Obsolete (10) Use query-read-texts (98)
 # create-conf-old [10] (1) Obsolete (10) Use create-conf (88)
 
 # delete-conf [11] (1) Recommended
 class ReqDeleteConf(Request):
-    def __init__(self, c, conf_no):
-        self.register(c)
-        c.send_string("%d 11 %d\n" % (self.id, conf_no))
+    def __init__(self, conf_no):
+        self.conf_no = conf_no
+
+    def to_string(self):
+        return "11 %d\n" % (self.conf_no,)
 
 # lookup-name [12] (1) Obsolete (7) Use lookup-z-name (76)
 # get-conf-stat-older [13] (1) Obsolete (10) Use get-conf-stat (91)
@@ -261,198 +267,244 @@ class ReqDeleteConf(Request):
 
 # sub-member [15] (1) Recommended
 class ReqSubMember(Request):
-    def __init__(self, c, conf_no, person_no):
-        self.register(c)
-        c.send_string("%d 15 %d %d\n" % (self.id, conf_no, person_no))
+    def __init__(self, conf_no, person_no):
+        self.conf_no = conf_no
+        self.person_no = person_no
+        
+    def to_string(self):
+        return "15 %d %d\n" % (self.conf_no, self.person_no)
 
 # set-presentation [16] (1) Recommended
 class ReqSetPresentation(Request):
-    def __init__(self, c, conf_no, text_no):
-        self.register(c)
-        c.send_string("%d 16 %d %d\n" % (self.id, conf_no, text_no))
+    def __init__(self, conf_no, text_no):
+        self.conf_no = conf_no
+        self.text_no = text_no
+        
+    def to_string(self):
+        return "16 %d %d\n" % (self.conf_no, self.text_no)
 
 # set-etc-motd [17] (1) Recommended
 class ReqSetEtcMoTD(Request):
-    def __init__(self, c, conf_no, text_no):
-        self.register(c)
-        c.send_string("%d 17 %d %d\n" % (self.id, conf_no, text_no))
+    def __init__(self, conf_no, text_no):
+        self.conf_no = conf_no
+        self.text_no = text_no
+        
+    def to_string(self):
+        return "17 %d %d\n" % (self.conf_no, self.text_no)
 
 # set-supervisor [18] (1) Recommended
 class ReqSetSupervisor(Request):
-    def __init__(self, c, conf_no, admin):
-        self.register(c)
-        c.send_string("%d 18 %d %d\n" % (self.id, conf_no, admin))
+    def __init__(self, conf_no, admin):
+        self.conf_no = conf_no
+        self.admin = admin
+        
+    def to_string(self):
+        return "18 %d %d\n" % (self.conf_no, self.admin)
 
 # set-permitted-submitters [19] (1) Recommended
 class ReqSetPermittedSubmitters(Request):
-    def __init__(self, c, conf_no, perm_sub):
-        self.register(c)
-        c.send_string("%d 19 %d %d\n" % (self.id, conf_no, perm_sub))
+    def __init__(self, conf_no, perm_sub):
+        self.conf_no = conf_no
+        self.perm_sub = perm_sub
+        
+    def to_string(self):
+        return "19 %d %d\n" % (self.conf_no, self.perm_sub)
 
 # set-super-conf [20] (1) Recommended
 class ReqSetSuperConf(Request):
-    def __init__(self, c, conf_no, super_conf):
-        self.register(c)
-        c.send_string("%d 20 %d %d\n" % (self.id, conf_no, super_conf))
+    def __init__(self, conf_no, super_conf):
+        self.conf_no = conf_no
+        self.super_conf = super_conf
+        
+    def to_string(self):
+        return "20 %d %d\n" % (self.conf_no, self.super_conf)
 
 # set-conf-type [21] (1) Recommended
 class ReqSetConfType(Request):
-    def __init__(self, c, conf_no, type):
-        self.register(c)
-        c.send_string("%d 21 %d %s\n" % (self.id,
-                                         conf_no,
-                                         type.to_string()))
+    def __init__(self, conf_no, conf_type):
+        self.conf_no = conf_no
+        self.conf_type = conf_type
+        
+    def to_string(self):
+        return "21 %d %s\n" % (self.conf_no, self.conf_type.to_string())
 
 # set-garb-nice [22] (1) Recommended
 class ReqSetGarbNice(Request):
-    def __init__(self, c, conf_no, nice):
-        self.register(c)
-        c.send_string("%d 22 %d %d\n" % (self.id, conf_no, nice))
+    def __init__(self, conf_no, nice):
+        self.conf_no = conf_no
+        self.nice = nice
+        
+    def to_string(self):
+        return "22 %d %d\n" % (self.conf_no, self.nice)
 
 # get-marks [23] (1) Recommended
 class ReqGetMarks(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 23\n" % (self.id))
+    def to_string(self):
+        return "23\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> string
-        return self.c.parse_array(Mark)
+        return conn.parse_array(Mark)
 
 # mark-text-old [24] (1) Obsolete (4) Use mark-text/unmark-text (72/73)
 
 # get-text [25] (1) Recommended
 class ReqGetText(Request):
-    def __init__(self, c, text_no,
-                 start_char = 0,
-                 end_char = MAX_TEXT_SIZE):
-        self.register(c)
-        c.send_string(("%d 25 %d %d %d\n" % 
-                       (self.id, text_no, 
-                        start_char, end_char)).encode('latin1'))
+    def __init__(self, text_no, start_char=0, end_char=MAX_TEXT_SIZE):
+        self.text_no = text_no
+        self.start_char = start_char
+        self.end_char = end_char
 
-    def parse_response(self):
+    def to_string(self):
+        return ("25 %d %d %d\n" % (self.text_no, self.start_char,
+                                      self.end_char)).encode('latin1')
+
+    def parse_response(self, conn):
         # --> string
-        return self.c.parse_string()
+        return conn.parse_string()
     
 # get-text-stat-old [26] (1) Obsolete (10) Use get-text-stat (90)
 
 # mark-as-read [27] (1) Recommended
 class ReqMarkAsRead(Request):
-    def __init__(self, c, conf_no, texts):
-        self.register(c)
-        c.send_string(("%d 27 %d %s\n" %
-                       (self.id,
-                        conf_no,
-                        c.array_of_int_to_string(texts))).encode('latin1'))
+    def __init__(self, conf_no, texts):
+        self.conf_no = conf_no
+        self.texts = texts
+
+    def to_string(self):
+        return ("27 %d %s\n" % (self.conf_no,
+                                   array_of_int_to_string(self.texts))).encode('latin1')
                       
 # create-text-old [28] (1) Obsolete (10) Use create-text (86)
 
 # delete-text [29] (1) Recommended
 class ReqDeleteText(Request):
-    def __init__(self, c, text_no):
-        self.register(c)
-        c.send_string("%d 29 %d\n" % (self.id, text_no))
+    def __init__(self, text_no):
+        self.text_no = text_no
+        
+    def to_string(self):
+        return "29 %d\n" % (self.text_no,)
 
 # add-recipient [30] (1) Recommended
 class ReqAddRecipient(Request):
-    def __init__(self, c, text_no, conf_no, recpt_type = MIR_TO):
-        self.register(c)
-        c.send_string("%d 30 %d %d %d\n" % \
-                      (self.id, text_no, conf_no, recpt_type))
+    def __init__(self, text_no, conf_no, recpt_type=MIR_TO):
+        self.text_no = text_no
+        self.conf_no = conf_no
+        self.recpt_type = recpt_type
+        
+    def to_string(self):
+        return "30 %d %d %d\n" % (self.text_no, self.conf_no, self.recpt_type)
 
 # sub-recipient [31] (1) Recommended
 class ReqSubRecipient(Request):
-    def __init__(self, c, text_no, conf_no):
-        self.register(c)
-        c.send_string("%d 31 %d %d\n" % \
-                      (self.id, text_no, conf_no))
+    def __init__(self, text_no, conf_no):
+        self.text_no = text_no
+        self.conf_no = conf_no
+        
+    def to_string(self):
+        return "31 %d %d\n" % (self.text_no, self.conf_no)
 
 # add-comment [32] (1) Recommended
 class ReqAddComment(Request):
-    def __init__(self, c, text_no, comment_to):
-        self.register(c)
-        c.send_string("%d 32 %d %d\n" % \
-                      (self.id, text_no, comment_to))
+    def __init__(self, text_no, comment_to):
+        self.text_no = text_no
+        self.comment_to = comment_to
+        
+    def to_string(self):
+        return "32 %d %d\n" % (self.text_no, self.comment_to)
 
 # sub-comment [33] (1) Recommended
 class ReqSubComment(Request):
-    def __init__(self, c, text_no, comment_to):
-        self.register(c)
-        c.send_string("%d 33 %d %d\n" % \
-                      (self.id, text_no, comment_to))
+    def __init__(self, text_no, comment_to):
+        self.text_no = text_no
+        self.comment_to = comment_to
+        
+    def to_string(self):
+        return "33 %d %d\n" % (self.text_no, self.comment_to)
 
 # get-map [34] (1) Obsolete (10) Use local-to-global (103)
 class ReqGetMap(Request):
-    def __init__(self, c, conf_no, first_local_no, no_of_texts):
-        self.register(c)
-        c.send_string("%d 34 %d %d %d\n" %
-		      (self.id, conf_no, first_local_no, no_of_texts))
+    def __init__(self, conf_no, first_local_no, no_of_texts):
+        self.conf_no = conf_no
+        self.first_local_no = first_local_no
+        self.no_of_texts = no_of_texts
+        
+    def to_string(self):
+        return "34 %d %d %d\n" % (self.conf_no, self.first_local_no, self.no_of_texts)
 
-    def parse_response(self):
+    def parse_response(self, conn):
 	# --> Text-List
-        return self.c.parse_object(TextList)
+        return conn.parse_object(TextList)
 
 # get-time [35] (1) Recommended
 class ReqGetTime(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 35\n" % self.id)
+    def to_string(self):
+        return "35\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Time
-        return self.c.parse_object(Time)
+        return conn.parse_object(Time)
     
 # get-info-old [36] (1) Obsolete (10) Use get-info (94)
 
 # add-footnote [37] (1) Recommended
 class ReqAddFootnote(Request):
-    def __init__(self, c, text_no, footnote_to):
-        self.register(c)
-        c.send_string("%d 37 %d %d\n" % \
-                      (self.id, text_no, footnote_to))
+    def __init__(self, text_no, footnote_to):
+        self.text_no = text_no
+        self.footnote_to = footnote_to
+        
+    def to_string(self):
+        return "37 %d %d\n" % (self.text_no, self.footnote_to)
 
 # sub-footnote [38] (1) Recommended
 class ReqSubFootnote(Request):
-    def __init__(self, c, text_no, footnote_to):
-        self.register(c)
-        c.send_string("%d 38 %d %d\n" % \
-                      (self.id, text_no, footnote_to))
+    def __init__(self, text_no, footnote_to):
+        self.text_no = text_no
+        self.footnote_to = footnote_to
+        
+    def to_string(self):
+        return "38 %d %d\n" % (self.text_no, self.footnote_to)
 
 # who-is-on-old [39] (1) Obsolete (9) Use get-static-session-info (84) and
 #                                         who-is-on-dynamic (83)
 
 # set-unread [40] (1) Recommended
 class ReqSetUnread(Request):
-    def __init__(self, c, conf_no, no_of_unread):
-        self.register(c)
-        c.send_string("%d 40 %d %d\n" % \
-                      (self.id, conf_no, no_of_unread))
+    def __init__(self, conf_no, no_of_unread):
+        self.conf_no = conf_no
+        self.no_of_unread = no_of_unread
+        
+    def to_string(self):
+        return "40 %d %d\n" % (self.conf_no, self.no_of_unread)
 
 # set-motd-of-lyskom [41] (1) Recommended
 class ReqSetMoTDOfLysKOM(Request):
-    def __init__(self, c, text_no):
-        self.register(c)
-        c.send_string("%d 41 %d\n" % \
-                      (self.id, text_no))
+    def __init__(self, text_no):
+        self.text_no = text_no
+        
+    def to_string(self):
+        return "41 %d\n" % (self.text_no,)
 
 # enable [42] (1) Recommended
 class ReqEnable(Request):
-    def __init__(self, c, level):
-        self.register(c)
-        c.send_string("%d 42 %d\n" % (self.id, level))
+    def __init__(self, level):
+        self.level = level
+        
+    def to_string(self):
+        return "42 %d\n" % (self.level,)
 
 # sync-kom [43] (1) Recommended
 class ReqSyncKOM(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 43\n" % (self.id))
+    def to_string(self):
+        return "43\n"
 
 # shutdown-kom [44] (1) Recommended
 class ReqShutdownKOM(Request):
-    def __init__(self, c, exit_val):
-        self.register(c)
-        c.send_string("%d 44 %d\n" % (self.id, exit_val))
+    def __init__(self, exit_val):
+        self.exit_val = exit_val
+        
+    def to_string(self):
+        return "44 %d\n" % (self.exit_val,)
 
 # broadcast [45] (1) Obsolete (1) Use send-message (53)
 # get-membership-old [46] (1) Obsolete (10) Use get-membership (99)
@@ -461,13 +513,15 @@ class ReqShutdownKOM(Request):
 
 # get-person-stat [49] (1) Recommended
 class ReqGetPersonStat(Request):
-    def __init__(self, c, person_no):
-        self.register(c)
-        c.send_string("%d 49 %d\n" % (self.id, person_no))
+    def __init__(self, person_no):
+        self.person_no = person_no
+        
+    def to_string(self):
+        return "49 %d\n" % (self.person_no,)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Person
-        return self.c.parse_object(Person)
+        return conn.parse_object(Person)
 
 # get-conf-stat-old [50] (1) Obsolete (10) Use get-conf-stat (91)
 
@@ -476,87 +530,104 @@ class ReqGetPersonStat(Request):
 
 # get-unread-confs [52] (1) Recommended
 class ReqGetUnreadConfs(Request):
-    def __init__(self, c, person_no):
-        self.register(c)
-        c.send_string(("%d 52 %d\n" % (self.id, person_no)).encode('latin1'))
+    def __init__(self, person_no):
+        self.person_no = person_no
+        
+    def to_string(self):
+        return ("52 %d\n" % (self.person_no,)).encode('latin1')
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY Conf-No
-        return self.c.parse_array_of_int()
+        return conn.parse_array_of_int()
 
 # send-message [53] (1) Recommended
 class ReqSendMessage(Request):
-    def __init__(self, c, conf_no, message):
-        self.register(c)
-        c.send_string(("%d 53 %d %dH%s\n" %
-                       (self.id, conf_no, len(message), 
-                        message)).encode('latin1'))
+    def __init__(self, conf_no, message):
+        self.conf_no = conf_no
+        self.message = message
+        
+    def to_string(self):
+        return ("53 %d %dH%s\n" % (self.conf_no, len(self.message), 
+                                      self.message)).encode('latin1')
 
 # get-session-info [54] (1) Obsolete (9) Use who-is-on-dynamic (83)
 
 # disconnect [55] (1) Recommended
 class ReqDisconnect(Request):
-    def __init__(self, c, session_no):
-        self.register(c)
-        c.send_string("%d 55 %d\n" %
-                      (self.id, session_no))
+    def __init__(self, session_no):
+        self.session_no = session_no
+        
+    def to_string(self):
+        return "55 %d\n" % (self.session_no,)
 
 # who-am-i [56] (1) Recommended
 class ReqWhoAmI(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 56\n" % (self.id))
+    def to_string(self):
+        return "56\n"
         
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Session-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # set-user-area [57] (2) Recommended
 class ReqSetUserArea(Request):
-    def __init__(self, c, person_no, user_area):
-        self.register(c)
-        c.send_string("%d 57 %d %d\n" % (self.id, person_no, user_area))
+    def __init__(self, person_no, user_area):
+        self.person_no = person_no
+        self.user_area = user_area
+        
+    def to_string(self):
+        return "57 %d %d\n" % (self.person_no, self.user_area)
 
 # get-last-text [58] (3) Recommended
 class ReqGetLastText(Request):
-    def __init__(self, c, before):
-        self.register(c)
-        c.send_string("%d 58 %s\n" % (self.id, before.to_string()))
+    def __init__(self, before):
+        self.before = before
         
-    def parse_response(self):
+    def to_string(self):
+        return "58 %s\n" % (self.before.to_string(),)
+        
+    def parse_response(self, conn):
         # --> Text-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # create-anonymous-text-old [59] (3) Obsolete (10)
 #                                    Use create-anonymous-text (87)
 
 # find-next-text-no [60] (3) Recommended
 class ReqFindNextTextNo(Request):
-    def __init__(self, c, start):
-        self.register(c)
-        c.send_string("%d 60 %d\n" % (self.id, start))
+    def __init__(self, start):
+        self.start = start
         
-    def parse_response(self):
+    def to_string(self):
+        return "60 %d\n" % (self.start,)
+        
+    def parse_response(self, conn):
         # --> Text-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # find-previous-text-no [61] (3) Recommended
 class ReqFindPreviousTextNo(Request):
-    def __init__(self, c, start):
-        self.register(c)
-        c.send_string("%d 61 %d\n" % (self.id, start))
+    def __init__(self, start):
+        self.start = start
         
-    def parse_response(self):
+    def to_string(self):
+        return "61 %d\n" % (self.start,)
+        
+    def parse_response(self, conn):
         # --> Text-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # login [62] (4) Recommended
 class ReqLogin(Request):
-    def __init__(self, c, person_no, password, invisible = 1):
-        self.register(c)
-        c.send_string(("%d 62 %d %dH%s %d\n" %
-                      (self.id, person_no, len(password), password, 
-                       invisible)).encode('latin1'))
+    def __init__(self, person_no, password, invisible=1):
+        self.person_no = person_no
+        self.password = password
+        self.invisible = invisible
+        
+    def to_string(self):
+        return ("62 %d %dH%s %d\n" %
+                (self.person_no, len(self.password), self.password, 
+                 self.invisible)).encode('latin1')
 
 # who-is-on-ident [63] (4) Obsolete (9) Use who-is-on-dynamic (83) and
 #                                           get-static-session-info (84)
@@ -569,549 +640,642 @@ class ReqLogin(Request):
 
 # set-client-version [69] (6) Recommended
 class ReqSetClientVersion(Request):
-    def __init__(self, c, client_name, client_version):
-        self.register(c)
-        c.send_string (("%d 69 %dH%s %dH%s\n" %
-                        (self.id,
-                         len(client_name), client_name,
-                         len(client_version), client_version)).encode('latin1'))
+    def __init__(self, client_name, client_version):
+        self.client_name = client_name
+        self.client_version = client_version
+        
+    def to_string(self):
+        return ("69 %dH%s %dH%s\n" % (
+                len(self.client_name), self.client_name,
+                len(self.client_version), self.client_version)).encode('latin1')
 
 # get-client-name [70] (6) Recommended
 class ReqGetClientName(Request):
-    def __init__(self, c, session_no):
-        self.register(c)
-        c.send_string("%d 70 %d\n" % (self.id, session_no))
+    def __init__(self, session_no):
+        self.session_no = session_no
         
-    def parse_response(self):
+    def to_string(self):
+        return "70 %d\n" % (self.session_no,)
+        
+    def parse_response(self, conn):
         # --> Hollerith
-        return self.c.parse_string()
+        return conn.parse_string()
 
 # get-client-version [71] (6) Recommended
 class ReqGetClientVersion(Request):
-    def __init__(self, c, session_no):
-        self.register(c)
-        c.send_string("%d 71 %d\n" % (self.id, session_no))
+    def __init__(self, session_no):
+        self.session_no = session_no
         
-    def parse_response(self):
+    def to_string(self):
+        return "71 %d\n" % (self.session_no,)
+        
+    def parse_response(self, conn):
         # --> Hollerith
-        return self.c.parse_string()
+        return conn.parse_string()
 
 # mark-text [72] (4) Recommended
 class ReqMarkText(Request):
-    def __init__(self, c, text_no, mark_type):
-        self.register(c)
-        c.send_string("%d 72 %d %d\n" % (self.id, text_no, mark_type))
+    def __init__(self, text_no, mark_type):
+        self.text_no = text_no
+        pass
+        
+    def to_string(self):
+        return "72 %d %d\n" % (self.text_no, self.mark_type)
 
 # unmark-text [73] (6) Recommended
 class ReqUnmarkText(Request):
-    def __init__(self, c, text_no):
-        self.register(c)
-        c.send_string("%d 73 %d\n" % (self.id, text_no))
+    def __init__(self, text_no):
+        self.text_no = text_no
+        
+    def to_string(self):
+        return "73 %d\n" % (self.text_no,)
 
 # re-z-lookup [74] (7) Recommended
 class ReqReZLookup(Request):
-    def __init__(self, c, regexp, want_pers = 0, want_confs = 0):
-        self.register(c)
-        c.send_string("%d 74 %dH%s %d %d\n" %
-                      (self.id, len(regexp), regexp, want_pers, want_confs))
+    def __init__(self, regexp, want_pers=0, want_confs=0):
+        self.regexp = regexp
+        self.want_pers = want_pers
+        self.want_confs = want_confs
+        
+    def to_string(self):
+        return "74 %dH%s %d %d\n" % (len(self.regexp), self.regexp,
+                                     self.want_pers, self.want_confs)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY ConfZInfo
-        return self.c.parse_array(ConfZInfo)
+        return conn.parse_array(ConfZInfo)
 
 # get-version-info [75] (7) Recommended
 class ReqGetVersionInfo(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 75\n" % (self.id))
+    def to_string(self):
+        return "75\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Version-Info
-        return self.c.parse_object(VersionInfo)
+        return conn.parse_object(VersionInfo)
 
 # lookup-z-name [76] (7) Recommended
 class ReqLookupZName(Request):
-    def __init__(self, c, name, want_pers = 0, want_confs = 0):
-        self.register(c)
-        c.send_string(("%d 76 %dH%s %d %d\n" %
-                       (self.id, len(name), name, 
-                        want_pers, want_confs)).encode('latin1'))
+    def __init__(self, name, want_pers=0, want_confs=0):
+        self.name = name
+        self.want_pers = want_pers
+        self.want_confs = want_confs
+        
+    def to_string(self):
+        return ("76 %dH%s %d %d\n" % (len(self.name), self.name,
+                                         self.want_pers, self.want_confs)).encode('latin1')
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY ConfZInfo
-        return self.c.parse_array(ConfZInfo)
+        return conn.parse_array(ConfZInfo)
 
 # set-last-read [77] (8) Recommended
 class ReqSetLastRead(Request):
-    def __init__(self, c, conf_no, last_read):
-        self.register(c)
-        c.send_string("%d 77 %d %d\n" % \
-                      (self.id, conf_no, last_read))
+    def __init__(self, conf_no, last_read):
+        self.conf_no = conf_no
+        self.last_read = last_read
+        
+    def to_string(self):
+        return "77 %d %d\n" % (self.conf_no, self.last_read)
 
 # get-uconf-stat [78] (8) Recommended
 class ReqGetUconfStat(Request):
-    def __init__(self, c, conf_no):
-        self.register(c)
-        c.send_string(("%d 78 %d\n" % (self.id, conf_no)).encode('latin1'))
+    def __init__(self, conf_no):
+        self.conf_no = conf_no
+        
+    def to_string(self):
+        return ("78 %d\n" % (self.conf_no,)).encode('latin1')
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> UConference
-        return self.c.parse_object(UConference)
+        return conn.parse_object(UConference)
 
 # set-info [79] (9) Recommended
 class ReqSetInfo(Request):
-    def __init__(self, c, info):
-        self.register(c)
-        c.send_string("%d 79 %s\n" % (self.id, info.to_string()))
+    def __init__(self, info):
+        self.info = info
+        
+    def to_string(self):
+        return "79 %s\n" % (self.info.to_string(),)
 
 # accept-async [80] (9) Recommended
 class ReqAcceptAsync(Request):
-    def __init__(self, c, request_list):
-        self.register(c)
-        c.send_string(("%d 80 %s\n" %
-                      (self.id,
-                       c.array_of_int_to_string(request_list)))\
-                          .encode('latin1'))
+    def __init__(self, request_list):
+        self.request_list = request_list
+        
+    def to_string(self):
+        return ("80 %s\n" % (array_of_int_to_string(self.request_list),)).encode('latin1')
 
 # query-async [81] (9) Recommended
 class ReqQueryAsync(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 81\n" % (self.id))
+    def to_string(self):
+        return "81\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY INT32
-        return self.c.parse_array_of_int()
+        return conn.parse_array_of_int()
 
 # user-active [82] (9) Recommended
 class ReqUserActive(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 82\n" % (self.id))
+    def to_string(self):
+        return "82\n"
 
 # who-is-on-dynamic [83] (9) Recommended
 class ReqWhoIsOnDynamic(Request):
-    def __init__(self, c,
-                 want_visible = 1, want_invisible = 0,
-                 active_last = 0):
-        self.register(c)
-        c.send_string("%d 83 %d %d %d\n" % \
-                      (self.id, want_visible, want_invisible, active_last))
+    def __init__(self, want_visible=1, want_invisible=0, active_last=0):
+        self.want_visible = want_visible
+        self.want_invisible = want_invisible
+        self.active_last = active_last
+        
+    def to_string(self):
+        return "83 %d %d %d\n" % (self.want_visible, self.want_invisible, self.active_last)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY Dynamic-Session-Info
-        return self.c.parse_array(DynamicSessionInfo)
+        return conn.parse_array(DynamicSessionInfo)
 
 # get-static-session-info [84] (9) Recommended
 class ReqGetStaticSessionInfo(Request):
-    def __init__(self, c, session_no):
-        self.register(c)
-        c.send_string("%d 84 %d\n" % (self.id, session_no))
+    def __init__(self, session_no):
+        self.session_no = session_no
+        
+    def to_string(self):
+        return "84 %d\n" % (self.session_no,)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Static-Session-Info
-        return self.c.parse_object(StaticSessionInfo)
+        return conn.parse_object(StaticSessionInfo)
 
 # get-collate-table [85] (10) Recommended
 class ReqGetCollateTable(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 85\n" % (self.id))
+    def to_string(self):
+        return "85\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> HOLLERITH
-        return self.c.parse_string()
+        return conn.parse_string()
 
 # create-text [86] (10) Recommended
 class ReqCreateText(Request):
-    def __init__(self, c, text, misc_info, aux_items = []):
-        self.register(c)
-        c.send_string("%d 86 %dH%s %s %s\n" %
-                      (self.id,
-                       len(text), text,
-                       misc_info.to_string(),
-                       c.array_to_string(aux_items)))
+    def __init__(self, text, misc_info, aux_items=[]):
+        self.text = text
+        self.misc_info = misc_info
+        self.aux_items = aux_items
         
-    def parse_response(self):
+    def to_string(self):
+        return "86 %dH%s %s %s\n" % (len(self.text), self.text,
+                                     self.misc_info.to_string(),
+                                     array_to_string(self.aux_items))
+        
+    def parse_response(self, conn):
         # --> Text-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # create-anonymous-text [87] (10) Recommended
 class ReqCreateAnonymousText(Request):
-    def __init__(self, c, text, misc_info, aux_items = []):
-        self.register(c)
-        c.send_string("%d 87 %dH%s %s %s\n" %
-                      (self.id,
-                       len(text), text,
-                       misc_info.to_string(),
-                       c.array_to_string(aux_items)))
+    def __init__(self, text, misc_info, aux_items=[]):
+        self.text = text
+        self.misc_info = misc_info
+        self.aux_items = aux_items
         
-    def parse_response(self):
+    def to_string(self):
+        return "87 %dH%s %s %s\n" % (len(self.text), self.text,
+                                     self.misc_info.to_string(),
+                                     array_to_string(self.aux_items))
+        
+    def parse_response(self, conn):
         # --> Text-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # create-conf [88] (10) Recommended
 class ReqCreateConf(Request):
-    def __init__(self, c, name, type, aux_items = []):
-        self.register(c)
-        c.send_string("%d 88 %dH%s %s %s\n" %
-                      (self.id,
-                       len(name), name,
-                       type.to_string(),
-                       c.array_to_string(aux_items)))
+    def __init__(self, name, conf_type, aux_items=[]):
+        self.name = name
+        self.conf_type = conf_type
+        self.aux_items = aux_items
         
-    def parse_response(self):
+    def to_string(self):
+        return "88 %dH%s %s %s\n" % (len(self.name), self.name,
+                                     self.conf_type.to_string(),
+                                     array_to_string(self.aux_items))
+        
+    def parse_response(self, conn):
         # --> Conf-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # create-person [89] (10) Recommended
 class ReqCreatePerson(Request):
-    def __init__(self, c, name, passwd, flags, aux_items = []):
-        self.register(c)
-        c.send_string("%d 89 %dH%s %dH%s %s %s\n" %
-                      (self.id,
-                       len(name), name,
-                       len(passwd), passwd,
-                       flags.to_string(),
-                       c.array_to_string(aux_items)))
+    def __init__(self, name, passwd, flags, aux_items=[]):
+        self.name = name
+        self.passwd = passwd
+        self.flags = flags
+        self.aux_items = aux_items
         
-    def parse_response(self):
+    def to_string(self):
+        return "89 %dH%s %dH%s %s %s\n" % (len(self.name), self.name,
+                                           len(self.passwd), self.passwd,
+                                           self.flags.to_string(),
+                                           array_to_string(self.aux_items))
+        
+    def parse_response(self, conn):
         # --> Pers-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # get-text-stat [90] (10) Recommended
 class ReqGetTextStat(Request):
-    def __init__(self, c, text_no):
-        self.register(c)
-        c.send_string(("%d 90 %d\n" %
-                      (self.id, text_no)).encode('latin1'))
+    def __init__(self, text_no):
+        self.text_no = text_no
+        
+    def to_string(self):
+        return ("90 %d\n" % (self.text_no,)).encode('latin1')
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> TextStat
-        return self.c.parse_object(TextStat)
+        return conn.parse_object(TextStat)
 
 # get-conf-stat [91] (10) Recommended
 class ReqGetConfStat(Request):
-    def __init__(self, c, conf_no):
-        self.register(c)
-        c.send_string(("%d 91 %d\n" % (self.id, conf_no)).encode('latin1'))
+    def __init__(self, conf_no):
+        self.conf_no = conf_no
+        
+    def to_string(self):
+        return ("91 %d\n" % (self.conf_no,)).encode('latin1')
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Conference
-        return self.c.parse_object(Conference)
+        return conn.parse_object(Conference)
 
 # modify-text-info [92] (10) Recommended
 class ReqModifyTextInfo(Request):
-    def __init__(self, c, text_no, delete, add):
-        self.register(c)
-        c.send_string("%d 92 %d %s %s\n" %
-                      (self.id,
-                       text_no,
-                       c.array_of_int_to_string(delete),
-                       c.array_to_string(add)))
+    def __init__(self, text_no, delete, add):
+        self.text_no = text_no
+        self.delete = delete
+        self.add = add
+        
+    def to_string(self):
+        return "92 %d %s %s\n" % (self.text_no,
+                                  array_of_int_to_string(self.delete),
+                                  array_to_string(self.add))
 
 # modify-conf-info [93] (10) Recommended
 class ReqModifyConfInfo(Request):
-    def __init__(self, c, conf_no, delete, add):
-        self.register(c)
-        c.send_string("%d 93 %d %s %s\n" %
-                      (self.id,
-                       conf_no,
-                       c.array_of_int_to_string(delete),
-                       c.array_to_string(add)))
+    def __init__(self, conf_no, delete, add):
+        self.conf_no = conf_no
+        self.delete = delete
+        self.add = add
+        
+    def to_string(self):
+        return "93 %d %s %s\n" % (self.conf_no,
+                                  array_of_int_to_string(self.delete),
+                                  array_to_string(self.add))
 
 # get-info [94] (10) Recommended
 class ReqGetInfo(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string(("%d 94\n" % (self.id)).encode('latin1'))
+    def to_string(self):
+        return "94\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Info
-        return self.c.parse_object(Info)
+        return conn.parse_object(Info)
 
 # modify-system-info [95] (10) Recommended
 class ReqModifySystemInfo(Request):
-    def __init__(self, c, delete, add):
-        self.register(c)
-        c.send_string("%d 95 %s %s\n" %
-                      (self.id,
-                       c.array_of_int_to_string(delete),
-                       c.array_to_string(add)))
+    def __init__(self, delete, add):
+        self.delete = delete
+        self.add = add
+        
+    def to_string(self):
+        return "95 %s %s\n" % (array_of_int_to_string(self.delete),
+                               array_to_string(self.add))
 
 # query-predefined-aux-items [96] (10) Recommended
 class ReqQueryPredefinedAuxItems(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 96\n" % (self.id))
+    def to_string(self):
+        return "96\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY INT32
-        return self.c.parse_array_of_int()
+        return conn.parse_array_of_int()
 
 # set-expire [97] (10) Experimental
 class ReqSetExpire(Request):
-    def __init__(self, c, conf_no, expire):
-        self.register(c)
-        c.send_string("%d 97 %d %d\n" % (self.id, conf_no, expire))
+    def __init__(self, conf_no, expire):
+        self.conf_no = conf_no
+        self.expire = expire
+        
+    def to_string(self):
+        return "97 %d %d\n" % (self.conf_no, self.expire)
 
 # query-read-texts-10 [98] (10) Obsolete (11) Use query-read-texts (107)
 class ReqQueryReadTexts10(Request):
-    def __init__(self, c, person_no, conf_no):
-        self.register(c)
-        c.send_string("%d 98 %d %d\n" % (self.id, person_no, conf_no))
+    def __init__(self, person_no, conf_no):
+        self.person_no = person_no
+        self.conf_no = conf_no
+        
+    def to_string(self):
+        return "98 %d %d\n" % (self.person_no, self.conf_no)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Membership10
-        return self.c.parse_object(Membership10)
+        return conn.parse_object(Membership10)
 
 # get-membership-10 [99] (10) Obsolete (11) Use get-membership (108)
 
 class ReqGetMembership10(Request):
-    def __init__(self, c, person_no, first, no_of_confs, want_read_texts):
-        self.register(c)
-        c.send_string("%d 99 %d %d %d %d\n" % \
-                      (self.id, person_no,
-                       first, no_of_confs, want_read_texts))
+    def __init__(self, person_no, first, no_of_confs, want_read_texts):
+        self.person_no = person_no
+        self.first = first
+        self.no_of_confs = no_of_confs
+        self.want_read_texts = want_read_texts
+        
+    def to_string(self):
+        return "99 %d %d %d %d\n" % (self.person_no, self.first,
+                                     self.no_of_confs, self.want_read_texts)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY Membership10
-        return self.c.parse_array(Membership10)
+        return conn.parse_array(Membership10)
 
 # add-member [100] (10) Recommended
 class ReqAddMember(Request):
-    def __init__(self, c, conf_no, person_no, priority, where, type):
-        self.register(c)
-        c.send_string("%d 100 %d %d %d %d %s\n" % \
-                      (self.id, conf_no, person_no,
-                       priority, where, type.to_string()))
+    def __init__(self, conf_no, person_no, priority, where, membership_type):
+        self.conf_no = conf_no
+        self.person_no = person_no
+        self.priority = priority
+        self.where = where
+        self.membership_type = membership_type
+        
+    def to_string(self):
+        return "100 %d %d %d %d %s\n" % (self.conf_no, self.person_no,
+                                         self.priority, self.where,
+                                         self.membership_type.to_string())
 
 # get-members [101] (10) Recommended
 class ReqGetMembers(Request):
-    def __init__(self, c, conf_no, first, no_of_members):
-        self.register(c)
-        c.send_string("%d 101 %d %d %d\n" % \
-                      (self.id, conf_no, first, no_of_members))
+    def __init__(self, conf_no, first, no_of_members):
+        self.conf_no = conf_no
+        self.first = first
+        self.no_of_members = no_of_members
+        
+        
+    def to_string(self):
+        return "101 %d %d %d\n" % (self.conf_no, self.first, self.no_of_members)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY Member
-        return self.c.parse_array(Member)
+        return conn.parse_array(Member)
 
 # set-membership-type [102] (10) Recommended
 class ReqSetMembershipType(Request):
-    def __init__(self, c, person_no, conf_no, type):
-        self.register(c)
-        c.send_string("%d 102 %d %d %s\n" % \
-                      (self.id, person_no, conf_no, type.to_string()))
+    def __init__(self, person_no, conf_no, membership_type):
+        self.person_no = person_no
+        self.conf_no = conf_no
+        self.membership_type = membership_type
+        
+    def to_string(self):
+        return "102 %d %d %s\n" % (self.person_no, self.conf_no, self.membership_type.to_string())
 
 # local-to-global [103] (10) Recommended
 class ReqLocalToGlobal(Request):
-    def __init__(self, c, conf_no, first_local_no, no_of_existing_texts):
-        self.register(c)
-        c.send_string(("%d 103 %d %d %d\n" % \
-                      (self.id, conf_no, first_local_no, 
-                       no_of_existing_texts)).encode('latin1'))
+    def __init__(self, conf_no, first_local_no, no_of_existing_texts):
+        self.conf_no = conf_no
+        self.first_local_no = first_local_no
+        self.no_of_existing_texts = no_of_existing_texts
+        
+    def to_string(self):
+        return ("103 %d %d %d\n" % (self.conf_no, self.first_local_no, 
+                                       self.no_of_existing_texts)).encode('latin1')
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Text-Mapping
-        return self.c.parse_object(TextMapping)
+        return conn.parse_object(TextMapping)
 
 # map-created-texts [104] (10) Recommended
 class ReqMapCreatedTexts(Request):
-    def __init__(self, c, author, first_local_no, no_of_existing_texts):
-        self.register(c)
-        c.send_string("%d 104 %d %d %d\n" % \
-                      (self.id, author, first_local_no, no_of_existing_texts))
+    def __init__(self, author, first_local_no, no_of_existing_texts):
+        self.author = author
+        self.first_local_no = first_local_no
+        self.no_of_existing_texts = no_of_existing_texts
+        
+    def to_string(self):
+        return "104 %d %d %d\n" % (self.author, self.first_local_no, self.no_of_existing_texts)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Text-Mapping
-        return self.c.parse_object(TextMapping)
+        return conn.parse_object(TextMapping)
 
 # set-keep-commented [105] (11) Recommended (10) Experimental
 class ReqSetKeepCommented(Request):
-    def __init__(self, c, conf_no, keep_commented):
-        self.register(c)
-        c.send_string("%d 105 %d %d\n" % (self.id, conf_no, keep_commented))
+    def __init__(self, conf_no, keep_commented):
+        self.conf_no = conf_no
+        self.keep_commented = keep_commented
+        
+    def to_string(self):
+        return "105 %d %d\n" % (self.conf_no, self.keep_commented)
 
 # set-pers-flags [106] (10) Recommended
 
 class ReqSetPersFlags(Request):
-    def __init__(self, c, person_no, flags):
-        self.register(c)
-        c.send_string("%d 106 %d %s\n" % (self.id,
-                                        person_no,
-                                        flags.to_string()))
+    def __init__(self, person_no, flags):
+        self.person_no = person_no
+        self.flags = flags
+        
+    def to_string(self):
+        return "106 %d %s\n" % (self.person_no, self.flags.to_string())
 
 ### --- New in protocol version 11 ---
 
 # query-read-texts [107] (11) Recommended
 class ReqQueryReadTexts11(Request):
-    def __init__(self, c, person_no, conf_no,
+    def __init__(self, person_no, conf_no,
                  want_read_ranges, max_ranges):
-        self.register(c)
-        c.send_string(("%d 107 %d %d %d %d\n" % (self.id, person_no, conf_no,
-                                                want_read_ranges,
-                                                max_ranges)).encode('latin1'))
+        self.person_no = person_no
+        self.conf_no = conf_no
+        self.want_read_ranges = want_read_ranges
+        self.max_ranges = max_ranges
+        
+    def to_string(self):
+        return ("107 %d %d %d %d\n" % (self.person_no, self.conf_no,
+                                          self.want_read_ranges,
+                                          self.max_ranges)).encode('latin1')
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Membership11
-        return self.c.parse_object(Membership11)
+        return conn.parse_object(Membership11)
 
 ReqQueryReadTexts = ReqQueryReadTexts11
 
 # get-membership [108] (11) Recommended
 class ReqGetMembership11(Request):
-    def __init__(self, c, person_no, first, no_of_confs,
+    def __init__(self, person_no, first, no_of_confs,
                  want_read_ranges, max_ranges):
-        self.register(c)
-        c.send_string("%d 108 %d %d %d %d %d\n" % \
-                      (self.id, person_no,
-                       first, no_of_confs,
-                       want_read_ranges, max_ranges))
+        self.person_no = person_no
+        self.first = first
+        self.no_of_confs = no_of_confs
+        self.want_read_ranges = want_read_ranges
+        self.max_ranges = max_ranges
+        
+    def to_string(self):
+        return "108 %d %d %d %d %d\n" % (self.person_no,
+                                         self.first, self.no_of_confs,
+                                         self.want_read_ranges, self.max_ranges)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY Membership11
-        return self.c.parse_array(Membership11)
+        return conn.parse_array(Membership11)
 
 ReqGetMembership = ReqGetMembership11
 
 # mark-as-unread [109] (11) Recommended
 class ReqMarkAsUnread(Request):
-    def __init__(self, c, conf_no, text_no):
-        self.register(c)
-        c.send_string("%d 109 %d %d\n" %
-                      (self.id,
-                       conf_no,
-                       text_no))
+    def __init__(self, conf_no, text_no):
+        self.conf_no = conf_no
+        self.text_no = text_no
+        
+    def to_string(self):
+        return "109 %d %d\n" % (self.conf_no, self.text_no)
 
 # set-read-ranges [110] (11) Recommended
 class ReqSetReadRanges(Request):
-    def __init__(self, c, conf_no, read_ranges):
-        self.register(c)
-        c.send_string("%d 110 %s %s\n" %
-                      (self.id,
-                       conf_no,
-                       c.array_to_string(read_ranges)))
+    def __init__(self, conf_no, read_ranges):
+        self.conf_no = conf_no
+        self.read_ranges = read_ranges
+        
+    def to_string(self):
+        return "110 %s %s\n" % (self.conf_no, array_to_string(self.read_ranges))
 
 # get-stats-description [111] (11) Recommended
 class ReqGetStatsDescription(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 111 \n" % (self.id))
+    def to_string(self):
+        return "111 \n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Stats-Description
-        return self.c.parse_object(StatsDescription)
+        return conn.parse_object(StatsDescription)
 
 # get-stats [112] (11) Recommended
 class ReqGetStats(Request):
-    def __init__(self, c, what):
-        self.register(c)
-        c.send_string("%d 112 %dH%s\n" % (self.id,
-                                          len(what), what))
+    def __init__(self, what):
+        pass
+        
+    def to_string(self):
+        return "112 %dH%s\n" % (len(self.what), self.what)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> ARRAY Stats
-        return self.c.parse_array(Stats)
+        return conn.parse_array(Stats)
 
 # get-boottime-info [113] (11) Recommended
 class ReqGetBoottimeInfo(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 113 \n" % (self.id))
+    def to_string(self):
+        return "113 \n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Static-Server-Info
-        return self.c.parse_object(StaticServerInfo)
+        return conn.parse_object(StaticServerInfo)
 
 # first-unused-conf-no [114] (11) Recommended
 class ReqFirstUnusedConfNo(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 114\n" % (self.id))
+    def to_string(self):
+        return "114\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Conf-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # first-unused-text-no [115] (11) Recommended
 class ReqFirstUnusedTextNo(Request):
-    def __init__(self, c):
-        self.register(c)
-        c.send_string("%d 115\n" % (self.id))
+    def to_string(self):
+        return "115\n"
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Text-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # find-next-conf-no [116] (11) Recommended
 class ReqFindNextConfNo(Request):
-    def __init__(self, c, conf_no):
-        self.register(c)
-        c.send_string("%d 116 %d\n" % (self.id, conf_no))
+    def __init__(self, conf_no):
+        self.conf_no = conf_no
+        pass
+        
+    def to_string(self):
+        return "116 %d\n" % (self.conf_no,)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Conf-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # find-previous-conf-no [117] (11) Recommended
 class ReqFindPreviousConfNo(Request):
-    def __init__(self, c, conf_no):
-        self.register(c)
-        c.send_string("%d 117 %d\n" % (self.id, conf_no))
+    def __init__(self, conf_no):
+        self.conf_no = conf_no
+        pass
+        
+    def to_string(self):
+        return "117 %d\n" % (self.conf_no,)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Conf-No
-        return self.c.parse_int()
+        return conn.parse_int()
 
 # get-scheduling [118] (11) Experimental
 class ReqGetScheduling(Request):
-    def __init__(self, c, session_no):
-        self.register(c)
-        c.send_string("%d 118 %d\n" % (self.id, session_no))
+    def __init__(self, session_no):
+        self.session_no = session_no
+        pass
+        
+    def to_string(self):
+        return "118 %d\n" % (self.session_no,)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> SchedulingInfo
-        return self.c.parse_object(SchedulingInfo)
+        return conn.parse_object(SchedulingInfo)
 
 # set-scheduling [119] (11) Experimental
 class ReqSetScheduling(Request):
-    def __init__(self, c, session_no, priority, weight):
-        self.register(c)
-        c.send_string("%d 119 %d %d %d\n" % (self.id, session_no,
-                                             priority, weight))
+    def __init__(self, session_no, priority, weight):
+        self.session_no = session_no
+        self.prority = priority
+        self.weight = weight
+        
+    def to_string(self):
+        return "119 %d %d %d\n" % (self.session_no, self.priority, self.weight)
 
 # set-connection-time-format [120] (11) Recommended
 class ReqSetConnectionTimeFormat(Request):
-    def __init__(self, c, use_utc):
-        self.register(c)
-        c.send_string("%d 120 %d\n" %
-                      (self.id,
-                       use_utc))
+    def __init__(self, use_utc):
+        self.use_utc = use_utc
+        
+    def to_string(self):
+        return "120 %d\n" % (self.use_utc,)
 
 # local-to-global-reverse [121] (11) Recommended
 class ReqLocalToGlobalReverse(Request):
-    def __init__(self, c, conf_no, local_no_ceiling, no_of_existing_texts):
-        self.register(c)
-        c.send_string("%d 121 %d %d %d\n" % \
-                      (self.id, conf_no, local_no_ceiling,
-                       no_of_existing_texts))
+    def __init__(self, conf_no, local_no_ceiling, no_of_existing_texts):
+        self.conf_no = conf_no
+        self.local_no_ceiling = local_no_ceiling
+        self.no_of_existing_texts = no_of_existing_texts
+        
+    def to_string(self):
+        return "121 %d %d %d\n" % (self.conf_no, self.local_no_ceiling, self.no_of_existing_texts)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Text-Mapping
-        return self.c.parse_object(TextMapping)
+        return conn.parse_object(TextMapping)
 
 # map-created-texts-reverse [122] (11) Recommended
 class ReqMapCreatedTextsReverse(Request):
-    def __init__(self, c, author, local_no_ceiling, no_of_existing_texts):
-        self.register(c)
-        c.send_string("%d 122 %d %d %d\n" % \
-                      (self.id, author, local_no_ceiling,
-                       no_of_existing_texts))
+    def __init__(self, author, local_no_ceiling, no_of_existing_texts):
+        self.author = author
+        self.local_no_ceiling = local_no_ceiling
+        self.no_of_existing_texts = no_of_existing_texts
+        
+    def to_string(self):
+        return "122 %d %d %d\n" % (self.author, self.local_no_ceiling, self.no_of_existing_texts)
 
-    def parse_response(self):
+    def parse_response(self, conn):
         # --> Text-Mapping
-        return self.c.parse_object(TextMapping)
+        return conn.parse_object(TextMapping)
 
 
 #
@@ -2024,3 +2188,22 @@ class Stats:
         return "<Stats %f + %f - %f>" % (self.average,
                                          self.ascent_rate,
                                          self.descent_rate)
+
+
+
+def array_of_int_to_string(array):
+    return "%d { %s }" % (len(array),
+                         " ".join(list(map(str, array))))
+
+def array_to_string(array):
+    return "%d { %s }" % (len(array), 
+                          " ".join([x.to_string() for x in array]))
+
+
+def to_hstring(s, encoding='latin1'):
+    """To hollerith string
+    """
+    assert isinstance(s, basestring)
+    if isinstance(s, unicode):
+        s = s.encode(encoding)
+    return "%dH%s" % (len(s), s)

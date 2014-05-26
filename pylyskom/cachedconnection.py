@@ -2,7 +2,7 @@
 
 from . import kom
 from .request import Requests, default_request_factory
-from .connection import Connection
+from .connection import Client
 
 
 #
@@ -20,15 +20,11 @@ from .connection import Connection
 # * Helper function get_unread_texts to get a list of local and global
 #   numbers of all unread text in a conference for a person
 
-class CachedConnection(Connection):
+class CachingClient(Client):
     def __init__(self, connection, request_factory=default_request_factory):
-        assert connection is not None
-        self._conn = connection
+        Client.__init__(self, connection)
         self._request_factory = request_factory
 
-    def connect(self, host, port = 4894, user = "", localbind=None):
-        self._conn.connect(host, port, user, localbind)
-        
         # Caches
         #
         # TODO: Instead of exposing these dictionary like cache
@@ -56,12 +52,11 @@ class CachedConnection(Connection):
         self.add_async_handler(kom.ASYNC_SUB_RECIPIENT, self._cah_sub_recipient, True)
         self.add_async_handler(kom.ASYNC_NEW_MEMBERSHIP, self._cah_new_membership)
 
-    def close(self):
-        self._conn.close()
-
     def request(self, request, *args, **kwargs):
-        return self._request_factory.new(request)(self._conn, *args, **kwargs)
-    
+        req = self._request_factory.new(request)(*args, **kwargs)
+        req_id = self.register_request(req)
+        return self.wait_and_dequeue(req_id)
+
     def add_async_handler(self, msg_no, handler, skip_accept_async=False):
         """Add an async handler and tell the LysKOM sever to
         start sending async messages of that type.
@@ -74,23 +69,23 @@ class CachedConnection(Connection):
         skip_accept_async=True, and then register the last one with
         skip_accept_async=False to send the request.
         """
-        self._conn.register_async_handler(msg_no, handler)
+        self.register_async_handler(msg_no, handler)
         if not skip_accept_async:
-            self.request(Requests.AcceptAsync, self._conn.async_handlers.keys())
+            self.request(Requests.AcceptAsync, self._async_handlers.keys())
 
 
     # Fetching functions (internal use)
     def _fetch_uconference(self, no):
-        return self.request(Requests.GetUconfStat, no).response()
+        return self.request(Requests.GetUconfStat, no)
 
     def _fetch_conference(self, no):
-        return self.request(Requests.GetConfStat, no).response()
+        return self.request(Requests.GetConfStat, no)
 
     def _fetch_person(self, no):
-        return self.request(Requests.GetPersonStat, no).response()
+        return self.request(Requests.GetPersonStat, no)
 
     def _fetch_textstat(self, no):
-        return self.request(Requests.GetTextStat, no).response()
+        return self.request(Requests.GetTextStat, no)
 
     # Handlers for asynchronous messages (internal use)
     # FIXME: Most of these handlers should do more clever things than just
@@ -183,7 +178,7 @@ class CachedConnection(Connection):
                 Requests.LookupZName, 
                 name,
                 want_pers = want_pers,
-                want_confs = want_confs).response()
+                want_confs = want_confs)
             return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
     def regexp_lookup(self, regexp, want_pers, want_confs,
@@ -199,14 +194,14 @@ class CachedConnection(Connection):
             Requests.ReZLookup,
             regexp,
             want_pers = want_pers,
-            want_confs = want_confs).response()
+            want_confs = want_confs)
         return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
     def _case_insensitive_regexp(self, regexp):
         """Make regular expression case insensitive"""
         result = ""
         # FIXME: Cache collate_table
-        collate_table = self.request(Requests.GetCollateTable).response()
+        collate_table = self.request(Requests.GetCollateTable)
         inside_brackets = 0
         for c in regexp:
             if c == "[":
@@ -279,7 +274,7 @@ class CachedConnection(Connection):
                 gap_len -= n
                 try:
                     mapping = self.request(
-                        Requests.LocalToGlobal, membership.conference, first_local, n).response()
+                        Requests.LocalToGlobal, membership.conference, first_local, n)
                     unread.extend([e[1] for e in mapping.list if e[1] != 0])
                     first_local = mapping.range_end
                     more_to_fetch = mapping.later_texts_exists
@@ -293,7 +288,7 @@ class CachedConnection(Connection):
         while more_to_fetch:
             try:
                 mapping = self.request(
-                    Requests.LocalToGlobal, membership.conference, first_local, 255).response()
+                    Requests.LocalToGlobal, membership.conference, first_local, 255)
                 unread.extend([e[1] for e in mapping.list if e[1] != 0])
                 first_local = mapping.range_end
                 more_to_fetch = mapping.later_texts_exists
@@ -305,22 +300,22 @@ class CachedConnection(Connection):
         return [ text_no for text_no in unread if text_no != 0]
 
     def mark_text(self, text_no, mark_type):
-        self.request(Requests.MarkText, text_no, mark_type).response()
+        self.request(Requests.MarkText, text_no, mark_type)
         # textstat.misc_info.no_of_marks is now invalid
         self.textstats.invalidate(text_no)
 
     def unmark_text(self, text_no):
-        self.request(Requests.UnmarkText, text_no).response()
+        self.request(Requests.UnmarkText, text_no)
         # textstat.misc_info.no_of_marks is now invalid
         self.textstats.invalidate(text_no)
 
 
-class CachedPersonConnection(CachedConnection):
+class CachingPersonClient(CachingClient):
     def __init__(self, connection):
-        CachedConnection.__init__(self, connection)
+        CachingClient.__init__(self, connection)
 
-    def connect(self, host, port = 4894, user = "", localbind=None):
-        CachedConnection.connect(self, host, port, user, localbind)
+#    def connect(self, host, port = 4894, user = "", localbind=None):
+#        CachingClient.connect(self, host, port, user, localbind)
 
         # Current person number
         self._pers_no = 0
@@ -344,13 +339,13 @@ class CachedPersonConnection(CachedConnection):
         self.add_async_handler(kom.ASYNC_NEW_MEMBERSHIP, self._cpah_new_membership)
 
     def login(self, pers_no, password):
-        self.request(Requests.Login, pers_no, password, invisible=0).response()
+        self.request(Requests.Login, pers_no, password, invisible=0)
         # We need to know the current person to be able to have and
         # invalidate caches.
         self._pers_no = pers_no
 
     def logout(self):
-        self.request(Requests.Logout).response()
+        self.request(Requests.Logout)
         # Invalidate caches that are/were for the current person
         self._pers_no = 0
         self._memberships_by_position = dict()
@@ -369,20 +364,20 @@ class CachedPersonConnection(CachedConnection):
         # current conference to be able to invalidate the membership
         # correctly.
         prev_conf_no = self._current_conference_no
-        self.request(Requests.ChangeConference, conf_no).response()
+        self.request(Requests.ChangeConference, conf_no)
         self._current_conference_no = conf_no
         if prev_conf_no != 0:
             self._invalidate_membership(prev_conf_no)
 
     def mark_as_read_local(self, conf_no, local_text_no):
         try:
-            self.request(Requests.MarkAsRead, conf_no, [local_text_no]).response()
+            self.request(Requests.MarkAsRead, conf_no, [local_text_no])
         except kom.NotMember:
             pass
 
     def mark_as_unread_local(self, conf_no, local_text_no):
         try:
-            self.request(Requests.MarkAsUnread, conf_no, local_text_no).response()
+            self.request(Requests.MarkAsUnread, conf_no, local_text_no)
         except kom.NotMember:
             pass
 
@@ -419,7 +414,7 @@ class CachedPersonConnection(CachedConnection):
         """
         if want_read_ranges:
             return self.request(
-                Requests.GetMembership11, pers_no, 0, no_of_confs, 1, 0).response()
+                Requests.GetMembership11, pers_no, 0, no_of_confs, 1, 0)
         else:
             if pers_no == self._pers_no:
                 # We cache the result for the current person and without
@@ -429,25 +424,25 @@ class CachedPersonConnection(CachedConnection):
                 if memberships is None:
                     memberships = self.request(
                         Requests.GetMembership11,
-                        self._pers_no, first, no_of_confs, 0, 0).response()
+                        self._pers_no, first, no_of_confs, 0, 0)
                     self._update_cached_memberships_by_position(memberships)
                 return memberships
             else:
                 return self.request(
-                    Requests.GetMembership11, pers_no, 0, no_of_confs, 0, 0).response()
+                    Requests.GetMembership11, pers_no, 0, no_of_confs, 0, 0)
 
     def get_membership(self, pers_no, conf_no, want_read_ranges=False):
         """Get a membership for a person
         """
         if want_read_ranges:
-            return self.request(Requests.QueryReadTexts, pers_no, conf_no, 1, 0).response()
+            return self.request(Requests.QueryReadTexts, pers_no, conf_no, 1, 0)
         else:
             if pers_no == self._pers_no:
                 # If it's a membership for the current person and
                 # without read ranges, use the cache.
                 return self._memberships[conf_no]
             else:
-                return self.request(Requests.QueryReadTexts, pers_no, conf_no, 0, 0).response()
+                return self.request(Requests.QueryReadTexts, pers_no, conf_no, 0, 0)
 
     def _fetch_membership(self, conf_no):
         """Fetch the membership for a conf the current person. Does not
@@ -457,7 +452,7 @@ class CachedPersonConnection(CachedConnection):
         # person, because we don't receive async leave/join messages
         # for other persons. We also only cache memberships without
         # read ranges, because it is easier to invalidate correctly.
-        return self.request(Requests.QueryReadTexts11, self._pers_no, conf_no, 0, 0).response()
+        return self.request(Requests.QueryReadTexts11, self._pers_no, conf_no, 0, 0)
     
     # Handlers for asynchronous messages (internal use)
     def _cpah_leave_conf(self, msg, c):
@@ -476,11 +471,11 @@ class CachedPersonConnection(CachedConnection):
 
     # Report cache usage
     def report_cache_usage(self):
-        CachedConnection.report_cache_usage(self)
+        CachingClient.report_cache_usage(self)
         self._memberships.report()
         
 
-# Cache class for use internally by CachedConnection
+# Cache class for use internally by CachingClient
 class Cache:
     def __init__(self, fetcher, name = "Unknown"):
         self.dict = {}

@@ -8,9 +8,9 @@ import socket
 import mimeparse
 
 from . import kom, komauxitems, utils
-from .request import Requests, default_request_factory
+from .request import Requests
 from .connection import Connection
-from .cachedconnection import CachedPersonConnection
+from .cachedconnection import CachingPersonClient
 
 
 class KomSessionException(Exception): pass
@@ -29,10 +29,11 @@ MICommentTo_str_to_type = { 'comment': kom.MIC_COMMENT,
                             'footnote': kom.MIC_FOOTNOTE }
 
 
-def create_connection():
+def create_connection(host, port, user):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    connection = Connection(s)
-    return CachedPersonConnection(connection)
+    s.connect((host, port))
+    connection = Connection(s, user)
+    return CachingPersonClient(connection)
 
 
 def check_connection(f):
@@ -59,8 +60,8 @@ class KomSession(object):
     """ A LysKom session. """
     def __init__(self, connection_factory=create_connection):
         # TODO: We actually require the API of a
-        # CachedPersonConnection. We should enhance the Connection
-        # class and make CachedPersonConnection have the same API as
+        # CachingPersonClient. We should enhance the Connection
+        # class and make CachingPersonClient have the same API as
         # Connection.
         self._connection_factory = connection_factory
         self._conn = None
@@ -75,13 +76,15 @@ class KomSession(object):
             client_name = client_name.decode('utf-8')
         if isinstance(client_version, str):
             client_version = client_version.decode('utf-8')
-        self._conn = self._connection_factory()
-        self._conn.connect(host, port, user=username + "%" + hostname)
-        self._conn.request(Requests.SetClientVersion, client_name, client_version).response()
+        
+        #self._conn = self._connection_factory()
+        #self._conn.connect(host, port, user=username + "%" + hostname)
+        self._conn = self._connection_factory(host, port, user=username + "%" + hostname)
+        self._conn.request(Requests.SetClientVersion, client_name, client_version)
         self._client_name = client_name
         self._client_version = client_version
         self._session_no = self.who_am_i()
-        self._conn.request(Requests.SetConnectionTimeFormat, use_utc=1).response()
+        self._conn.request(Requests.SetConnectionTimeFormat, use_utc=1)
     
     def is_connected(self):
         return self._conn is not None
@@ -103,7 +106,7 @@ class KomSession(object):
         """Session number 0 means this session (a logged in user can
         disconnect its other sessions).
         """
-        self._conn.request(Requests.Disconnect, session_no).response()
+        self._conn.request(Requests.Disconnect, session_no)
         
         # Check if we disconnected our own session or not (you can
         # disconnect another LysKOM session that the logged in user is
@@ -115,7 +118,7 @@ class KomSession(object):
     def login(self, pers_no, password):
         pers_no = int(pers_no)
         self._conn.login(pers_no, password)
-        person_stat = self._conn.request(Requests.GetPersonStat, pers_no).response()
+        person_stat = self._conn.request(Requests.GetPersonStat, pers_no)
         return KomPerson(pers_no, person_stat)
 
     @check_connection
@@ -128,11 +131,11 @@ class KomSession(object):
 
     @check_connection
     def who_am_i(self):
-        return self._conn.request(Requests.WhoAmI).response()
+        return self._conn.request(Requests.WhoAmI)
 
     @check_connection
     def user_is_active(self):
-        self._conn.request(Requests.UserActive).response()
+        self._conn.request(Requests.UserActive)
 
     @check_connection
     def is_logged_in(self):
@@ -152,7 +155,7 @@ class KomSession(object):
 
         flags = kom.PersonalFlags()
         pers_no = self._conn.request(Requests.CreatePerson, name.encode('latin1'),
-                                     passwd.encode('latin1'), flags).response()
+                                     passwd.encode('latin1'), flags)
         return KomPerson(pers_no)
 
     @check_connection
@@ -165,7 +168,7 @@ class KomSession(object):
         if aux_items is None:
             aux_items = []
         conf_no = self._conn.request(Requests.CreateConf, name.encode('latin1'), conf_type,
-                                     aux_items).response()
+                                     aux_items)
         return conf_no
     
     @check_connection
@@ -202,11 +205,11 @@ class KomSession(object):
     @check_connection
     def add_membership(self, pers_no, conf_no, priority, where):
         mtype = kom.MembershipType()
-        self._conn.request(Requests.AddMember, conf_no, pers_no, priority, where, mtype).response()
+        self._conn.request(Requests.AddMember, conf_no, pers_no, priority, where, mtype)
     
     @check_connection
     def delete_membership(self, pers_no, conf_no):
-        self._conn.request(Requests.SubMember, conf_no, pers_no).response()
+        self._conn.request(Requests.SubMember, conf_no, pers_no)
 
     @check_connection
     def get_membership(self, pers_no, conf_no):
@@ -225,7 +228,7 @@ class KomSession(object):
             # RegGetUnreadConfs never returns passive memberships so
             # that combination is not valid.
             assert passive == False
-            conf_nos = self._conn.request(Requests.GetUnreadConfs, pers_no).response()
+            conf_nos = self._conn.request(Requests.GetUnreadConfs, pers_no)
             # This may return conferences that don't have any unread
             # texts in them. We have to live with this, because we
             # don't want to get the unread texts in this case. It's
@@ -254,7 +257,7 @@ class KomSession(object):
 
     @check_connection
     def get_membership_unreads(self, pers_no):
-        conf_nos = self._conn.request(Requests.GetUnreadConfs, pers_no).response()
+        conf_nos = self._conn.request(Requests.GetUnreadConfs, pers_no)
         memberships = [ self.get_membership_unread(pers_no, conf_no)
                         for conf_no in conf_nos ]
         return [ m for m in memberships if m.no_of_unread > 0 ]
@@ -274,7 +277,7 @@ class KomSession(object):
     @check_connection
     def get_text(self, text_no):
         text_stat = self.get_text_stat(text_no)
-        text = self._conn.request(Requests.GetText, text_no).response()
+        text = self._conn.request(Requests.GetText, text_no)
         return KomText(text_no=text_no, text=text, text_stat=text_stat)
 
     # TODO: offset/start number, so we can paginate. we probably need
@@ -286,7 +289,7 @@ class KomSession(object):
         """
         #local_no_ceiling = 0 # means the higest numbered texts (i.e. the last)
         text_mapping = self._conn.request(
-            Requests.LocalToGlobalReverse, conf_no, 0, no_of_texts).response()
+            Requests.LocalToGlobalReverse, conf_no, 0, no_of_texts)
         texts = [ KomText(text_no=m[1], text=None, text_stat=self.get_text_stat(m[1]))
                   for m in text_mapping.list if m[1] != 0 ]
         texts.reverse()
@@ -375,7 +378,7 @@ class KomSession(object):
                                      data=content_type.encode('utf-8')))
 
         text_no = self._conn.request(
-            Requests.CreateText, fulltext, misc_info, aux_items).response()
+            Requests.CreateText, fulltext, misc_info, aux_items)
         return text_no
 
     @check_connection
@@ -392,11 +395,11 @@ class KomSession(object):
 
     @check_connection
     def set_unread(self, conf_no, no_of_unread):
-        self._conn.request(Requests.SetUnread, conf_no, no_of_unread).response()
+        self._conn.request(Requests.SetUnread, conf_no, no_of_unread)
 
     @check_connection
     def get_marks(self):
-        return self._conn.request(Requests.GetMarks).response()
+        return self._conn.request(Requests.GetMarks)
 
     @check_connection
     def mark_text(self, text_no, mark_type):
@@ -419,7 +422,7 @@ class KomSession(object):
         If json_decode is False, then the block will be returned as a
         string.
         """
-        person_stat = self._conn.request(Requests.GetPersonStat, pers_no).response()
+        person_stat = self._conn.request(Requests.GetPersonStat, pers_no)
         
         if person_stat.user_area == 0:
             # No user area
@@ -451,7 +454,7 @@ class KomSession(object):
         If json_encode is False, then the block should be a string
         that can be hollerith encoded.
         """
-        person_stat = self._conn.request(Requests.GetPersonStat, pers_no).response()
+        person_stat = self._conn.request(Requests.GetPersonStat, pers_no)
         
         if person_stat.user_area == 0:
             # No existing user area, initiate a new dictionary of
@@ -474,7 +477,7 @@ class KomSession(object):
             subject=None,
             body=utils.encode_user_area(blocks),
             content_type='x-kom/user-area')
-        self._conn.request(Requests.SetUserArea, pers_no, new_user_area_text_no).response()
+        self._conn.request(Requests.SetUserArea, pers_no, new_user_area_text_no)
         # TODO: Should it remove the old user area?
 
 
