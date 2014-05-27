@@ -276,9 +276,6 @@ class Connection(BaseConnection):
         error_no = self.parse_int()
         error_status = self.parse_int()
         if ref_no not in self._parse_functions:
-            print "oskar 1", self._parse_functions
-            print "oskar 2", error_no
-            print "oskar 3", error_status
             raise kom.BadRequestId(ref_no)
         error = kom.error_dict[error_no](error_status)
         del self._parse_functions[ref_no]
