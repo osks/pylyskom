@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from . import kom
-from .request import Requests, default_request_factory
-from .connection import Client
+from .request import Requests
 
 
 #
@@ -20,10 +19,9 @@ from .connection import Client
 # * Helper function get_unread_texts to get a list of local and global
 #   numbers of all unread text in a conference for a person
 
-class CachingClient(Client):
-    def __init__(self, connection, request_factory=default_request_factory):
-        Client.__init__(self, connection)
-        self._request_factory = request_factory
+class CachingClient(object):
+    def __init__(self, client):
+        self._client = client
 
         # Caches
         #
@@ -44,18 +42,19 @@ class CachingClient(Client):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.add_async_handler(kom.ASYNC_NEW_NAME, self._cah_new_name, True)
-        self.add_async_handler(kom.ASYNC_LEAVE_CONF, self._cah_leave_conf, True)
-        self.add_async_handler(kom.ASYNC_DELETED_TEXT, self._cah_deleted_text, True)
-        self.add_async_handler(kom.ASYNC_NEW_TEXT, self._cah_new_text, True)
-        self.add_async_handler(kom.ASYNC_NEW_RECIPIENT, self._cah_new_recipient, True)
-        self.add_async_handler(kom.ASYNC_SUB_RECIPIENT, self._cah_sub_recipient, True)
-        self.add_async_handler(kom.ASYNC_NEW_MEMBERSHIP, self._cah_new_membership)
+        self.add_async_handler(kom.AsyncMessages.NEW_NAME, self._cah_new_name, True)
+        self.add_async_handler(kom.AsyncMessages.LEAVE_CONF, self._cah_leave_conf, True)
+        self.add_async_handler(kom.AsyncMessages.DELETED_TEXT, self._cah_deleted_text, True)
+        self.add_async_handler(kom.AsyncMessages.NEW_TEXT, self._cah_new_text, True)
+        self.add_async_handler(kom.AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient, True)
+        self.add_async_handler(kom.AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient, True)
+        self.add_async_handler(kom.AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
+
+    def close(self):
+        self._client.close()
 
     def request(self, request, *args, **kwargs):
-        req = self._request_factory.new(request)(*args, **kwargs)
-        req_id = self.register_request(req)
-        return self.wait_and_dequeue(req_id)
+        return self._client.request(request, *args, **kwargs)
 
     def add_async_handler(self, msg_no, handler, skip_accept_async=False):
         """Add an async handler and tell the LysKOM sever to
@@ -69,9 +68,10 @@ class CachingClient(Client):
         skip_accept_async=True, and then register the last one with
         skip_accept_async=False to send the request.
         """
-        self.register_async_handler(msg_no, handler)
+        self._client.register_async_handler(msg_no, handler)
         if not skip_accept_async:
-            self.request(Requests.AcceptAsync, self._async_handlers.keys())
+            # fixme: using "private" of client
+            self.request(Requests.AcceptAsync, self._client._async_handlers.keys())
 
 
     # Fetching functions (internal use)
@@ -335,8 +335,8 @@ class CachingPersonClient(CachingClient):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.add_async_handler(kom.ASYNC_LEAVE_CONF, self._cpah_leave_conf, True)
-        self.add_async_handler(kom.ASYNC_NEW_MEMBERSHIP, self._cpah_new_membership)
+        self.add_async_handler(kom.AsyncMessages.LEAVE_CONF, self._cpah_leave_conf, True)
+        self.add_async_handler(kom.AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
 
     def login(self, pers_no, password):
         self.request(Requests.Login, pers_no, password, invisible=0)

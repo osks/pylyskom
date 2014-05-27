@@ -9,7 +9,7 @@ import mimeparse
 
 from . import kom, komauxitems, utils
 from .request import Requests
-from .connection import Connection
+from .connection import Connection, Client
 from .cachedconnection import CachingPersonClient
 
 
@@ -32,8 +32,9 @@ MICommentTo_str_to_type = { 'comment': kom.MIC_COMMENT,
 def create_connection(host, port, user):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((host, port))
-    connection = Connection(s, user)
-    return CachingPersonClient(connection)
+    conn = Connection(s, user)
+    client = Client(conn)
+    return CachingPersonClient(client)
 
 
 def check_connection(f):

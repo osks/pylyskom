@@ -2,10 +2,11 @@
 
 import socket
 import errno
-from Queue import Queue
+#from Queue import Queue
 #import select
 
 from . import kom
+from .request import default_request_factory
 
 
 #    # Parse all present data
@@ -226,18 +227,30 @@ class BaseConnection(object):
         return res
 
 
+class ResponseType(object):
+    """Used as an enum of reply types.
+    """
+    (OK,
+     ERROR,
+     ASYNC) = range(3)
+
+class Response(object):
+    def __init__(self):
+        pass
+
+
 class Connection(BaseConnection):
     def __init__(self, sock, user=""):
         BaseConnection.__init__(self, sock, user)
-
         self._ref_no = 0           # Last used ID (i.e. increment before use)
         self._parse_functions = {} # Parse functions for parsing the response
         
     def send_request(self, req):
         self._ref_no += 1
-        self._parse_functions[self._ref_no] = req.parse_response
-        self.send_string("%d %s" % (self._ref_no, req.to_string()))
-        return self._ref_no
+        ref_no = self._ref_no
+        self._parse_functions[ref_no] = req.parse_response
+        self.send_string("%d %s" % (ref_no, req.to_string()))
+        return ref_no
 
     def read_response(self):
         ch = self.parse_first_non_ws()
@@ -260,10 +273,13 @@ class Connection(BaseConnection):
 
     def _parse_error_reply(self):
         ref_no = self.parse_int()
-        if ref_no not in self._parse_functions:
-            raise kom.BadRequestId(ref_no)
         error_no = self.parse_int()
         error_status = self.parse_int()
+        if ref_no not in self._parse_functions:
+            print "oskar 1", self._parse_functions
+            print "oskar 2", error_no
+            print "oskar 3", error_status
+            raise kom.BadRequestId(ref_no)
         error = kom.error_dict[error_no](error_status)
         del self._parse_functions[ref_no]
         return ref_no, None, error
@@ -275,16 +291,17 @@ class Connection(BaseConnection):
             raise kom.UnimplementedAsync(msg_no)
         msg = kom.async_dict[msg_no]()
         msg.parse(self)
-        return None, (msg_no, msg), None
+        return None, msg, None
         
 
 class Client(object):
-    def __init__(self, conn):
+    def __init__(self, conn, request_factory=default_request_factory):
         self._conn = conn
+        self._request_factory = request_factory
 
         self._ok_queue = {}  # Answers received from the server
         self._error_queue = {} # Errors received from the server
-        self._async_queue = Queue()
+        #self._async_queue = Queue()
         self._async_handlers = {}
 
     def close(self):
@@ -307,6 +324,11 @@ class Client(object):
             self._async_handlers[msg_no].append(handler)
         else:
             self._async_handlers[msg_no] = [handler]
+
+    def request(self, request, *args, **kwargs):
+        req = self._request_factory.new(request)(*args, **kwargs)
+        req_id = self.register_request(req)
+        return self.wait_and_dequeue(req_id)
 
     def register_request(self, req):
         """Register a request to be sent.
@@ -340,8 +362,7 @@ class Client(object):
 
             # TODO: queue or handle?
             #self._async_queue.put(resp)
-            msg_no, msg = resp
-            self._handle_async_message(msg_no, msg)
+            self._handle_async_message(resp)
         elif error is not None:
             # error reply
             self._error_queue[ref_no] = error
@@ -349,7 +370,7 @@ class Client(object):
             # ok reply - resp can be None
             self._ok_queue[ref_no] = resp
 
-    def _handle_async_message(self, msg_no, msg):
-        if msg_no in self._async_handlers:
-            for handler in self._async_handlers[msg_no]:
+    def _handle_async_message(self, msg):
+        if msg.MSG_NO in self._async_handlers:
+            for handler in self._async_handlers[msg.MSG_NO]:
                 handler(msg, self)

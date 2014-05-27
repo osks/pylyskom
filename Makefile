@@ -6,7 +6,7 @@ auxitems:
 pyflakes:
 	pyflakes ./pylyskom
 
-test:
-	py.test ./tests
+test: pyflakes
+	py.test --maxfail 1 ./tests
 
 .PHONY: auxitems test pyflakes

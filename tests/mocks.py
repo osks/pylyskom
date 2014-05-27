@@ -3,16 +3,6 @@ from pylyskom.request import Requests
 from pylyskom.cachedconnection import Cache
 
 
-class MockResponse(object):
-    """Mock of kom.Response
-    """
-    def __init__(self, resp=None):
-        self.resp = resp
-    
-    def response(self):
-        return self.resp
-
-
 class MockTextStat(object):
     """Mock of kom.TextStat
     """
@@ -52,17 +42,17 @@ class MockConnection(object):
         self.textstats = Cache(self.fetch_textstat, "TextStat")
 
     def fetch_textstat(self, no):
-        return self.request(Requests.GetTextStat, no).response()
+        return self.request(Requests.GetTextStat, no)
 
     def connect(self, host, port, user):
         pass
 
     def login(self, pers_no, password):
-        self.request(Requests.Login, pers_no, password, invisible=0).response()
+        self.request(Requests.Login, pers_no, password, invisible=0)
         self._pers_no = pers_no
 
     def logout(self):
-        self.request(Requests.Logout).response()
+        self.request(Requests.Logout)
         self._pers_no = 0
 
     def get_person_no(self):
@@ -77,8 +67,8 @@ class MockConnection(object):
         if request in self.__mocked_requests:
             return self.__mocked_requests[request](*args, **kwargs)
         else:
-            # Default is to return an empty MockResponse.
-            return MockResponse()
+            # Default is to return None
+            return None
 
     def mock_request(self, request, func):
         if func is None:

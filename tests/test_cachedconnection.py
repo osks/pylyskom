@@ -1,15 +1,13 @@
-from mock import Mock
+from mock import Mock, MagicMock
 
 from pylyskom import kom
 from pylyskom.request import Requests, RequestFactory
-from pylyskom.connection import Connection
+from pylyskom.connection import Connection, Client
 from pylyskom.cachedconnection import CachingClient
-
-from mocks import MockResponse
 
 
 def create_local_to_global(highest_local):
-    def local_to_global(conn, conf, first, n):
+    def local_to_global(conf, first, n):
         if first > highest_local:
             print "first is greater than highest local (first: %d, highest_local: %d" % (
                 first, highest_local)
@@ -22,7 +20,7 @@ def create_local_to_global(highest_local):
         mapping.type_text = "dense"
         mapping.list = [ (i, i) for i in range(mapping.range_begin, mapping.range_end) ]
         print mapping
-        return MockResponse(mapping)
+        return mapping
     return local_to_global
 
 
@@ -31,9 +29,15 @@ def create_connection(request_mapping=None):
         request_mapping = dict()
         
     if Requests.AcceptAsync not in request_mapping:
-        request_mapping[Requests.AcceptAsync] = Mock()
+        request_mapping[Requests.AcceptAsync] = kom.ReqAcceptAsync
 
-    return CachingClient(Mock(), RequestFactory(request_mapping))
+    def mock_request(request, *args, **kwargs):
+        assert request in request_mapping
+        return request_mapping[request](*args, **kwargs)
+
+    client = Client(Mock(), Mock())
+    client.request = mock_request
+    return CachingClient(client)
 
 
 def test_read_ranges_to_gaps_and_last_with_empty_list():

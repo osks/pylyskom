@@ -19,7 +19,7 @@ def test_to_hstring__encodes_before_calculating_length():
 
 def test_request_to_string_raises():
     r = kom.Request()
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(Exception):
         r.to_string()
 
 def test_ReqLogout():
@@ -74,3 +74,7 @@ def test_ReqSetPermittedSubmitters():
 def test_ReqSetSuperConf():
     r = kom.ReqSetSuperConf(14506, 6)
     assert r.to_string() == "20 14506 6\n"
+
+def test_ReqSetSuperConf():
+    r = kom.ReqAcceptAsync([])
+    assert r.to_string() == "80 0 {  }\n"
