@@ -385,8 +385,8 @@ class ReqSetPasswd(Request):
 
     def get_request(self):
         return "%d %s %s" % (self.person_no,
-                                 to_hstring(self.old_pwd),
-                                 to_hstring(self.new_pwd))
+                             to_hstring(self.old_pwd),
+                             to_hstring(self.new_pwd))
 
 # query-read-texts-old [9] (1) Obsolete (10) Use query-read-texts (98)
 # create-conf-old [10] (1) Obsolete (10) Use create-conf (88)
@@ -1354,7 +1354,7 @@ class AsyncMessages(object):
 # subclasses of AsyncMessage.
 #
 
-class AsyncMessage:
+class AsyncMessage(object):
     MSG_NO = None
     @classmethod
     def parse(cls, conn):
@@ -1576,7 +1576,7 @@ async_dict = {
 
 # TIME
 
-class Time:
+class Time(object):
     """Assumes all dates are in UTC timezone.
     """
     def __init__(self, ptime = None):
@@ -1655,7 +1655,7 @@ class Time:
 
 # RESULT FROM LOOKUP-Z-NAME
 
-class ConfZInfo:
+class ConfZInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -1670,7 +1670,7 @@ class ConfZInfo:
 
 # RAW MISC-INFO (AS IT IS IN PROTOCOL A)
 
-class RawMiscInfo:
+class RawMiscInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -1687,7 +1687,7 @@ class RawMiscInfo:
 # COOKED MISC-INFO (MORE TASTY)
 # N.B: This class represents the whole array, not just one item
 
-class MIRecipient:
+class MIRecipient(object):
     def __init__(self, type = MIR_TO, recpt = 0):
         self.type = type # MIR_TO, MIR_CC or MIR_BCC
         self.recpt = recpt   # Always present
@@ -1714,7 +1714,7 @@ class MIRecipient:
     def get_tuples(self):
         return [(self.type, self.recpt)]
 
-class MICommentTo:
+class MICommentTo(object):
     def __init__(self, type = MIC_COMMENT, text_no = 0):
         self.type = type
         self.text_no = text_no
@@ -1735,7 +1735,7 @@ class MICommentTo:
     def get_tuples(self):
         return [(self.type, self.text_no)]
 
-class MICommentIn:
+class MICommentIn(object):
     def __init__(self, type = MIC_COMMENT, text_no = 0):
         self.type = type
         self.text_no = text_no
@@ -1744,7 +1744,7 @@ class MICommentIn:
         # Cannot send these to sever
         return []
 
-class CookedMiscInfo:
+class CookedMiscInfo(object):
     def __init__(self):
         self.recipient_list = []
         self.comment_to_list = []
@@ -1785,7 +1785,7 @@ class CookedMiscInfo:
 
 # AUX INFO
 
-class AuxItemFlags:
+class AuxItemFlags(object):
     def __init__(self):
         self.deleted = 0
         self.inherit = 0
@@ -1822,7 +1822,7 @@ class AuxItemFlags:
 
 # This class works as Aux-Item on reception, and
 # Aux-Item-Input when being sent.
-class AuxItem: 
+class AuxItem(object): 
     def __init__(self, tag = None, data = ""):
         self.aux_no = None # not part of Aux-Item-Input
         self.tag = tag
@@ -1867,7 +1867,7 @@ def first_aux_items_with_tag(ail, tag):
      
 # TEXT
 
-class TextStat:
+class TextStat(object):
     @classmethod
     def parse(cls, conn, old_format = 0):
         obj = cls()
@@ -1885,7 +1885,7 @@ class TextStat:
 
 # CONFERENCE
 
-class ConfType:
+class ConfType(object):
     def __init__(self):
         self.rd_prot = 0
         self.original = 0
@@ -1930,7 +1930,7 @@ class ConfType:
                 self.reserved2,
                 self.reserved3)
 
-class Conference:
+class Conference(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -1956,7 +1956,7 @@ class Conference:
     def __repr__(self):
         return "<Conference %s>" % self.name
     
-class UConference:
+class UConference(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -1971,7 +1971,7 @@ class UConference:
     
 # PERSON
 
-class PrivBits:
+class PrivBits(object):
     def __init__(self):
         self.wheel = 0
         self.admin = 0
@@ -2030,7 +2030,7 @@ class PrivBits:
                 self.flg15,
                 self.flg16)
     
-class PersonalFlags:
+class PersonalFlags(object):
     def __init__(self):
         self.unread_is_secret = 0
         self.flg2 = 0
@@ -2065,7 +2065,7 @@ class PersonalFlags:
                 self.flg7,
                 self.flg8)
 
-class Person:
+class Person(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2090,7 +2090,7 @@ class Person:
 
 # MEMBERSHIP
 
-class MembershipType:
+class MembershipType(object):
     def __init__(self):
         self.invitation = 0
         self.passive = 0
@@ -2125,7 +2125,7 @@ class MembershipType:
                 self.reserved4,
                 self.reserved5)
 
-class Membership10:
+class Membership10(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2140,7 +2140,7 @@ class Membership10:
         obj.type = conn.parse_object(MembershipType)
         return obj
 
-class ReadRange:
+class ReadRange(object):
     def __init__(self, first_read = 0, last_read = 0):
         self.first_read = first_read
         self.last_read = last_read
@@ -2160,7 +2160,7 @@ class ReadRange:
                (self.first_read,
                 self.last_read)
     
-class Membership11:
+class Membership11(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2176,7 +2176,7 @@ class Membership11:
 
 Membership = Membership11
 
-class Member:
+class Member(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2188,7 +2188,7 @@ class Member:
 
 # TEXT LIST
 
-class TextList:
+class TextList(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2198,7 +2198,7 @@ class TextList:
 
 # TEXT MAPPING
 
-class TextNumberPair:
+class TextNumberPair(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2206,7 +2206,7 @@ class TextNumberPair:
         obj.global_number = conn.parse_int()
         return obj
     
-class TextMapping:
+class TextMapping(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2250,7 +2250,7 @@ class TextMapping:
             more)
 # MARK
 
-class Mark:
+class Mark(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2266,7 +2266,7 @@ class Mark:
 
 # This class works as Info on reception, and
 # Info-Old when being sent.
-class Info:
+class Info(object):
     def __init__(self):
         self.version = None
         self.conf_pres_conf = None
@@ -2297,7 +2297,7 @@ class Info:
             self.kom_news_conf,
             self.motd_of_lyskom)
 
-class VersionInfo:
+class VersionInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2312,7 +2312,7 @@ class VersionInfo:
                 self.server_software, self.software_version)
 
 # New in protocol version 11
-class StaticServerInfo: 
+class StaticServerInfo(object): 
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2331,7 +2331,7 @@ class StaticServerInfo:
 
 # SESSION INFORMATION
 
-class SessionFlags:
+class SessionFlags(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2345,7 +2345,7 @@ class SessionFlags:
          obj.reserved7) = conn.parse_bitstring(8)
         return obj
 
-class DynamicSessionInfo:
+class DynamicSessionInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2357,7 +2357,7 @@ class DynamicSessionInfo:
         obj.what_am_i_doing  = conn.parse_string()
         return obj
 
-class StaticSessionInfo:
+class StaticSessionInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2367,7 +2367,7 @@ class StaticSessionInfo:
         obj.connection_time = conn.parse_object(Time)
         return obj
 
-class SchedulingInfo:
+class SchedulingInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2375,7 +2375,7 @@ class SchedulingInfo:
         obj.weight = conn.parse_int()
         return obj
 
-class WhoInfo:
+class WhoInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2388,7 +2388,7 @@ class WhoInfo:
      
 # STATISTICS
 
-class StatsDescription:
+class StatsDescription(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2399,7 +2399,7 @@ class StatsDescription:
     def __repr__(self):
         return "<StatsDescription>"
 
-class Stats:
+class Stats(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
