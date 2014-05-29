@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from . import mimeparse, kom
+from . import mimeparse
+
+from .errors import Error
+from .protocol import WHITESPACE, DIGITS, ORD_0
 
 
 def decode_text(text, encoding, backup_encoding='latin1'):
@@ -23,7 +26,7 @@ def parse_content_type(contenttype):
     try:
         mime_type = mimeparse.parse_mime_type(contenttype)
     except Exception:
-        raise kom.Error("Failed to parse mime type '%s'" % (contenttype,))
+        raise Error("Failed to parse mime type '%s'" % (contenttype,))
     
     if mime_type[0] == 'x-kom' and mime_type[1] == 'text':
         mime_type = ('text', 'x-kom-basic', mime_type[2])
@@ -54,14 +57,14 @@ def parse_hollerith_string(hstring):
     
     # Skip all leading whitespaces
     c = hstring[i]
-    while c in kom.WHITESPACE:
+    while c in WHITESPACE:
         i += 1
         c = hstring[i]
 
     # Parse length
     length = 0
-    while c in kom.DIGITS:
-        length = length * 10 + (ord(c) - kom.ORD_0)
+    while c in DIGITS:
+        length = length * 10 + (ord(c) - ORD_0)
         i += 1
         c = hstring[i]
     

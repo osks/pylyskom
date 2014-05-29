@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
+# LysKOM Protocol A version 10/11 client interface for Python
+# (C) 1999-2002 Kent Engström. Released under GPL.
+# (C) 2008 Henrik Rindlöw. Released under GPL.
+# (C) 2012-2014 Oskar Skoog. Released under GPL.
 
-from . import kom
 from .request import Requests
+
+from .async import AsyncMessages
+from .errors import NotMember, NoSuchLocalText
 
 
 #
@@ -42,13 +48,13 @@ class CachingClient(object):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.add_async_handler(kom.AsyncMessages.NEW_NAME, self._cah_new_name, True)
-        self.add_async_handler(kom.AsyncMessages.LEAVE_CONF, self._cah_leave_conf, True)
-        self.add_async_handler(kom.AsyncMessages.DELETED_TEXT, self._cah_deleted_text, True)
-        self.add_async_handler(kom.AsyncMessages.NEW_TEXT, self._cah_new_text, True)
-        self.add_async_handler(kom.AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient, True)
-        self.add_async_handler(kom.AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient, True)
-        self.add_async_handler(kom.AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
+        self.add_async_handler(AsyncMessages.NEW_NAME, self._cah_new_name, True)
+        self.add_async_handler(AsyncMessages.LEAVE_CONF, self._cah_leave_conf, True)
+        self.add_async_handler(AsyncMessages.DELETED_TEXT, self._cah_deleted_text, True)
+        self.add_async_handler(AsyncMessages.NEW_TEXT, self._cah_new_text, True)
+        self.add_async_handler(AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient, True)
+        self.add_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient, True)
+        self.add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
 
     def close(self):
         self._client.close()
@@ -278,7 +284,7 @@ class CachingClient(object):
                     unread.extend([e[1] for e in mapping.list if e[1] != 0])
                     first_local = mapping.range_end
                     more_to_fetch = mapping.later_texts_exists
-                except kom.NoSuchLocalText:
+                except NoSuchLocalText:
                     more_to_fetch = 0
         
         # If there are more than 255 after the last read range, we
@@ -292,7 +298,7 @@ class CachingClient(object):
                 unread.extend([e[1] for e in mapping.list if e[1] != 0])
                 first_local = mapping.range_end
                 more_to_fetch = mapping.later_texts_exists
-            except kom.NoSuchLocalText:
+            except NoSuchLocalText:
                 # No unread texts
                 more_to_fetch = 0
         
@@ -335,8 +341,8 @@ class CachingPersonClient(CachingClient):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.add_async_handler(kom.AsyncMessages.LEAVE_CONF, self._cpah_leave_conf, True)
-        self.add_async_handler(kom.AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
+        self.add_async_handler(AsyncMessages.LEAVE_CONF, self._cpah_leave_conf, True)
+        self.add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
 
     def login(self, pers_no, password):
         self.request(Requests.Login, pers_no, password, invisible=0)
@@ -372,13 +378,13 @@ class CachingPersonClient(CachingClient):
     def mark_as_read_local(self, conf_no, local_text_no):
         try:
             self.request(Requests.MarkAsRead, conf_no, [local_text_no])
-        except kom.NotMember:
+        except NotMember:
             pass
 
     def mark_as_unread_local(self, conf_no, local_text_no):
         try:
             self.request(Requests.MarkAsUnread, conf_no, local_text_no)
-        except kom.NotMember:
+        except NotMember:
             pass
 
     def _get_cached_memberships_by_position(self, first, no_of_confs):

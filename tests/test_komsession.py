@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from pylyskom import kom, komauxitems
+from pylyskom import komauxitems
 from pylyskom.request import Requests
 from pylyskom.komsession import KomSession
-
+from pylyskom.errors import NoSuchText
+from pylyskom.datatypes import AuxItem, Time
 from mocks import MockConnection, MockTextStat, MockPerson
 
 
@@ -25,9 +26,9 @@ def create_komsession(pers_no, connection):
 def create_mockconnection():
     # Create a MockConnection that response to a GetTextStat call,
     # because we use that a lot in the tests below.
-    ts = MockTextStat(creation_time=kom.Time())
+    ts = MockTextStat(creation_time=Time())
     ts.aux_items.append(
-        kom.AuxItem(komauxitems.AI_CONTENT_TYPE, data='x-kom/user-area'.encode('ascii')))
+        AuxItem(komauxitems.AI_CONTENT_TYPE, data='x-kom/user-area'.encode('ascii')))
     c = MockConnection()
     c.mock_request(Requests.GetTextStat, lambda *args, **kwargs: ts)
     return c
@@ -159,13 +160,13 @@ def test_set_user_area__person_has_user_area_but_text_does_not_exist():
     c.mock_request(Requests.GetPersonStat,
                    lambda *args, **kwargs: MockPerson(user_area=user_area_text_no))
     def get_text_stat(*args, **kwargs):
-        raise kom.NoSuchText(args[0])
+        raise NoSuchText(args[0])
     c.mock_request(Requests.GetTextStat, get_text_stat)
 
     try:
         ks.set_user_area_block(42, 'jskom', {}) # should throw NoSuchText
         assert False
-    except kom.NoSuchText as e:
+    except NoSuchText as e:
         # this is what should happen
         assert e.args[0] == user_area_text_no
     except:

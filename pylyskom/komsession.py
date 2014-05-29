@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+# LysKOM Protocol A version 10/11 client interface for Python
+# (C) 1999-2002 Kent Engström. Released under GPL.
+# (C) 2008 Henrik Rindlöw. Released under GPL.
+# (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 import functools
 import json
@@ -7,11 +11,25 @@ import errno
 import socket
 import mimeparse
 
-from . import kom, komauxitems, utils
+from . import komauxitems, utils
 from .request import Requests
 from .connection import Connection, Client
 from .cachedconnection import CachingPersonClient
 
+from .datatypes import (
+    AuxItem,
+    ConfType,
+    CookedMiscInfo,
+    MIC_COMMENT,
+    MIC_FOOTNOTE,
+    MICommentTo,
+    MIR_BCC,
+    MIR_CC,
+    MIR_TO,
+    MIRecipient,
+    MembershipType,
+    PersonalFlags,
+    first_aux_items_with_tag)
 
 class KomSessionException(Exception): pass
 class KomSessionNotConnected(KomSessionException): pass
@@ -21,12 +39,12 @@ class NameNotFound(KomSessionError): pass
 class NoRecipients(KomSessionError): pass
 
 
-MIRecipient_str_to_type = { 'to': kom.MIR_TO,
-                            'cc': kom.MIR_CC,
-                            'bcc': kom.MIR_BCC }
+MIRecipient_str_to_type = { 'to': MIR_TO,
+                            'cc': MIR_CC,
+                            'bcc': MIR_BCC }
         
-MICommentTo_str_to_type = { 'comment': kom.MIC_COMMENT,
-                            'footnote': kom.MIC_FOOTNOTE }
+MICommentTo_str_to_type = { 'comment': MIC_COMMENT,
+                            'footnote': MIC_FOOTNOTE }
 
 
 def create_connection(host, port, user):
@@ -154,7 +172,7 @@ class KomSession(object):
         if isinstance(passwd, str):
             passwd = passwd.decode('utf-8')
 
-        flags = kom.PersonalFlags()
+        flags = PersonalFlags()
         pers_no = self._conn.request(Requests.CreatePerson, name.encode('latin1'),
                                      passwd.encode('latin1'), flags)
         return KomPerson(pers_no)
@@ -165,7 +183,7 @@ class KomSession(object):
         if isinstance(name, str):
             name = name.decode('utf-8')
 
-        conf_type = kom.ConfType()
+        conf_type = ConfType()
         if aux_items is None:
             aux_items = []
         conf_no = self._conn.request(Requests.CreateConf, name.encode('latin1'), conf_type,
@@ -205,7 +223,7 @@ class KomSession(object):
     
     @check_connection
     def add_membership(self, pers_no, conf_no, priority, where):
-        mtype = kom.MembershipType()
+        mtype = MembershipType()
         self._conn.request(Requests.AddMember, conf_no, pers_no, priority, where, mtype)
     
     @check_connection
@@ -316,8 +334,8 @@ class KomSession(object):
             komtext.recipient_list = []
             for r in recipient_list:
                 komtext.recipient_list.append(
-                    kom.MIRecipient(type=MIRecipient_str_to_type[r['type']],
-                                    recpt=r['recpt']['conf_no']))
+                    MIRecipient(type=MIRecipient_str_to_type[r['type']],
+                                recpt=r['recpt']['conf_no']))
 
         else:
             komtext.recipient_list = None
@@ -327,13 +345,13 @@ class KomSession(object):
             komtext.comment_to_list = []
             for ct in comment_to_list:
                 komtext.comment_to_list.append(
-                    kom.MICommentTo(type=MICommentTo_str_to_type[ct['type']],
-                                    text_no=ct['text_no']))
+                    MICommentTo(type=MICommentTo_str_to_type[ct['type']],
+                                text_no=ct['text_no']))
         else:
             komtext.comment_to_list = None
 
 
-        misc_info = kom.CookedMiscInfo()
+        misc_info = CookedMiscInfo()
         
         if komtext.recipient_list is not None:
             for rec in komtext.recipient_list:
@@ -373,10 +391,10 @@ class KomSession(object):
         
         # We need to make sure all aux items are encoded.
         creating_software = "%s %s" % (self._client_name, self._client_version)
-        aux_items.append(kom.AuxItem(komauxitems.AI_CREATING_SOFTWARE,
-                                     data=creating_software.encode('utf-8')))
-        aux_items.append(kom.AuxItem(komauxitems.AI_CONTENT_TYPE,
-                                     data=content_type.encode('utf-8')))
+        aux_items.append(AuxItem(komauxitems.AI_CREATING_SOFTWARE,
+                                 data=creating_software.encode('utf-8')))
+        aux_items.append(AuxItem(komauxitems.AI_CONTENT_TYPE,
+                                 data=content_type.encode('utf-8')))
 
         text_no = self._conn.request(
             Requests.CreateText, fulltext, misc_info, aux_items)
@@ -631,7 +649,7 @@ class KomText(object):
     @staticmethod
     def _get_content_type_from_text_stat(text_stat):
         try:
-            contenttype = kom.first_aux_items_with_tag(
+            contenttype = first_aux_items_with_tag(
                 text_stat.aux_items, komauxitems.AI_CONTENT_TYPE).data.decode('latin1')
         except AttributeError:
             contenttype = 'text/plain'

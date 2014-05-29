@@ -1,8 +1,10 @@
-from mock import Mock, MagicMock
+from mock import Mock
 
-from pylyskom import kom
-from pylyskom.request import Requests, RequestFactory
-from pylyskom.connection import Connection, Client
+from pylyskom.errors import NoSuchLocalText
+from pylyskom.datatypes import TextMapping, ReadRange, Membership
+from pylyskom.request import Requests
+from pylyskom.requests import ReqAcceptAsync
+from pylyskom.connection import Client
 from pylyskom.cachedconnection import CachingClient
 
 
@@ -11,9 +13,9 @@ def create_local_to_global(highest_local):
         if first > highest_local:
             print "first is greater than highest local (first: %d, highest_local: %d" % (
                 first, highest_local)
-            raise kom.NoSuchLocalText()
+            raise NoSuchLocalText()
         
-        mapping = kom.TextMapping()
+        mapping = TextMapping()
         mapping.range_begin = first
         mapping.range_end = min(first + n, highest_local + 1)
         mapping.later_texts_exists = 0 if mapping.range_end > highest_local else 1
@@ -29,7 +31,7 @@ def create_connection(request_mapping=None):
         request_mapping = dict()
         
     if Requests.AcceptAsync not in request_mapping:
-        request_mapping[Requests.AcceptAsync] = kom.ReqAcceptAsync
+        request_mapping[Requests.AcceptAsync] = ReqAcceptAsync
 
     def mock_request(request, *args, **kwargs):
         assert request in request_mapping
@@ -51,7 +53,7 @@ def test_read_ranges_to_gaps_and_last_with_empty_list():
 
 def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
     c = create_connection()
-    read_ranges = [ kom.ReadRange() ]
+    read_ranges = [ ReadRange() ]
     
     gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
     
@@ -60,10 +62,10 @@ def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
 
 def test_read_ranges_to_gaps_and_last():
     c = create_connection()
-    read_ranges = [ kom.ReadRange(1, 1),
-                    kom.ReadRange(2, 3),
-                    kom.ReadRange(5, 5),
-                    kom.ReadRange(8, 10) ]
+    read_ranges = [ ReadRange(1, 1),
+                    ReadRange(2, 3),
+                    ReadRange(5, 5),
+                    ReadRange(8, 10) ]
     
     gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
     
@@ -73,10 +75,10 @@ def test_read_ranges_to_gaps_and_last():
 
 
 def test_get_unread_texts_from_membership_small():
-    membership = kom.Membership()
+    membership = Membership()
     membership.conference = 1
     membership.read_ranges = [
-        kom.ReadRange(1, 1), kom.ReadRange(2, 3), kom.ReadRange(5, 5), kom.ReadRange(8, 10) ]
+        ReadRange(1, 1), ReadRange(2, 3), ReadRange(5, 5), ReadRange(8, 10) ]
     last_text = 12
     c = create_connection({ Requests.LocalToGlobal: create_local_to_global(last_text) })
     
@@ -85,10 +87,10 @@ def test_get_unread_texts_from_membership_small():
     assert unread_texts == [4, 6, 7, 11, 12]
 
 def test_get_unread_texts_from_membership_large():
-    membership = kom.Membership()
+    membership = Membership()
     membership.conference = 1
     membership.read_ranges = [
-        kom.ReadRange(1, 300), kom.ReadRange(1000, 2000), kom.ReadRange(2100, 3000) ]
+        ReadRange(1, 300), ReadRange(1000, 2000), ReadRange(2100, 3000) ]
     highest_local = 4000
     c = create_connection({ Requests.LocalToGlobal: create_local_to_global(highest_local) })
     
@@ -115,9 +117,9 @@ def test_get_unread_texts_from_membership_fetches_the_correct_mappings():
     """
     first_problem = 256
     last_text = first_problem + 1
-    membership = kom.Membership()
+    membership = Membership()
     membership.conference = 1
-    membership.read_ranges = [ kom.ReadRange(last_text, last_text) ]
+    membership.read_ranges = [ ReadRange(last_text, last_text) ]
     c = create_connection({ Requests.LocalToGlobal: create_local_to_global(last_text) })
     
     unread_texts = c.get_unread_texts_from_membership(membership)

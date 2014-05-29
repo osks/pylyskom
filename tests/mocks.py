@@ -1,10 +1,10 @@
-from pylyskom.kom import CookedMiscInfo
+from pylyskom.datatypes import CookedMiscInfo
 from pylyskom.request import Requests
 from pylyskom.cachedconnection import Cache
 
 
 class MockTextStat(object):
-    """Mock of kom.TextStat
+    """Mock of TextStat datatype
     """
     def __init__(self, creation_time=None):
         self.creation_time = creation_time
@@ -17,7 +17,7 @@ class MockTextStat(object):
 
 
 class MockPerson(object):
-    """Mock of kom.Person
+    """Mock of Person data type
     """
     def __init__(self, user_area=None):
         self.user_area = user_area
@@ -80,3 +80,28 @@ class MockConnection(object):
             return self.__request_calls
         else:
             return self.__request_calls.get(request, [])
+
+
+
+class MockSocket():
+    def __init__(self, recv_data=None):
+        self.send_data = ""
+        if recv_data is None:
+            recv_data = ""
+        if isinstance(recv_data, str):
+            self.recv_data = recv_data
+        else:
+            self.recv_data = "".join(recv_data)
+
+    def send(self, s):
+        self.send_data += s
+        return len(s)
+
+    def recv(self, bufsize):
+        i = min(len(self.recv_data), bufsize)
+        r = self.recv_data[:i]
+        self.recv_data = self.recv_data[i:]
+        return r
+
+    def close(self):
+        pass
