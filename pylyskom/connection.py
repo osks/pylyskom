@@ -104,30 +104,6 @@ class BaseConnection(object):
             if star != "*": raise kom.ProtocolError
         return res
 
-    def parse_array_of_basictype(self, basic_type_parser):
-        len = self.parse_int()
-        res = []
-        if len > 0:
-            left = self.parse_first_non_ws()
-            if left == "*":
-                # Special case of unwanted data
-                return []
-            elif left != "{": raise kom.ProtocolError
-            for i in range(0, len):
-                res.append(basic_type_parser())
-            right = self.parse_first_non_ws()
-            if right != "}": raise kom.ProtocolError
-        else:
-            star = self.parse_first_non_ws()
-            if star != "*": raise kom.ProtocolError
-        return res
-
-    def parse_array_of_int(self):
-        return self.parse_array_of_basictype(self.parse_int)
-                             
-    def parse_array_of_string(self):
-        return self.parse_array_of_basictype(self.parse_string)
-
     # PARSING BITSTRINGS
     def parse_bitstring(self, len):
         res = []

@@ -1574,22 +1574,70 @@ async_dict = {
 # CLASSES for KOM data types
 #
 
+class EmptyResponse(object):
+    @classmethod
+    def parse(cls, conn):
+        return None
+
+class String(str):
+    @classmethod
+    def parse(cls, conn):
+        # --> string
+        return cls(conn.parse_string())
+
+class Int16(int):
+    @classmethod
+    def parse(cls, conn):
+        # --> INT16
+        return cls(conn.parse_int())
+
+class Int32(int):
+    @classmethod
+    def parse(cls, conn):
+        # --> INT32
+        return cls(conn.parse_int())
+
+class ConfNo(Int16):
+    pass
+
+class PersNo(ConfNo):
+    pass
+
+class TextNo(Int32):
+    pass
+
+class LocalTextNo(Int32):
+    pass
+
+class SessionNo(Int32):
+    pass
+
+class Array(object):
+    def __init__(self, element_cls):
+        self._element_cls = element_cls
+
+    def parse(self, conn):
+        # --> ARRAY <element cls>
+        return conn.parse_array(self._element_cls)
+
+
 # TIME
 
 class Time(object):
     """Assumes all dates are in UTC timezone.
     """
-    def __init__(self, ptime = None):
+    def __init__(self, seconds=0, minutes=0, hours=0, day=0, month=0, year=0,
+                 day_of_week=0, day_of_year=0, is_dst=0, ptime=None):
         if ptime is None:
-            self.seconds = 0
-            self.minutes = 0
-            self.hours = 0 
-            self.day = 0
-            self.month = 0 # 0 .. 11 
-            self.year = 0 # no of years since 1900
-            self.day_of_week = 0 # 0 = Sunday ... 6 = Saturday
-            self.day_of_year = 0 # 0 ... 365
-            self.is_dst = 0
+            self.seconds = seconds
+            self.minutes = minutes
+            self.hours = hours
+            self.day = day
+            self.month = month # 0 .. 11 
+            self.year = year # no of years since 1900
+            self.day_of_week = day_of_week # 0 = Sunday ... 6 = Saturday
+            self.day_of_year = day_of_year # 0 ... 365
+            self.is_dst = is_dst
         else:
             (dy,dm,dd,th,tm,ts, wd, yd, dt) = time.gmtime(ptime)
             self.seconds = ts
@@ -1651,7 +1699,22 @@ class Time(object):
             self.hours, self.minutes, self.seconds)
 
     def __repr__(self):
-        return "<Time %s>" % self.to_date_and_time()
+        return "<Time %s, dst=%d>" % (self.to_date_and_time(), self.is_dst)
+
+    def __eq__(self, other):
+        return (self.seconds == other.seconds and
+                self.minutes == other.minutes and
+                self.hours == other.hours and
+                self.day == other.day and
+                self.month == other.month and
+                self.year == other.year and
+                self.day_of_week == other.day_of_week and
+                self.day_of_year == other.day_of_year and
+                self.is_dst == other.is_dst)
+
+    def __ne__(self, other):
+        return not self == other
+
 
 # RESULT FROM LOOKUP-Z-NAME
 
@@ -1869,7 +1932,7 @@ def first_aux_items_with_tag(ail, tag):
 
 class TextStat(object):
     @classmethod
-    def parse(cls, conn, old_format = 0):
+    def parse(cls, conn, old_format=0):
         obj = cls()
         obj.creation_time = conn.parse_object(Time)
         obj.author = conn.parse_int()
@@ -1897,7 +1960,7 @@ class ConfType(object):
         self.reserved3 = 0
 
     @classmethod
-    def parse(cls, conn, old_format = 0):
+    def parse(cls, conn, old_format=0):
         obj = cls()
         if old_format:
             (obj.rd_prot,
@@ -2091,15 +2154,16 @@ class Person(object):
 # MEMBERSHIP
 
 class MembershipType(object):
-    def __init__(self):
-        self.invitation = 0
-        self.passive = 0
-        self.secret = 0
-        self.passive_message_invert = 0
-        self.reserved2 = 0
-        self.reserved3 = 0
-        self.reserved4 = 0
-        self.reserved5 = 0
+    def __init__(self, invitation=0, passive=0, secret=0, passive_message_invert=0,
+                 reserved2=0, reserved3=0, reserved4=0, reserved5=0):
+        self.invitation = invitation
+        self.passive = passive
+        self.secret = secret
+        self.passive_message_invert = passive_message_invert
+        self.reserved2 = reserved2
+        self.reserved3 = reserved3
+        self.reserved4 = reserved4
+        self.reserved5 = reserved5
 
     @classmethod
     def parse(cls, conn):
@@ -2125,6 +2189,20 @@ class MembershipType(object):
                 self.reserved4,
                 self.reserved5)
 
+    def __eq__(self, other):
+        return (self.invitation == other.invitation and
+                self.passive == other.passive and
+                self.secret == other.secret and
+                self.passive_message_invert == other.passive_message_invert and
+                self.reserved2 == other.reserved2 and
+                self.reserved3 == other.reserved3 and
+                self.reserved4 == other.reserved4 and
+                self.reserved5 == other.reserved5)
+
+    def __ne__(self, other):
+        return not self == other
+        
+
 class Membership10(object):
     @classmethod
     def parse(cls, conn):
@@ -2134,7 +2212,7 @@ class Membership10(object):
         obj.conference = conn.parse_int()
         obj.priority = conn.parse_int()
         obj.last_text_read = conn.parse_int()
-        obj.read_texts = conn.parse_array_of_int()
+        obj.read_texts = conn.parse_array(LocalTextNo)
         obj.added_by = conn.parse_int()
         obj.added_at = conn.parse_object(Time)
         obj.type = conn.parse_object(MembershipType)
@@ -2193,7 +2271,7 @@ class TextList(object):
     def parse(cls, conn):
         obj = cls()
         obj.first_local_no = conn.parse_int()
-        obj.texts = conn.parse_array_of_int()
+        obj.texts = conn.parse_array(TextNo)
         return obj
 
 # TEXT MAPPING
@@ -2229,7 +2307,7 @@ class TextMapping(object):
             # Dense
             obj.type_text = "dense"
             obj.dense_first = conn.parse_int()
-            obj.dense_texts = conn.parse_array_of_int()
+            obj.dense_texts = conn.parse_array(Int32)
             local_number = obj.dense_first
             for global_number in obj.dense_texts:
                 obj.dict[local_number] = global_number
@@ -2251,6 +2329,10 @@ class TextMapping(object):
 # MARK
 
 class Mark(object):
+    def __init__(self, text_no=0, type=0):
+        self.text_no = text_no
+        self.type = type
+
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2260,6 +2342,13 @@ class Mark(object):
 
     def __repr__(self):
         return "<Mark %d (%d)>" % (self.text_no, self.type)
+
+    def __eq__(self, other):
+        return (self.text_no == other.text_no and
+                self.type == other.type)
+    
+    def __ne__(self, other):
+        return not self == other
 
 
 # SERVER INFORMATION
@@ -2392,8 +2481,8 @@ class StatsDescription(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.what = conn.parse_array_of_string()
-        obj.when = conn.parse_array_of_int()
+        obj.what = conn.parse_array(String)
+        obj.when = conn.parse_array(Int32)
         return obj
      
     def __repr__(self):
@@ -2412,50 +2501,6 @@ class Stats(object):
         return "<Stats %f + %f - %f>" % (self.average,
                                          self.ascent_rate,
                                          self.descent_rate)
-
-
-class EmptyResponse(object):
-    @classmethod
-    def parse(cls, conn):
-        return None
-
-class String(str):
-    @classmethod
-    def parse(cls, conn):
-        # --> string
-        return cls(conn.parse_string())
-
-class Int16(int):
-    @classmethod
-    def parse(cls, conn):
-        # --> INT16
-        return cls(conn.parse_int())
-
-class Int32(int):
-    @classmethod
-    def parse(cls, conn):
-        # --> INT32
-        return cls(conn.parse_int())
-
-class ConfNo(Int16):
-    pass
-
-class PersNo(ConfNo):
-    pass
-
-class TextNo(Int32):
-    pass
-
-class SessionNo(Int32):
-    pass
-
-class Array(object):
-    def __init__(self, element_cls):
-        self._element_cls = element_cls
-
-    def parse(self, conn):
-        # --> ARRAY <element cls>
-        return conn.parse_array(self._element_cls)
 
 
 # Mapping from request type to response type.

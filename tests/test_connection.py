@@ -116,13 +116,7 @@ def test_connection_read_response_can_parse_get_marks():
     sent_ref_no = c.send_request(kom.ReqGetMarks())
     ref_no, resp, error = c.read_response()
     assert ref_no == sent_ref_no
-    assert len(resp) == 3
-    assert resp[0].text_no == 13020
-    assert resp[0].type == 100
-    assert resp[1].text_no == 13043
-    assert resp[1].type == 95
-    assert resp[2].text_no == 12213
-    assert resp[2].type == 95
+    assert resp == [ kom.Mark(13020, 100), kom.Mark(13043, 95), kom.Mark(12213, 95) ]
     assert error is None
 
 def test_connection_read_response_can_parse_get_time():
@@ -131,15 +125,7 @@ def test_connection_read_response_can_parse_get_time():
     sent_ref_no = c.send_request(kom.ReqGetTime())
     ref_no, resp, error = c.read_response()
     assert ref_no == sent_ref_no
-    assert resp.seconds == 23
-    assert resp.minutes == 47
-    assert resp.hours == 19
-    assert resp.day == 17
-    assert resp.month == 6
-    assert resp.year == 97
-    assert resp.day_of_week == 4
-    assert resp.day_of_year == 197
-    assert resp.is_dst == 1
+    assert resp == kom.Time(23, 47, 19, 17, 6, 97, 4, 197, 1)
     assert error is None
 
 def test_connection_read_response_can_parse_async_logout_msg():
@@ -177,4 +163,40 @@ def test_connection_read_response_can_parse_query_async():
     ref_no, resp, error = c.read_response()
     assert ref_no == sent_ref_no
     assert resp == [ 0, 5, 7, 9, 11, 12, 13 ]
+    assert error is None
+
+def test_connection_read_response_can_parse_query_read_texts_10():
+    s = MockSocket(["LysKOM\n", "=1",
+                    " 4", # position
+                    " 32 5 11 12 7 93 1 193 1", # last time read
+                    " 1 20 133", # conference, priority, last read text
+                    " 3 { 135 136 137 }", # read texts
+                    " 5", # added by
+                    " 43 8 3 12 7 93 1 193 1", # added at
+                    " 01000000", # membership type
+                    "\n"])
+    c = Connection(s)
+    sent_ref_no = c.send_request(kom.ReqQueryReadTexts10(6, 1))
+    ref_no, resp, error = c.read_response()
+    assert ref_no == sent_ref_no
+    assert resp.position == 4
+    assert resp.last_time_read == kom.Time(32, 5, 11, 12, 7, 93, 1, 193, 1)
+    assert resp.conference == 1
+    assert resp.priority == 20
+    assert resp.last_text_read == 133
+    assert resp.read_texts == [ 135, 136, 137 ]
+    assert resp.added_by == 5
+    assert resp.added_at == kom.Time(43, 8, 3, 12, 7, 93, 1, 193, 1)
+    assert resp.type == kom.MembershipType(0, 1, 0, 0, 0, 0, 0, 0)
+    assert error is None
+
+
+def test_connection_read_response_can_parse_get_stats_description_response():
+    s = MockSocket(["LysKOM\n", "=1 2 { 3HX-a 3HX-b } 4 { 0 60 300 900 }\n"])
+    c = Connection(s)
+    sent_ref_no = c.send_request(kom.ReqGetStatsDescription())
+    ref_no, resp, error = c.read_response()
+    assert ref_no == sent_ref_no
+    assert resp.what == [ "X-a", "X-b" ]
+    assert resp.when == [ 0, 60, 300, 900 ]
     assert error is None
