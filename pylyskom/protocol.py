@@ -14,30 +14,30 @@ ORD_0 = ord("0")
 MAX_TEXT_SIZE = int(2**31-1)
 
 
-def parse_first_non_ws(buf):
+def read_first_non_ws(buf):
     """Skip whitespace and return first non-ws character"""
     c = buf.receive_char()
     while c in WHITESPACE:
         c = buf.receive_char()
     return c
 
-def parse_int_and_next(buf):
+def read_int_and_next(buf):
     """Get an integer and next character from the receive buffer."""
-    c = parse_first_non_ws(buf)
+    c = read_first_non_ws(buf)
     n = 0
     while c in DIGITS:
         n = n * 10 + (ord(c) - ORD_0)
         c = buf.receive_char()
     return (n, c)
 
-def parse_int(buf):
+def read_int(buf):
     """Get an integer from the receive buffer (discard next character)"""
-    (c, n) = parse_int_and_next(buf)
+    (c, n) = read_int_and_next(buf)
     return c
 
-def parse_float(buf):
+def read_float(buf):
     # Get a float from the receive buffer (discard next character)
-    c = parse_first_non_ws(buf)
+    c = read_first_non_ws(buf)
     digs = []
     while c in FLOAT_CHARS:
         digs.append(c)

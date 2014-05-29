@@ -8,10 +8,10 @@ import time
 import calendar
 
 from .protocol import (
-    parse_first_non_ws,
-    parse_int_and_next,
-    parse_int,
-    parse_float)
+    read_first_non_ws,
+    read_int_and_next,
+    read_int,
+    read_float)
 
 from .errors import (
     ProtocolError,
@@ -49,7 +49,7 @@ class String(str):
     @classmethod
     def parse(cls, buf):
         # Parse a string (Hollerith notation)
-        (length, h) = parse_int_and_next(buf)
+        (length, h) = read_int_and_next(buf)
         if h != "H":
             raise ProtocolError()
         return cls(buf.receive_string(length))
@@ -57,12 +57,12 @@ class String(str):
 class Float(float):
     @classmethod
     def parse(cls, buf):
-        return parse_float(buf)
+        return read_float(buf)
 
 class Int(int):
     @classmethod
     def parse(cls, buf):
-        return parse_int(buf)
+        return read_int(buf)
 
         
 class Int16(Int):
@@ -74,7 +74,7 @@ class Int32(Int):
 class ConfNo(Int16):
     pass
 
-class PersNo(ConfNo):
+class PersonNo(ConfNo):
     pass
 
 class TextNo(Int32):
@@ -91,9 +91,9 @@ class Array(object):
         self._element_cls = element_cls
 
     def parse(self, conn):
-        length = parse_int(conn)
+        length = read_int(conn)
         res = []
-        left = parse_first_non_ws(conn)
+        left = read_first_non_ws(conn)
         if left == "*":
             # Empty or special case of unwanted data
             return res
@@ -102,7 +102,7 @@ class Array(object):
         for i in range(0, length):
             obj = self._element_cls.parse(conn)
             res.append(obj)
-        right = parse_first_non_ws(conn)
+        right = read_first_non_ws(conn)
         if right != "}":
             raise ProtocolError()
         return res
@@ -111,7 +111,7 @@ class Bitstring(list):
     @classmethod
     def parse(cls, conn, length):
         obj = cls()
-        char = parse_first_non_ws(conn)
+        char = read_first_non_ws(conn)
         for i in range(0, length):
             if char == "0":
                 obj.append(0)
@@ -155,15 +155,15 @@ class Time(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.seconds = parse_int(conn)
-        obj.minutes = parse_int(conn)
-        obj.hours = parse_int(conn)
-        obj.day = parse_int(conn)
-        obj.month = parse_int(conn)
-        obj.year = parse_int(conn)
-        obj.day_of_week = parse_int(conn)
-        obj.day_of_year = parse_int(conn)
-        obj.is_dst = parse_int(conn)
+        obj.seconds = read_int(conn)
+        obj.minutes = read_int(conn)
+        obj.hours = read_int(conn)
+        obj.day = read_int(conn)
+        obj.month = read_int(conn)
+        obj.year = read_int(conn)
+        obj.day_of_week = read_int(conn)
+        obj.day_of_year = read_int(conn)
+        obj.is_dst = read_int(conn)
         return obj
 
     def to_string(self):
@@ -226,7 +226,7 @@ class ConfZInfo(object):
         obj = cls()
         obj.name = String.parse(conn)
         obj.type = ConfType.parse(conn, old_format=1)
-        obj.conf_no = parse_int(conn)
+        obj.conf_no = read_int(conn)
         return obj
 
     def __repr__(self):
@@ -247,11 +247,11 @@ class RawMiscInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.type = parse_int(conn)
+        obj.type = read_int(conn)
         if obj.type in [MI_REC_TIME, MI_SENT_AT]:
             obj.data = Time.parse(conn)
         else:
-            obj.data = parse_int(conn)
+            obj.data = read_int(conn)
         return obj
 
     def __repr__(self):
@@ -466,12 +466,12 @@ class AuxItem(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.aux_no = parse_int(conn)
-        obj.tag = parse_int(conn)
-        obj.creator = parse_int(conn)
+        obj.aux_no = read_int(conn)
+        obj.tag = read_int(conn)
+        obj.creator = read_int(conn)
         obj.created_at = Time.parse(conn)
         obj.flags = AuxItemFlags.parse(conn)
-        obj.inherit_limit = parse_int(conn)
+        obj.inherit_limit = read_int(conn)
         obj.data = String.parse(conn)
         return obj
 
@@ -530,10 +530,10 @@ class TextStat(object):
     def parse(cls, conn, old_format=0):
         obj = cls()
         obj.creation_time = Time.parse(conn)
-        obj.author = parse_int(conn)
-        obj.no_of_lines = parse_int(conn)
-        obj.no_of_chars = parse_int(conn)
-        obj.no_of_marks = parse_int(conn)
+        obj.author = read_int(conn)
+        obj.no_of_lines = read_int(conn)
+        obj.no_of_chars = read_int(conn)
+        obj.no_of_marks = read_int(conn)
         obj.misc_info = CookedMiscInfo.parse(conn)
         if old_format:
             obj.aux_items = []
@@ -609,18 +609,18 @@ class Conference(object):
         obj.type = ConfType.parse(conn)
         obj.creation_time = Time.parse(conn)
         obj.last_written = Time.parse(conn)
-        obj.creator = parse_int(conn)
-        obj.presentation = parse_int(conn)
-        obj.supervisor = parse_int(conn)
-        obj.permitted_submitters = parse_int(conn)
-        obj.super_conf = parse_int(conn)
-        obj.msg_of_day = parse_int(conn)
-        obj.nice = parse_int(conn)
-        obj.keep_commented = parse_int(conn)
-        obj.no_of_members = parse_int(conn)
-        obj.first_local_no = parse_int(conn)
-        obj.no_of_texts = parse_int(conn)
-        obj.expire = parse_int(conn)
+        obj.creator = read_int(conn)
+        obj.presentation = read_int(conn)
+        obj.supervisor = read_int(conn)
+        obj.permitted_submitters = read_int(conn)
+        obj.super_conf = read_int(conn)
+        obj.msg_of_day = read_int(conn)
+        obj.nice = read_int(conn)
+        obj.keep_commented = read_int(conn)
+        obj.no_of_members = read_int(conn)
+        obj.first_local_no = read_int(conn)
+        obj.no_of_texts = read_int(conn)
+        obj.expire = read_int(conn)
         obj.aux_items = Array(AuxItem).parse(conn)
         return obj
 
@@ -633,8 +633,8 @@ class UConference(object):
         obj = cls()
         obj.name = String.parse(conn)
         obj.type = ConfType.parse(conn)
-        obj.highest_local_no = parse_int(conn)
-        obj.nice = parse_int(conn)
+        obj.highest_local_no = read_int(conn)
+        obj.nice = read_int(conn)
         return obj
 
     def __repr__(self):
@@ -744,19 +744,19 @@ class Person(object):
         obj.privileges = PrivBits.parse(conn)
         obj.flags = PersonalFlags.parse(conn)
         obj.last_login = Time.parse(conn)
-        obj.user_area = parse_int(conn)
-        obj.total_time_present = parse_int(conn)
-        obj.sessions = parse_int(conn)
-        obj.created_lines = parse_int(conn)
-        obj.created_bytes = parse_int(conn)
-        obj.read_texts = parse_int(conn)
-        obj.no_of_text_fetches = parse_int(conn)
-        obj.created_persons = parse_int(conn)
-        obj.created_confs = parse_int(conn)
-        obj.first_created_local_no = parse_int(conn)
-        obj.no_of_created_texts = parse_int(conn)
-        obj.no_of_marks = parse_int(conn)
-        obj.no_of_confs = parse_int(conn)
+        obj.user_area = read_int(conn)
+        obj.total_time_present = read_int(conn)
+        obj.sessions = read_int(conn)
+        obj.created_lines = read_int(conn)
+        obj.created_bytes = read_int(conn)
+        obj.read_texts = read_int(conn)
+        obj.no_of_text_fetches = read_int(conn)
+        obj.created_persons = read_int(conn)
+        obj.created_confs = read_int(conn)
+        obj.first_created_local_no = read_int(conn)
+        obj.no_of_created_texts = read_int(conn)
+        obj.no_of_marks = read_int(conn)
+        obj.no_of_confs = read_int(conn)
         return obj
 
 # MEMBERSHIP
@@ -815,13 +815,13 @@ class Membership10(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.position = parse_int(conn)
+        obj.position = read_int(conn)
         obj.last_time_read  = Time.parse(conn)
-        obj.conference = parse_int(conn)
-        obj.priority = parse_int(conn)
-        obj.last_text_read = parse_int(conn)
+        obj.conference = read_int(conn)
+        obj.priority = read_int(conn)
+        obj.last_text_read = read_int(conn)
         obj.read_texts = Array(LocalTextNo).parse(conn)
-        obj.added_by = parse_int(conn)
+        obj.added_by = read_int(conn)
         obj.added_at = Time.parse(conn)
         obj.type = MembershipType.parse(conn)
         return obj
@@ -834,8 +834,8 @@ class ReadRange(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.first_read = parse_int(conn)
-        obj.last_read = parse_int(conn)
+        obj.first_read = read_int(conn)
+        obj.last_read = read_int(conn)
         return obj
 
     def __repr__(self):
@@ -850,12 +850,12 @@ class Membership11(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.position = parse_int(conn)
+        obj.position = read_int(conn)
         obj.last_time_read  = Time.parse(conn)
-        obj.conference = parse_int(conn)
-        obj.priority = parse_int(conn)
+        obj.conference = read_int(conn)
+        obj.priority = read_int(conn)
         obj.read_ranges = Array(ReadRange).parse(conn)
-        obj.added_by = parse_int(conn)
+        obj.added_by = read_int(conn)
         obj.added_at = Time.parse(conn)
         obj.type = MembershipType.parse(conn)
         return obj
@@ -866,8 +866,8 @@ class Member(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.member  = parse_int(conn)
-        obj.added_by = parse_int(conn)
+        obj.member  = read_int(conn)
+        obj.added_by = read_int(conn)
         obj.added_at = Time.parse(conn)
         obj.type = MembershipType.parse(conn)
         return obj
@@ -878,7 +878,7 @@ class TextList(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.first_local_no = parse_int(conn)
+        obj.first_local_no = read_int(conn)
         obj.texts = Array(TextNo).parse(conn)
         return obj
 
@@ -888,18 +888,18 @@ class TextNumberPair(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.local_number = parse_int(conn)
-        obj.global_number = parse_int(conn)
+        obj.local_number = read_int(conn)
+        obj.global_number = read_int(conn)
         return obj
     
 class TextMapping(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.range_begin = parse_int(conn) # Included in the range
-        obj.range_end = parse_int(conn) # Not included in range (first after)
-        obj.later_texts_exists = parse_int(conn)
-        obj.block_type = parse_int(conn)
+        obj.range_begin = read_int(conn) # Included in the range
+        obj.range_end = read_int(conn) # Not included in range (first after)
+        obj.later_texts_exists = read_int(conn)
+        obj.block_type = read_int(conn)
 
         obj.dict = {}
         obj.list = []
@@ -914,7 +914,7 @@ class TextMapping(object):
         elif obj.block_type == 1:
             # Dense
             obj.type_text = "dense"
-            obj.dense_first = parse_int(conn)
+            obj.dense_first = read_int(conn)
             obj.dense_texts = Array(Int32).parse(conn)
             local_number = obj.dense_first
             for global_number in obj.dense_texts:
@@ -944,8 +944,8 @@ class Mark(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.text_no = parse_int(conn)
-        obj.type = parse_int(conn)
+        obj.text_no = read_int(conn)
+        obj.type = read_int(conn)
         return obj
 
     def __repr__(self):
@@ -976,12 +976,12 @@ class Info(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.version = parse_int(conn)
-        obj.conf_pres_conf = parse_int(conn)
-        obj.pers_pres_conf = parse_int(conn)
-        obj.motd_conf = parse_int(conn)
-        obj.kom_news_conf = parse_int(conn)
-        obj.motd_of_lyskom = parse_int(conn)
+        obj.version = read_int(conn)
+        obj.conf_pres_conf = read_int(conn)
+        obj.pers_pres_conf = read_int(conn)
+        obj.motd_conf = read_int(conn)
+        obj.kom_news_conf = read_int(conn)
+        obj.motd_of_lyskom = read_int(conn)
         obj.aux_item_list = Array(AuxItem).parse(conn)
         return obj
 
@@ -998,7 +998,7 @@ class VersionInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.protocol_version = parse_int(conn)
+        obj.protocol_version = read_int(conn)
         obj.server_software = String.parse(conn)
         obj.software_version = String.parse(conn)
         return obj
@@ -1016,11 +1016,11 @@ class StaticServerInfo(object):
         obj.boot_time = Time.parse(conn)
         obj.save_time = Time.parse(conn)
         obj.db_status = String.parse(conn)
-        obj.existing_texts = parse_int(conn)
-        obj.highest_text_no = parse_int(conn)
-        obj.existing_confs = parse_int(conn)
-        obj.existing_persons = parse_int(conn)
-        obj.highest_conf_no = parse_int(conn)
+        obj.existing_texts = read_int(conn)
+        obj.highest_text_no = read_int(conn)
+        obj.existing_confs = read_int(conn)
+        obj.existing_persons = read_int(conn)
+        obj.highest_conf_no = read_int(conn)
         return obj
 
     def __repr__(self):
@@ -1046,10 +1046,10 @@ class DynamicSessionInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.session = parse_int(conn)
-        obj.person = parse_int(conn)
-        obj.working_conference = parse_int(conn)
-        obj.idle_time = parse_int(conn)
+        obj.session = read_int(conn)
+        obj.person = read_int(conn)
+        obj.working_conference = read_int(conn)
+        obj.idle_time = read_int(conn)
         obj.flags = SessionFlags.parse(conn)
         obj.what_am_i_doing  = String.parse(conn)
         return obj
@@ -1068,8 +1068,8 @@ class SchedulingInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.priority = parse_int(conn)
-        obj.weight = parse_int(conn)
+        obj.priority = read_int(conn)
+        obj.weight = read_int(conn)
         return obj
 
 class WhoInfo(object):
@@ -1088,9 +1088,9 @@ class WhoInfo(object):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.person = parse_int(conn)
-        obj.working_conference = parse_int(conn)
-        obj.session = parse_int(conn)
+        obj.person = read_int(conn)
+        obj.working_conference = read_int(conn)
+        obj.session = read_int(conn)
         obj.what_am_i_doing  = String.parse(conn)
         obj.username = String.parse(conn)
         return obj

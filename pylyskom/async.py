@@ -4,13 +4,16 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
-from .protocol import parse_int
-
 from .datatypes import (
     Array,
     AuxItem,
     String,
+    ConfNo,
+    TextNo,
+    PersonNo,
+    Int32,
     TextStat,
+    SessionNo,
     WhoInfo)
 
 
@@ -57,7 +60,7 @@ class AsyncNewTextOld(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.text_no = parse_int(conn)
+        obj.text_no = TextNo.parse(conn)
         obj.text_stat = TextStat.parse(conn, old_format=1)
         return obj
 
@@ -70,7 +73,7 @@ class AsyncNewName(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.conf_no = parse_int(conn)
+        obj.conf_no = ConfNo.parse(conn)
         obj.old_name = String.parse(conn)
         obj.new_name = String.parse(conn)
         return obj
@@ -98,7 +101,7 @@ class AsyncLeaveConf(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.conf_no = parse_int(conn)
+        obj.conf_no = ConfNo.parse(conn)
         return obj
 
 # async-login [9] (1) Recommended <DEFAULT>
@@ -107,8 +110,8 @@ class AsyncLogin(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.person_no = parse_int(conn)
-        obj.session_no = parse_int(conn)
+        obj.person_no = PersonNo.parse(conn)
+        obj.session_no = SessionNo.parse(conn)
         return obj
 
 # async-broadcast [10] Obsolete
@@ -127,8 +130,8 @@ class AsyncSendMessage(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.recipient = parse_int(conn)
-        obj.sender = parse_int(conn)
+        obj.recipient = ConfNo.parse(conn)
+        obj.sender = PersonNo.parse(conn)
         obj.message = String.parse(conn)
         return obj
 
@@ -138,8 +141,8 @@ class AsyncLogout(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.person_no = parse_int(conn)
-        obj.session_no = parse_int(conn)
+        obj.person_no = PersonNo.parse(conn)
+        obj.session_no = SessionNo.parse(conn)
         return obj
 
 # async-deleted-text [14] (10) Recommended
@@ -148,7 +151,7 @@ class AsyncDeletedText(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.text_no = parse_int(conn)
+        obj.text_no = TextNo.parse(conn)
         obj.text_stat = TextStat.parse(conn)
         return obj
 
@@ -158,7 +161,7 @@ class AsyncNewText(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.text_no = parse_int(conn)
+        obj.text_no = TextNo.parse(conn)
         obj.text_stat = TextStat.parse(conn)
         return obj
 
@@ -168,9 +171,9 @@ class AsyncNewRecipient(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.text_no = parse_int(conn)
-        obj.conf_no = parse_int(conn)
-        obj.type = parse_int(conn)
+        obj.text_no = TextNo.parse(conn)
+        obj.conf_no = ConfNo.parse(conn)
+        obj.type = Int32.parse(conn)
         return obj
 
 # async-sub-recipient [17] (10) Recommended
@@ -179,9 +182,9 @@ class AsyncSubRecipient(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.text_no = parse_int(conn)
-        obj.conf_no = parse_int(conn)
-        obj.type = parse_int(conn)
+        obj.text_no = TextNo.parse(conn)
+        obj.conf_no = ConfNo.parse(conn)
+        obj.type = Int32.parse(conn)
         return obj
 
 # async-new-membership [18] (10) Recommended
@@ -190,8 +193,8 @@ class AsyncNewMembership(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.person_no = parse_int(conn)
-        obj.conf_no = parse_int(conn)
+        obj.person_no = PersonNo.parse(conn)
+        obj.conf_no = ConfNo.parse(conn)
         return obj
 
 # async-new-user-area [19] (11) Recommended
@@ -200,9 +203,9 @@ class AsyncNewUserArea(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.person_no = parse_int(conn)
-        obj.old_user_area = parse_int(conn)
-        obj.new_user_area = parse_int(conn)
+        obj.person_no = PersonNo.parse(conn)
+        obj.old_user_area = TextNo.parse(conn)
+        obj.new_user_area = TextNo.parse(conn)
         return obj
 
 # async-new-presentation [20] (11) Recommended
@@ -211,9 +214,9 @@ class AsyncNewPresentation(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.conf_no = parse_int(conn)
-        obj.old_presentation = parse_int(conn)
-        obj.new_presentation = parse_int(conn)
+        obj.conf_no = ConfNo.parse(conn)
+        obj.old_presentation = TextNo.parse(conn)
+        obj.new_presentation = TextNo.parse(conn)
         return obj
 
 # async-new-motd [21] (11) Recommended
@@ -222,9 +225,9 @@ class AsyncNewMotd(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.conf_no = parse_int(conn)
-        obj.old_motd = parse_int(conn)
-        obj.new_motd = parse_int(conn)
+        obj.conf_no = ConfNo.parse(conn)
+        obj.old_motd = TextNo.parse(conn)
+        obj.new_motd = TextNo.parse(conn)
         return obj
 
 # async-text-aux-changed [22] (11) Recommended
@@ -233,7 +236,7 @@ class AsyncTextAuxChanged(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.text_no = parse_int(conn)
+        obj.text_no = TextNo.parse(conn)
         obj.deleted = Array(AuxItem).parse(conn)
         obj.added = Array(AuxItem).parse(conn)
         return obj

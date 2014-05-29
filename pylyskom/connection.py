@@ -18,8 +18,8 @@ from .errors import (
     UnimplementedAsync)
 
 from .protocol import (
-    parse_first_non_ws,
-    parse_int)
+    read_first_non_ws,
+    read_int)
 
 from .requests import response_dict
 from .async import async_dict
@@ -138,7 +138,7 @@ class Connection(object):
         return ref_no
 
     def read_response(self):
-        ch = parse_first_non_ws(self._buffer)
+        ch = read_first_non_ws(self._buffer)
         if ch == "=":
             return self._parse_ok_reply()
         elif ch == "%":
@@ -149,7 +149,7 @@ class Connection(object):
             raise ProtocolError()
 
     def _parse_ok_reply(self):
-        ref_no = parse_int(self._buffer)
+        ref_no = read_int(self._buffer)
         if ref_no not in self._outstanding_requests:
             raise BadRequestId(ref_no)
         req = self._outstanding_requests[ref_no]
@@ -158,18 +158,18 @@ class Connection(object):
         return ref_no, resp, None
 
     def _parse_error_reply(self):
-        ref_no = parse_int(self._buffer)
+        ref_no = read_int(self._buffer)
         if ref_no not in self._outstanding_requests:
             raise BadRequestId(ref_no)
-        error_no = parse_int(self._buffer)
-        error_status = parse_int(self._buffer)
+        error_no = read_int(self._buffer)
+        error_status = read_int(self._buffer)
         error = error_dict[error_no](error_status)
         del self._outstanding_requests[ref_no]
         return ref_no, None, error
 
     def _parse_asynchronous_message(self):
-        parse_int(self._buffer) # read number of arguments (but we don't need it)
-        msg_no = parse_int(self._buffer)
+        read_int(self._buffer) # read number of arguments (but we don't need it)
+        msg_no = read_int(self._buffer)
         if msg_no not in async_dict:
             raise UnimplementedAsync(msg_no)
         msg = async_dict[msg_no].parse(self._buffer)

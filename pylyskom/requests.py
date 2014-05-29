@@ -24,7 +24,7 @@ from .datatypes import (
     Member,
     Membership10,
     Membership11,
-    PersNo,
+    PersonNo,
     Person,
     SchedulingInfo,
     SessionNo,
@@ -534,8 +534,7 @@ class ReqSendMessage(Request):
         self.message = message
         
     def get_request(self):
-        return ("%d %dH%s" % (self.conf_no, len(self.message), 
-                              self.message)).encode('latin1')
+        return ("%d %s" % (self.conf_no, to_hstring(self.message))).encode('latin1')
 
 # get-session-info [54] (1) Obsolete (9) Use who-is-on-dynamic (83)
 
@@ -603,9 +602,8 @@ class ReqLogin(Request):
         self.invisible = invisible
         
     def get_request(self):
-        return ("%d %dH%s %d" %
-                (self.person_no, len(self.password), self.password, 
-                 self.invisible)).encode('latin1')
+        return ("%d %s %d" %
+                (self.person_no, to_hstring(self.password), self.invisible)).encode('latin1')
 
 # who-is-on-ident [63] (4) Obsolete (9) Use who-is-on-dynamic (83) and
 #                                           get-static-session-info (84)
@@ -624,9 +622,8 @@ class ReqSetClientVersion(Request):
         self.client_version = client_version
         
     def get_request(self):
-        return ("%dH%s %dH%s" % (
-                len(self.client_name), self.client_name,
-                len(self.client_version), self.client_version)).encode('latin1')
+        return ("%s %s" % (to_hstring(self.client_name),
+                           to_hstring(self.client_version))).encode('latin1')
 
 # get-client-name [70] (6) Recommended
 class ReqGetClientName(Request):
@@ -674,8 +671,7 @@ class ReqReZLookup(Request):
         self.want_confs = want_confs
         
     def get_request(self):
-        return "%dH%s %d %d" % (len(self.regexp), self.regexp,
-                                self.want_pers, self.want_confs)
+        return "%s %d %d" % (to_hstring(self.regexp), self.want_pers, self.want_confs)
 
 # get-version-info [75] (7) Recommended
 class ReqGetVersionInfo(Request):
@@ -692,8 +688,8 @@ class ReqLookupZName(Request):
         self.want_confs = want_confs
         
     def get_request(self):
-        return ("%dH%s %d %d" % (len(self.name), self.name,
-                                 self.want_pers, self.want_confs)).encode('latin1')
+        return ("%s %d %d" % (to_hstring(self.name), self.want_pers,
+                              self.want_confs)).encode('latin1')
 
 # set-last-read [77] (8) Recommended
 class ReqSetLastRead(Request):
@@ -779,9 +775,9 @@ class ReqCreateText(Request):
         self.aux_items = aux_items
         
     def get_request(self):
-        return "%dH%s %s %s" % (len(self.text), self.text,
-                                self.misc_info.to_string(),
-                                array_to_string(self.aux_items))
+        return "%s %s %s" % (to_hstring(self.text),
+                             self.misc_info.to_string(),
+                             array_to_string(self.aux_items))
 
 # create-anonymous-text [87] (10) Recommended
 class ReqCreateAnonymousText(Request):
@@ -792,9 +788,9 @@ class ReqCreateAnonymousText(Request):
         self.aux_items = aux_items
         
     def get_request(self):
-        return "%dH%s %s %s" % (len(self.text), self.text,
-                                self.misc_info.to_string(),
-                                array_to_string(self.aux_items))
+        return "%s %s %s" % (to_hstring(self.text),
+                             self.misc_info.to_string(),
+                             array_to_string(self.aux_items))
 
 # create-conf [88] (10) Recommended
 class ReqCreateConf(Request):
@@ -805,9 +801,9 @@ class ReqCreateConf(Request):
         self.aux_items = aux_items
         
     def get_request(self):
-        return "%dH%s %s %s" % (len(self.name), self.name,
-                                self.conf_type.to_string(),
-                                array_to_string(self.aux_items))
+        return "%s %s %s" % (to_hstring(self.name),
+                             self.conf_type.to_string(),
+                             array_to_string(self.aux_items))
 
 # create-person [89] (10) Recommended
 class ReqCreatePerson(Request):
@@ -819,10 +815,10 @@ class ReqCreatePerson(Request):
         self.aux_items = aux_items
         
     def get_request(self):
-        return "%dH%s %dH%s %s %s" % (len(self.name), self.name,
-                                      len(self.passwd), self.passwd,
-                                      self.flags.to_string(),
-                                      array_to_string(self.aux_items))
+        return "%s %s %s %s" % (to_hstring(self.name),
+                                to_hstring(self.passwd),
+                                self.flags.to_string(),
+                                array_to_string(self.aux_items))
 
 # get-text-stat [90] (10) Recommended
 class ReqGetTextStat(Request):
@@ -1076,7 +1072,7 @@ class ReqGetStats(Request):
         self.what = what
         
     def get_request(self):
-        return "%dH%s" % (len(self.what), self.what)
+        return "%s" % (to_hstring(self.what),)
 
 # get-boottime-info [113] (11) Recommended
 class ReqGetBoottimeInfo(Request):
@@ -1184,7 +1180,7 @@ response_dict = {
     Requests.CHANGE_WHAT_I_AM_DOING: EmptyResponse,
     Requests.CREATE_ANONYMOUS_TEXT: TextNo,
     Requests.CREATE_CONF: ConfNo,
-    Requests.CREATE_PERSON: PersNo,
+    Requests.CREATE_PERSON: PersonNo,
     Requests.CREATE_TEXT: TextNo,
     Requests.DELETE_CONF: EmptyResponse,
     Requests.DELETE_TEXT: EmptyResponse,
