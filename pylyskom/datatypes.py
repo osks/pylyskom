@@ -8,6 +8,7 @@ import time
 import calendar
 
 from .protocol import (
+    to_hstring,
     read_first_non_ws,
     read_int_and_next,
     read_int,
@@ -479,11 +480,11 @@ class AuxItem(object):
         return "<AuxItem %d>" % self.tag
 
     def to_string(self):
-        return "%d %s %d %dH%s" % \
+        return "%d %s %d %s" % \
                (self.tag,
                 self.flags.to_string(),
                 self.inherit_limit,
-                len(self.data), self.data)
+                to_hstring(self.data))
 
     def __eq__(self, other):
         return (self.aux_no == other.aux_no and

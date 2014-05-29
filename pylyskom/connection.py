@@ -18,6 +18,7 @@ from .errors import (
     UnimplementedAsync)
 
 from .protocol import (
+    to_hstring,
     read_first_non_ws,
     read_int)
 
@@ -99,7 +100,7 @@ class Connection(object):
         self._outstanding_requests = {} # Ref-No to Request mapping
 
         # Send initial string 
-        self._send_string(("A%dH%s\n" % (len(user), user)).encode('latin1'))
+        self._send_string(("A%s\n" % (to_hstring(user),)).encode('latin1'))
 
         # Wait for answer "LysKOM\n"
         resp = self._buffer.receive_string(7) # FIXME: receive line here

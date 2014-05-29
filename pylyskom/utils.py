@@ -3,7 +3,7 @@
 from . import mimeparse
 
 from .errors import Error
-from .protocol import WHITESPACE, DIGITS, ORD_0
+from .protocol import WHITESPACE, DIGITS, ORD_0, to_hstring
 
 
 def decode_text(text, encoding, backup_encoding='latin1'):
@@ -77,7 +77,7 @@ def parse_hollerith_string(hstring):
 
 
 def to_hollerith_string(s):
-    return "%dH%s" % (len(s), s)
+    return to_hstring(s)
 
 
 def decode_user_area(user_area):
