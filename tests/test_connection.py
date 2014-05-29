@@ -99,6 +99,28 @@ def test_connection_read_response_returns_responses_in_received_order():
     assert resp1 == (ref2, "Text 2", None)
     assert resp2 == (ref1, "Text 1", None)
 
+
+def test_connection_can_parse_empty_array_with_star_format():
+    s = MockSocket(["LysKOM\n", "0 *\n"])
+    c = Connection(s)
+    res  = c.parse_array(kom.Int32)
+    assert res == []
+
+def test_connection_can_parse_empty_array_with_normal_format():
+    # This is generally not sent by the server, because empty arrays
+    # are sent as "0 *", but I think we should handle it anyway.
+    s = MockSocket(["LysKOM\n", "0 { }\n"])
+    c = Connection(s)
+    res  = c.parse_array(kom.Int32)
+    assert res == []
+
+def test_connection_can_parse_array_non_zero_length_with_star_special_case():
+    s = MockSocket(["LysKOM\n", "5 *\n"]) # length 5 but no array content
+    c = Connection(s)
+    res  = c.parse_array(kom.Int32)
+    assert res == []
+
+
 def test_connection_read_response_can_parse_version_info():
     s = MockSocket(["LysKOM\n", "=1 9 7Hlyskomd 5H1.9.0\n"])
     c = Connection(s)
@@ -128,13 +150,51 @@ def test_connection_read_response_can_parse_get_time():
     assert resp == kom.Time(23, 47, 19, 17, 6, 97, 4, 197, 1)
     assert error is None
 
-def test_connection_read_response_can_parse_async_logout_msg():
+def test_connection_read_response_can_parse_async_logout_message():
     s = MockSocket(["LysKOM\n", ":2 13 14506 7\n"])
     c = Connection(s)
     ref_no, msg, error = c.read_response()
     assert ref_no == None
+    assert msg.MSG_NO == kom.AsyncMessages.LOGOUT
     assert msg.person_no == 14506
     assert msg.session_no == 7
+    assert error is None
+
+def test_connection_read_response_can_parse_async_IAmOn_message():
+    s = MockSocket(["LysKOM\n", ":5 6 14506 6 123 7Hnothing 5Hoskar\n"])
+    c = Connection(s)
+    ref_no, msg, error = c.read_response()
+    assert ref_no is None
+    assert msg.MSG_NO == kom.AsyncMessages.I_AM_ON
+    assert msg.info == kom.WhoInfo(14506, 6, 123, "nothing", "oskar")
+    assert error is None
+
+def test_connection_read_response_can_parse_async_DeletedText_message():
+    # TODO: Unsure of how the "number of parameters" argument is
+    # specified by the server. This works because it is ignored in the
+    # Connection class.
+    s = MockSocket(["LysKOM\n",
+                    ":2", # uncertain if this is correct
+                    " 14 ", # msg no
+                    " 12345",
+                    " 32 5 11 12 7 93 1 193 1", # text-stat creation time
+                    " 14506", # text-stat author
+                    " 100", # text-stat no of lines
+                    " 4711", # text-stat no of chars
+                    " 4", # text-stat no of marks
+                    " 0 *", # text-stat misc-info array
+                    " 0 *", # text-stat aux-items array
+                    "\n"])
+    c = Connection(s)
+    ref_no, msg, error = c.read_response()
+    assert ref_no is None
+    assert msg.MSG_NO == kom.AsyncMessages.DELETED_TEXT
+    assert msg.text_no == 12345
+    expected_text_stat = kom.TextStat(
+        creation_time=kom.Time(32, 5, 11, 12, 7, 93, 1, 193, 1),
+        author=14506, no_of_lines=100, no_of_chars=4711, no_of_marks=4,
+        misc_info=kom.CookedMiscInfo(), aux_items=[])
+    assert msg.text_stat == expected_text_stat
     assert error is None
 
 def test_connection_read_response_can_parse_async_send_message():
@@ -142,6 +202,7 @@ def test_connection_read_response_can_parse_async_send_message():
     c = Connection(s)
     ref_no, msg, error = c.read_response()
     assert ref_no is None
+    assert msg.MSG_NO == kom.AsyncMessages.SEND_MESSAGE
     assert msg.recipient == 14506
     assert msg.sender == 1234
     assert msg.message == "hej hej"

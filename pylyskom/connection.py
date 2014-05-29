@@ -88,20 +88,18 @@ class BaseConnection(object):
     def parse_array(self, element_cls):
         len = self.parse_int()
         res = []
-        if len > 0:
-            left = self.parse_first_non_ws()
-            if left == "*":
-                # Special case of unwanted data
-                return []
-            elif left != "{": raise kom.ProtocolError
-            for i in range(0, len):
-                obj = element_cls.parse(self)
-                res.append(obj)
-            right = self.parse_first_non_ws()
-            if right != "}": raise kom.ProtocolError
-        else:
-            star = self.parse_first_non_ws()
-            if star != "*": raise kom.ProtocolError
+        left = self.parse_first_non_ws()
+        if left == "*":
+            # Empty or special case of unwanted data
+            return res
+        elif left != "{":
+            raise kom.ProtocolError
+        for i in range(0, len):
+            obj = element_cls.parse(self)
+            res.append(obj)
+        right = self.parse_first_non_ws()
+        if right != "}":
+            raise kom.ProtocolError
         return res
 
     # PARSING BITSTRINGS

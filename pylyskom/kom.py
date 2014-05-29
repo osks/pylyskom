@@ -1392,7 +1392,7 @@ class AsyncIAmOn(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.info = conn.parse_object(WhoInfo)
+        obj.info = WhoInfo.parse(conn)
         return obj
 
 # async-sync-db [7] (1) Recommended <DEFAULT>
@@ -1731,6 +1731,14 @@ class ConfZInfo(object):
         return "<ConfZInfo %d: %s>" % \
             (self.conf_no, self.name)
 
+    def __eq__(self, other):
+        return (self.name == other.name and
+                self.type == other.type and
+                self.conf_no == other.conf_no)
+
+    def __ne__(self, other):
+        return not self == other
+
 # RAW MISC-INFO (AS IT IS IN PROTOCOL A)
 
 class RawMiscInfo(object):
@@ -1746,6 +1754,14 @@ class RawMiscInfo(object):
 
     def __repr__(self):
         return "<MiscInfo %d: %s>" % (self.type, self.data)
+
+    def __eq__(self, other):
+        return (self.type == other.type and
+                self.data == other.data)
+
+    def __ne__(self, other):
+        return not self == other
+
 
 # COOKED MISC-INFO (MORE TASTY)
 # N.B: This class represents the whole array, not just one item
@@ -1777,6 +1793,17 @@ class MIRecipient(object):
     def get_tuples(self):
         return [(self.type, self.recpt)]
 
+    def __eq__(self, other):
+        return (self.type == other.type and
+                self.recpt == other.recpt and
+                self.loc_no == other.loc_no and
+                self.rec_time == other.rec_time and
+                self.sent_by == other.send_by and
+                self.sent_at == other.send_at)
+
+    def __ne__(self, other):
+        return not self == other
+
 class MICommentTo(object):
     def __init__(self, type = MIC_COMMENT, text_no = 0):
         self.type = type
@@ -1798,6 +1825,15 @@ class MICommentTo(object):
     def get_tuples(self):
         return [(self.type, self.text_no)]
 
+    def __eq__(self, other):
+        return (self.type == other.type and
+                self.text_no == other.text_no and
+                self.sent_by == other.send_by and
+                self.sent_at == other.send_at)
+
+    def __ne__(self, other):
+        return not self == other
+
 class MICommentIn(object):
     def __init__(self, type = MIC_COMMENT, text_no = 0):
         self.type = type
@@ -1806,6 +1842,13 @@ class MICommentIn(object):
     def get_tuples(self):
         # Cannot send these to sever
         return []
+
+    def __eq__(self, other):
+        return (self.type == other.type and
+                self.text_no == other.text_no)
+
+    def __ne__(self, other):
+        return not self == other
 
 class CookedMiscInfo(object):
     def __init__(self):
@@ -1844,7 +1887,15 @@ class CookedMiscInfo(object):
         return "%d { %s}" % (len(list),
                              "".join(["%d %d " % \
                                           (x[0], x[1]) for x in list]))
-                             
+
+
+    def __eq__(self, other):
+        return (self.recipient_list == other.recipient_list and
+                self.comment_to_list == other.comment_to_list and
+                self.comment_in_list == other.comment_in_list)
+
+    def __ne__(self, other):
+        return not self == other
 
 # AUX INFO
 
@@ -1883,6 +1934,20 @@ class AuxItemFlags(object):
                 self.reserved3,
                 self.reserved4)
 
+    def __eq__(self, other):
+        return (self.deleted == other.deleted and
+                self.inherit == other.inherit and
+                self.secret == other.secret and
+                self.hide_creator == other.hide_creator and
+                self.dont_garb == other.dont_garb and
+                self.reserved2 == other.reserved2 and
+                self.reserved3 == other.reserved3 and
+                self.reserved4 == other.reserved4)
+
+    def __ne__(self, other):
+        return not self == other
+        
+
 # This class works as Aux-Item on reception, and
 # Aux-Item-Input when being sent.
 class AuxItem(object): 
@@ -1909,12 +1974,25 @@ class AuxItem(object):
 
     def __repr__(self):
         return "<AuxItem %d>" % self.tag
+
     def to_string(self):
         return "%d %s %d %dH%s" % \
                (self.tag,
                 self.flags.to_string(),
                 self.inherit_limit,
                 len(self.data), self.data)
+
+    def __eq__(self, other):
+        return (self.aux_no == other.aux_no and
+                self.tag == other.tag and
+                self.creator == other.creator and
+                self.created_at == other.created_at and
+                self.flags == other.flags and
+                self.inherit_limit == other.inherit_limit and
+                self.data == other.data)
+
+    def __ne__(self, other):
+        return not self == other
 
 # Functions operating on lists of AuxItems
 
@@ -1931,6 +2009,20 @@ def first_aux_items_with_tag(ail, tag):
 # TEXT
 
 class TextStat(object):
+    def __init__(self, creation_time=None, author=0, no_of_lines=0, no_of_chars=0,
+                 no_of_marks=0, misc_info=None, aux_items=None):
+        self.creation_time = creation_time
+        self.author = author
+        self.no_of_lines = no_of_lines
+        self.no_of_chars = no_of_chars
+        self.no_of_marks = no_of_marks
+        if misc_info is None:
+            misc_info = CookedMiscInfo()
+        self.misc_info = misc_info
+        if aux_items is None:
+            aux_items = []
+        self.aux_items = aux_items
+
     @classmethod
     def parse(cls, conn, old_format=0):
         obj = cls()
@@ -1945,6 +2037,19 @@ class TextStat(object):
         else:
             obj.aux_items = conn.parse_array(AuxItem)
         return obj
+
+    def __eq__(self, other):
+        return (self.creation_time == other.creation_time and
+                self.author == other.author and
+                self.no_of_lines == other.no_of_lines and
+                self.no_of_chars == other.no_of_chars and
+                self.no_of_marks == other.no_of_marks and
+                self.misc_info == other.misc_info and
+                self.aux_items == other.aux_items)
+
+    def __ne__(self, other):
+        return not self == other
+
 
 # CONFERENCE
 
@@ -2465,6 +2570,18 @@ class SchedulingInfo(object):
         return obj
 
 class WhoInfo(object):
+    def __init__(self, person=0, working_conference=0, session=0,
+                 what_am_i_doing=None, username=None):
+        if what_am_i_doing is None:
+            what_am_i_doing = ""
+        if username is None:
+            username = ""
+        self.person = person
+        self.working_conference = working_conference
+        self.session = session
+        self.what_am_i_doing = what_am_i_doing
+        self.username = username
+
     @classmethod
     def parse(cls, conn):
         obj = cls()
@@ -2474,6 +2591,16 @@ class WhoInfo(object):
         obj.what_am_i_doing  = conn.parse_string()
         obj.username = conn.parse_string()
         return obj
+
+    def __eq__(self, other):
+        return (self.person == other.person and
+                self.working_conference == other.working_conference and
+                self.session == other.session and 
+                self.what_am_i_doing == other.what_am_i_doing and
+                self.username == other.username)
+
+    def __ne__(self, other):
+        return not self == other
      
 # STATISTICS
 
