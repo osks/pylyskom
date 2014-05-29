@@ -19,6 +19,25 @@ FLOAT_CHARS = DIGITS + "eE.-+"
 ORD_0 = ord("0")
 MAX_TEXT_SIZE = int(2**31-1)
 
+
+def array_of_int_to_string(array):
+    return "%d { %s }" % (len(array),
+                         " ".join(list(map(str, array))))
+
+def array_to_string(array):
+    return "%d { %s }" % (len(array), 
+                          " ".join([x.to_string() for x in array]))
+
+
+def to_hstring(s, encoding='latin1'):
+    """To hollerith string
+    """
+    assert isinstance(s, basestring)
+    if isinstance(s, unicode):
+        s = s.encode(encoding)
+    return "%dH%s" % (len(s), s)
+
+
 # All errors belong to this class
 class Error(Exception): pass
 
@@ -180,6 +199,9 @@ MIC_FOOTNOTE = MI_FOOTN_TO
 
 
 class Requests(object):
+    """Enum like object which give names to the request call numbers
+    in the protocol.
+    """
     LOGOUT = 1 # (1) Recommended
     CHANGE_CONFERENCE = 2 # (1) Recommended
     CHANGE_NAME = 3 # (1) Recommended
@@ -292,11 +314,6 @@ class Request(object):
         """
         # Override and return the request as a string.
         raise NotImplementedError()
-
-    def parse_response(self, conn):
-        # Default response parser expects nothing.
-        # Override when appropriate.
-        return None
 
     def to_string(self):
         """Returns the full serialized request, including CALL_NO and
@@ -473,10 +490,6 @@ class ReqGetMarks(Request):
     def get_request(self):
         return ""
 
-    def parse_response(self, conn):
-        # --> string
-        return conn.parse_array(Mark)
-
 # mark-text-old [24] (1) Obsolete (4) Use mark-text/unmark-text (72/73)
 
 # get-text [25] (1) Recommended
@@ -490,10 +503,6 @@ class ReqGetText(Request):
     def get_request(self):
         return ("%d %d %d" % (self.text_no, self.start_char,
                               self.end_char)).encode('latin1')
-    
-    def parse_response(self, conn):
-        # --> string
-        return conn.parse_string()
     
 # get-text-stat-old [26] (1) Obsolete (10) Use get-text-stat (90)
 
@@ -571,19 +580,11 @@ class ReqGetMap(Request):
     def get_request(self):
         return "%d %d %d" % (self.conf_no, self.first_local_no, self.no_of_texts)
 
-    def parse_response(self, conn):
-	# --> Text-List
-        return conn.parse_object(TextList)
-
 # get-time [35] (1) Recommended
 class ReqGetTime(Request):
     CALL_NO = Requests.GET_TIME
     def get_request(self):
         return ""
-
-    def parse_response(self, conn):
-        # --> Time
-        return conn.parse_object(Time)
     
 # get-info-old [36] (1) Obsolete (10) Use get-info (94)
 
@@ -667,10 +668,6 @@ class ReqGetPersonStat(Request):
     def get_request(self):
         return "%d" % (self.person_no,)
 
-    def parse_response(self, conn):
-        # --> Person
-        return conn.parse_object(Person)
-
 # get-conf-stat-old [50] (1) Obsolete (10) Use get-conf-stat (91)
 
 # who-is-on [51] (1) Obsolete (9)  Use who-is-on-dynamic (83) and
@@ -684,10 +681,6 @@ class ReqGetUnreadConfs(Request):
         
     def get_request(self):
         return ("%d" % (self.person_no,)).encode('latin1')
-
-    def parse_response(self, conn):
-        # --> ARRAY Conf-No
-        return conn.parse_array_of_int()
 
 # send-message [53] (1) Recommended
 class ReqSendMessage(Request):
@@ -716,10 +709,6 @@ class ReqWhoAmI(Request):
     CALL_NO = Requests.WHO_AM_I
     def get_request(self):
         return ""
-        
-    def parse_response(self, conn):
-        # --> Session-No
-        return conn.parse_int()
 
 # set-user-area [57] (2) Recommended
 class ReqSetUserArea(Request):
@@ -739,10 +728,6 @@ class ReqGetLastText(Request):
         
     def get_request(self):
         return "%s" % (self.before.to_string(),)
-        
-    def parse_response(self, conn):
-        # --> Text-No
-        return conn.parse_int()
 
 # create-anonymous-text-old [59] (3) Obsolete (10)
 #                                    Use create-anonymous-text (87)
@@ -755,10 +740,6 @@ class ReqFindNextTextNo(Request):
         
     def get_request(self):
         return "%d" % (self.start,)
-        
-    def parse_response(self, conn):
-        # --> Text-No
-        return conn.parse_int()
 
 # find-previous-text-no [61] (3) Recommended
 class ReqFindPreviousTextNo(Request):
@@ -768,10 +749,6 @@ class ReqFindPreviousTextNo(Request):
         
     def get_request(self):
         return "%d" % (self.start,)
-        
-    def parse_response(self, conn):
-        # --> Text-No
-        return conn.parse_int()
 
 # login [62] (4) Recommended
 class ReqLogin(Request):
@@ -815,10 +792,6 @@ class ReqGetClientName(Request):
         
     def get_request(self):
         return "%d" % (self.session_no,)
-        
-    def parse_response(self, conn):
-        # --> Hollerith
-        return conn.parse_string()
 
 # get-client-version [71] (6) Recommended
 class ReqGetClientVersion(Request):
@@ -828,10 +801,6 @@ class ReqGetClientVersion(Request):
         
     def get_request(self):
         return "%d" % (self.session_no,)
-        
-    def parse_response(self, conn):
-        # --> Hollerith
-        return conn.parse_string()
 
 # mark-text [72] (4) Recommended
 class ReqMarkText(Request):
@@ -864,19 +833,11 @@ class ReqReZLookup(Request):
         return "%dH%s %d %d" % (len(self.regexp), self.regexp,
                                 self.want_pers, self.want_confs)
 
-    def parse_response(self, conn):
-        # --> ARRAY ConfZInfo
-        return conn.parse_array(ConfZInfo)
-
 # get-version-info [75] (7) Recommended
 class ReqGetVersionInfo(Request):
     CALL_NO = Requests.GET_VERSION_INFO
     def get_request(self):
         return ""
-
-    def parse_response(self, conn):
-        # --> Version-Info
-        return conn.parse_object(VersionInfo)
 
 # lookup-z-name [76] (7) Recommended
 class ReqLookupZName(Request):
@@ -889,10 +850,6 @@ class ReqLookupZName(Request):
     def get_request(self):
         return ("%dH%s %d %d" % (len(self.name), self.name,
                                  self.want_pers, self.want_confs)).encode('latin1')
-
-    def parse_response(self, conn):
-        # --> ARRAY ConfZInfo
-        return conn.parse_array(ConfZInfo)
 
 # set-last-read [77] (8) Recommended
 class ReqSetLastRead(Request):
@@ -912,10 +869,6 @@ class ReqGetUconfStat(Request):
         
     def get_request(self):
         return ("%d" % (self.conf_no,)).encode('latin1')
-
-    def parse_response(self, conn):
-        # --> UConference
-        return conn.parse_object(UConference)
 
 # set-info [79] (9) Recommended
 class ReqSetInfo(Request):
@@ -941,10 +894,6 @@ class ReqQueryAsync(Request):
     def get_request(self):
         return ""
 
-    def parse_response(self, conn):
-        # --> ARRAY INT32
-        return conn.parse_array_of_int()
-
 # user-active [82] (9) Recommended
 class ReqUserActive(Request):
     CALL_NO = Requests.USER_ACTIVE
@@ -962,10 +911,6 @@ class ReqWhoIsOnDynamic(Request):
     def get_request(self):
         return "%d %d %d" % (self.want_visible, self.want_invisible, self.active_last)
 
-    def parse_response(self, conn):
-        # --> ARRAY Dynamic-Session-Info
-        return conn.parse_array(DynamicSessionInfo)
-
 # get-static-session-info [84] (9) Recommended
 class ReqGetStaticSessionInfo(Request):
     CALL_NO = Requests.GET_STATIC_SESSION_INFO
@@ -975,19 +920,11 @@ class ReqGetStaticSessionInfo(Request):
     def get_request(self):
         return "%d" % (self.session_no,)
 
-    def parse_response(self, conn):
-        # --> Static-Session-Info
-        return conn.parse_object(StaticSessionInfo)
-
 # get-collate-table [85] (10) Recommended
 class ReqGetCollateTable(Request):
     CALL_NO = Requests.GET_COLLATE_TABLE
     def get_request(self):
         return ""
-
-    def parse_response(self, conn):
-        # --> HOLLERITH
-        return conn.parse_string()
 
 # create-text [86] (10) Recommended
 class ReqCreateText(Request):
@@ -1001,10 +938,6 @@ class ReqCreateText(Request):
         return "%dH%s %s %s" % (len(self.text), self.text,
                                 self.misc_info.to_string(),
                                 array_to_string(self.aux_items))
-        
-    def parse_response(self, conn):
-        # --> Text-No
-        return conn.parse_int()
 
 # create-anonymous-text [87] (10) Recommended
 class ReqCreateAnonymousText(Request):
@@ -1018,10 +951,6 @@ class ReqCreateAnonymousText(Request):
         return "%dH%s %s %s" % (len(self.text), self.text,
                                 self.misc_info.to_string(),
                                 array_to_string(self.aux_items))
-        
-    def parse_response(self, conn):
-        # --> Text-No
-        return conn.parse_int()
 
 # create-conf [88] (10) Recommended
 class ReqCreateConf(Request):
@@ -1035,10 +964,6 @@ class ReqCreateConf(Request):
         return "%dH%s %s %s" % (len(self.name), self.name,
                                 self.conf_type.to_string(),
                                 array_to_string(self.aux_items))
-        
-    def parse_response(self, conn):
-        # --> Conf-No
-        return conn.parse_int()
 
 # create-person [89] (10) Recommended
 class ReqCreatePerson(Request):
@@ -1054,10 +979,6 @@ class ReqCreatePerson(Request):
                                       len(self.passwd), self.passwd,
                                       self.flags.to_string(),
                                       array_to_string(self.aux_items))
-        
-    def parse_response(self, conn):
-        # --> Pers-No
-        return conn.parse_int()
 
 # get-text-stat [90] (10) Recommended
 class ReqGetTextStat(Request):
@@ -1068,10 +989,6 @@ class ReqGetTextStat(Request):
     def get_request(self):
         return ("%d" % (self.text_no,)).encode('latin1')
 
-    def parse_response(self, conn):
-        # --> TextStat
-        return conn.parse_object(TextStat)
-
 # get-conf-stat [91] (10) Recommended
 class ReqGetConfStat(Request):
     CALL_NO = Requests.GET_CONF_STAT
@@ -1080,10 +997,6 @@ class ReqGetConfStat(Request):
         
     def get_request(self):
         return ("%d" % (self.conf_no,)).encode('latin1')
-
-    def parse_response(self, conn):
-        # --> Conference
-        return conn.parse_object(Conference)
 
 # modify-text-info [92] (10) Recommended
 class ReqModifyTextInfo(Request):
@@ -1117,10 +1030,6 @@ class ReqGetInfo(Request):
     def get_request(self):
         return ""
 
-    def parse_response(self, conn):
-        # --> Info
-        return conn.parse_object(Info)
-
 # modify-system-info [95] (10) Recommended
 class ReqModifySystemInfo(Request):
     CALL_NO = Requests.MODIFY_SYSTEM_INFO
@@ -1137,10 +1046,6 @@ class ReqQueryPredefinedAuxItems(Request):
     CALL_NO = Requests.QUERY_PREDEFINED_AUX_ITEMS
     def get_request(self):
         return ""
-
-    def parse_response(self, conn):
-        # --> ARRAY INT32
-        return conn.parse_array_of_int()
 
 # set-expire [97] (10) Experimental
 class ReqSetExpire(Request):
@@ -1162,13 +1067,10 @@ class ReqQueryReadTexts10(Request):
     def get_request(self):
         return "%d %d" % (self.person_no, self.conf_no)
 
-    def parse_response(self, conn):
-        # --> Membership10
-        return conn.parse_object(Membership10)
-
 # get-membership-10 [99] (10) Obsolete (11) Use get-membership (108)
 
 class ReqGetMembership10(Request):
+    CALL_NO = Requests.GET_MEMBERSHIP_10
     def __init__(self, person_no, first, no_of_confs, want_read_texts):
         self.person_no = person_no
         self.first = first
@@ -1178,10 +1080,6 @@ class ReqGetMembership10(Request):
     def get_request(self):
         return "%d %d %d %d" % (self.person_no, self.first,
                                 self.no_of_confs, self.want_read_texts)
-
-    def parse_response(self, conn):
-        # --> ARRAY Membership10
-        return conn.parse_array(Membership10)
 
 # add-member [100] (10) Recommended
 class ReqAddMember(Request):
@@ -1210,10 +1108,6 @@ class ReqGetMembers(Request):
     def get_request(self):
         return "%d %d %d" % (self.conf_no, self.first, self.no_of_members)
 
-    def parse_response(self, conn):
-        # --> ARRAY Member
-        return conn.parse_array(Member)
-
 # set-membership-type [102] (10) Recommended
 class ReqSetMembershipType(Request):
     CALL_NO = Requests.SET_MEMBERSHIP_TYPE
@@ -1237,10 +1131,6 @@ class ReqLocalToGlobal(Request):
         return ("%d %d %d" % (self.conf_no, self.first_local_no, 
                               self.no_of_existing_texts)).encode('latin1')
 
-    def parse_response(self, conn):
-        # --> Text-Mapping
-        return conn.parse_object(TextMapping)
-
 # map-created-texts [104] (10) Recommended
 class ReqMapCreatedTexts(Request):
     CALL_NO = Requests.MAP_CREATED_TEXTS
@@ -1251,10 +1141,6 @@ class ReqMapCreatedTexts(Request):
         
     def get_request(self):
         return "%d %d %d" % (self.author, self.first_local_no, self.no_of_existing_texts)
-
-    def parse_response(self, conn):
-        # --> Text-Mapping
-        return conn.parse_object(TextMapping)
 
 # set-keep-commented [105] (11) Recommended (10) Experimental
 class ReqSetKeepCommented(Request):
@@ -1293,10 +1179,6 @@ class ReqQueryReadTexts11(Request):
                                  self.want_read_ranges,
                                  self.max_ranges)).encode('latin1')
 
-    def parse_response(self, conn):
-        # --> Membership11
-        return conn.parse_object(Membership11)
-
 ReqQueryReadTexts = ReqQueryReadTexts11
 
 # get-membership [108] (11) Recommended
@@ -1314,10 +1196,6 @@ class ReqGetMembership11(Request):
         return "%d %d %d %d %d" % (self.person_no,
                                    self.first, self.no_of_confs,
                                    self.want_read_ranges, self.max_ranges)
-
-    def parse_response(self, conn):
-        # --> ARRAY Membership11
-        return conn.parse_array(Membership11)
 
 ReqGetMembership = ReqGetMembership11
 
@@ -1347,10 +1225,6 @@ class ReqGetStatsDescription(Request):
     def get_request(self):
         return ""
 
-    def parse_response(self, conn):
-        # --> Stats-Description
-        return conn.parse_object(StatsDescription)
-
 # get-stats [112] (11) Recommended
 class ReqGetStats(Request):
     CALL_NO = Requests.GET_STATS
@@ -1360,19 +1234,11 @@ class ReqGetStats(Request):
     def get_request(self):
         return "%dH%s" % (len(self.what), self.what)
 
-    def parse_response(self, conn):
-        # --> ARRAY Stats
-        return conn.parse_array(Stats)
-
 # get-boottime-info [113] (11) Recommended
 class ReqGetBoottimeInfo(Request):
     CALL_NO = Requests.GET_BOOTTIME_INFO
     def get_request(self):
         return ""
-
-    def parse_response(self, conn):
-        # --> Static-Server-Info
-        return conn.parse_object(StaticServerInfo)
 
 # first-unused-conf-no [114] (11) Recommended
 class ReqFirstUnusedConfNo(Request):
@@ -1380,19 +1246,11 @@ class ReqFirstUnusedConfNo(Request):
     def get_request(self):
         return ""
 
-    def parse_response(self, conn):
-        # --> Conf-No
-        return conn.parse_int()
-
 # first-unused-text-no [115] (11) Recommended
 class ReqFirstUnusedTextNo(Request):
     CALL_NO = Requests.FIRST_UNUSED_TEXT_NO
     def get_request(self):
         return ""
-
-    def parse_response(self, conn):
-        # --> Text-No
-        return conn.parse_int()
 
 # find-next-conf-no [116] (11) Recommended
 class ReqFindNextConfNo(Request):
@@ -1404,10 +1262,6 @@ class ReqFindNextConfNo(Request):
     def get_request(self):
         return "%d" % (self.conf_no,)
 
-    def parse_response(self, conn):
-        # --> Conf-No
-        return conn.parse_int()
-
 # find-previous-conf-no [117] (11) Recommended
 class ReqFindPreviousConfNo(Request):
     CALL_NO = Requests.FIND_PREVIOUS_CONF_NO
@@ -1418,10 +1272,6 @@ class ReqFindPreviousConfNo(Request):
     def get_request(self):
         return "%d" % (self.conf_no,)
 
-    def parse_response(self, conn):
-        # --> Conf-No
-        return conn.parse_int()
-
 # get-scheduling [118] (11) Experimental
 class ReqGetScheduling(Request):
     CALL_NO = Requests.GET_SCHEDULING
@@ -1431,10 +1281,6 @@ class ReqGetScheduling(Request):
         
     def get_request(self):
         return "%d" % (self.session_no,)
-
-    def parse_response(self, conn):
-        # --> SchedulingInfo
-        return conn.parse_object(SchedulingInfo)
 
 # set-scheduling [119] (11) Experimental
 class ReqSetScheduling(Request):
@@ -1467,13 +1313,9 @@ class ReqLocalToGlobalReverse(Request):
     def get_request(self):
         return "%d %d %d" % (self.conf_no, self.local_no_ceiling, self.no_of_existing_texts)
 
-    def parse_response(self, conn):
-        # --> Text-Mapping
-        return conn.parse_object(TextMapping)
-
 # map-created-texts-reverse [122] (11) Recommended
 class ReqMapCreatedTextsReverse(Request):
-    CALL_NO = 122
+    CALL_NO = Requests.MAP_CREATED_TEXTS_REVERSE
     def __init__(self, author, local_no_ceiling, no_of_existing_texts):
         self.author = author
         self.local_no_ceiling = local_no_ceiling
@@ -1482,16 +1324,11 @@ class ReqMapCreatedTextsReverse(Request):
     def get_request(self):
         return "%d %d %d" % (self.author, self.local_no_ceiling, self.no_of_existing_texts)
 
-    def parse_response(self, conn):
-        # --> Text-Mapping
-        return conn.parse_object(TextMapping)
-
-
-request_dict = {
-}
-
 
 class AsyncMessages(object):
+    """Enum like object which give names to the async message numbers
+    in the protocol.
+    """
     NEW_TEXT_OLD = 0
     NEW_NAME = 5
     I_AM_ON = 6
@@ -1519,14 +1356,21 @@ class AsyncMessages(object):
 
 class AsyncMessage:
     MSG_NO = None
-    pass
+    @classmethod
+    def parse(cls, conn):
+        """Parses the message from the connection and returns a new
+        instance of the parsed message."""
+        raise NotImplementedError()
 
 # async-new-text-old [0] (1) Obsolete (10) <DEFAULT>
 class AsyncNewTextOld(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_TEXT_OLD
-    def parse(self, c):
-        self.text_no = c.parse_int()
-        self.text_stat = c.parse_old_object(TextStat)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.text_no = conn.parse_int()
+        obj.text_stat = conn.parse_old_object(TextStat)
+        return obj
 
 # async-i-am-off [1] (1) Obsolete
 # async-i-am-on-onsolete [2] (1) Obsolete
@@ -1534,127 +1378,176 @@ class AsyncNewTextOld(AsyncMessage):
 # async-new-name [5] (1) Recommended <DEFAULT>
 class AsyncNewName(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_NAME
-    def parse(self, c):
-        self.conf_no = c.parse_int()
-        self.old_name = c.parse_string()
-        self.new_name = c.parse_string()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.conf_no = conn.parse_int()
+        obj.old_name = conn.parse_string()
+        obj.new_name = conn.parse_string()
+        return obj
 
 # async-i-am-on [6] Recommended
 class AsyncIAmOn(AsyncMessage):
     MSG_NO = AsyncMessages.I_AM_ON
-    def parse(self, c):
-        self.info = c.parse_object(WhoInfo)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.info = conn.parse_object(WhoInfo)
+        return obj
 
 # async-sync-db [7] (1) Recommended <DEFAULT>
 class AsyncSyncDB(AsyncMessage):
     MSG_NO = AsyncMessages.SYNC_DB
-    def parse(self, c):
-        pass
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        return obj
 
 # async-leave-conf [8] (1) Recommended <DEFAULT>
 class AsyncLeaveConf(AsyncMessage):
     MSG_NO = AsyncMessages.LEAVE_CONF
-    def parse(self, c):
-        self.conf_no = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.conf_no = conn.parse_int()
+        return obj
 
 # async-login [9] (1) Recommended <DEFAULT>
 class AsyncLogin(AsyncMessage):
     MSG_NO = AsyncMessages.LOGIN
-    def parse(self, c):
-        self.person_no = c.parse_int()
-        self.session_no = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.person_no = conn.parse_int()
+        obj.session_no = conn.parse_int()
+        return obj
 
 # async-broadcast [10] Obsolete
 
 # async-rejected-connection [11] (1) Recommended <DEFAULT>
 class AsyncRejectedConnection(AsyncMessage):
     MSG_NO = AsyncMessages.REJECTED_CONNECTION
-    def parse(self, c):
-        pass
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        return obj
 
 # async-send-message [12] (1) Recommended <DEFAULT>
 class AsyncSendMessage(AsyncMessage):
     MSG_NO = AsyncMessages.SEND_MESSAGE
-    def parse(self, c):
-        self.recipient = c.parse_int()
-        self.sender = c.parse_int()
-        self.message = c.parse_string()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.recipient = conn.parse_int()
+        obj.sender = conn.parse_int()
+        obj.message = conn.parse_string()
+        return obj
 
 # async-logout [13] (1) Recommended <DEFAULT>
 class AsyncLogout(AsyncMessage):
     MSG_NO = AsyncMessages.LOGOUT
-    def parse(self, c):
-        self.person_no = c.parse_int()
-        self.session_no = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.person_no = conn.parse_int()
+        obj.session_no = conn.parse_int()
+        return obj
 
 # async-deleted-text [14] (10) Recommended
 class AsyncDeletedText(AsyncMessage):
     MSG_NO = AsyncMessages.DELETED_TEXT
-    def parse(self, c):
-        self.text_no = c.parse_int()
-        self.text_stat = c.parse_object(TextStat)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.text_no = conn.parse_int()
+        obj.text_stat = conn.parse_object(TextStat)
+        return obj
 
 # async-new-text [15] (10) Recommended
 class AsyncNewText(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_TEXT
-    def parse(self, c):
-        self.text_no = c.parse_int()
-        self.text_stat = c.parse_object(TextStat)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.text_no = conn.parse_int()
+        obj.text_stat = conn.parse_object(TextStat)
+        return obj
 
 # async-new-recipient [16] (10) Recommended
 class AsyncNewRecipient(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_RECIPIENT
-    def parse(self, c):
-        self.text_no = c.parse_int()
-        self.conf_no = c.parse_int()
-        self.type = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.text_no = conn.parse_int()
+        obj.conf_no = conn.parse_int()
+        obj.type = conn.parse_int()
+        return obj
 
 # async-sub-recipient [17] (10) Recommended
 class AsyncSubRecipient(AsyncMessage):
     MSG_NO = AsyncMessages.SUB_RECIPIENT
-    def parse(self, c):
-        self.text_no = c.parse_int()
-        self.conf_no = c.parse_int()
-        self.type = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.text_no = conn.parse_int()
+        obj.conf_no = conn.parse_int()
+        obj.type = conn.parse_int()
+        return obj
 
 # async-new-membership [18] (10) Recommended
 class AsyncNewMembership(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_MEMBERSHIP
-    def parse(self, c):
-        self.person_no = c.parse_int()
-        self.conf_no = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.person_no = conn.parse_int()
+        obj.conf_no = conn.parse_int()
+        return obj
 
 # async-new-user-area [19] (11) Recommended
 class AsyncNewUserArea(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_USER_AREA
-    def parse(self, c):
-        self.person_no = c.parse_int()
-        self.old_user_area = c.parse_int()
-        self.new_user_area = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.person_no = conn.parse_int()
+        obj.old_user_area = conn.parse_int()
+        obj.new_user_area = conn.parse_int()
+        return obj
 
 # async-new-presentation [20] (11) Recommended
 class AsyncNewPresentation(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_PRESENTATION
-    def parse(self, c):
-        self.conf_no = c.parse_int()
-        self.old_presentation = c.parse_int()
-        self.new_presentation = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.conf_no = conn.parse_int()
+        obj.old_presentation = conn.parse_int()
+        obj.new_presentation = conn.parse_int()
+        return obj
 
 # async-new-motd [21] (11) Recommended
 class AsyncNewMotd(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_MOTD
-    def parse(self, c):
-        self.conf_no = c.parse_int()
-        self.old_motd = c.parse_int()
-        self.new_motd = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.conf_no = conn.parse_int()
+        obj.old_motd = conn.parse_int()
+        obj.new_motd = conn.parse_int()
+        return obj
 
 # async-text-aux-changed [22] (11) Recommended
 class AsyncTextAuxChanged(AsyncMessage):
     MSG_NO = AsyncMessages.TEXT_AUX_CHANGED
-    def parse(self, c):
-        self.text_no = c.parse_int()
-        self.deleted = c.parse_array(AuxItem)
-        self.added = c.parse_array(AuxItem)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.text_no = conn.parse_int()
+        obj.deleted = conn.parse_array(AuxItem)
+        obj.added = conn.parse_array(AuxItem)
+        return obj
 
 async_dict = {
     AsyncMessages.NEW_TEXT_OLD: AsyncNewTextOld,
@@ -1709,16 +1602,19 @@ class Time:
             self.day_of_year = yd - 1
             self.is_dst = dt
 
-    def parse(self, c):
-        self.seconds = c.parse_int()
-        self.minutes = c.parse_int()
-        self.hours = c.parse_int()
-        self.day = c.parse_int()
-        self.month = c.parse_int()
-        self.year = c.parse_int()
-        self.day_of_week = c.parse_int()
-        self.day_of_year = c.parse_int()
-        self.is_dst = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.seconds = conn.parse_int()
+        obj.minutes = conn.parse_int()
+        obj.hours = conn.parse_int()
+        obj.day = conn.parse_int()
+        obj.month = conn.parse_int()
+        obj.year = conn.parse_int()
+        obj.day_of_week = conn.parse_int()
+        obj.day_of_year = conn.parse_int()
+        obj.is_dst = conn.parse_int()
+        return obj
 
     def to_string(self):
         return "%d %d %d %d %d %d %d %d %d" % (
@@ -1760,10 +1656,13 @@ class Time:
 # RESULT FROM LOOKUP-Z-NAME
 
 class ConfZInfo:
-    def parse(self, c):
-        self.name = c.parse_string()
-        self.type = c.parse_old_object(ConfType)
-        self.conf_no = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.name = conn.parse_string()
+        obj.type = conn.parse_old_object(ConfType)
+        obj.conf_no = conn.parse_int()
+        return obj
 
     def __repr__(self):
         return "<ConfZInfo %d: %s>" % \
@@ -1772,12 +1671,15 @@ class ConfZInfo:
 # RAW MISC-INFO (AS IT IS IN PROTOCOL A)
 
 class RawMiscInfo:
-    def parse(self, c):
-        self.type = c.parse_int()
-        if self.type in [MI_REC_TIME, MI_SENT_AT]:
-            self.data = c.parse_object(Time)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.type = conn.parse_int()
+        if obj.type in [MI_REC_TIME, MI_SENT_AT]:
+            obj.data = conn.parse_object(Time)
         else:
-            self.data = c.parse_int()
+            obj.data = conn.parse_int()
+        return obj
 
     def __repr__(self):
         return "<MiscInfo %d: %s>" % (self.type, self.data)
@@ -1848,24 +1750,27 @@ class CookedMiscInfo:
         self.comment_to_list = []
         self.comment_in_list = []
 
-    def parse(self, c):
-        raw = c.parse_array(RawMiscInfo)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        raw = conn.parse_array(RawMiscInfo)
         i = 0
         while i < len(raw):
             if raw[i].type in [MI_RECPT, MI_CC_RECPT, MI_BCC_RECPT]:
                 r = MIRecipient(raw[i].type, raw[i].data)
                 i = r.decode_additional(raw, i+1)
-                self.recipient_list.append(r)
+                obj.recipient_list.append(r)
             elif raw[i].type in [MI_COMM_TO, MI_FOOTN_TO]:
                 ct = MICommentTo(raw[i].type, raw[i].data)
                 i = ct.decode_additional(raw, i+1)
-                self.comment_to_list.append(ct)
+                obj.comment_to_list.append(ct)
             elif raw[i].type in [MI_COMM_IN, MI_FOOTN_IN]:
                 ci = MICommentIn(raw[i].type - 1 , raw[i].data  ) # KLUDGE :-)
                 i = i + 1
-                self.comment_in_list.append(ci)
+                obj.comment_in_list.append(ci)
             else:
                 raise ProtocolError
+        return obj
 
     def to_string(self):
         list = []
@@ -1891,15 +1796,18 @@ class AuxItemFlags:
         self.reserved3 = 0
         self.reserved4 = 0
 
-    def parse(self, c):
-        (self.deleted,
-         self.inherit,
-         self.secret,
-         self.hide_creator,
-         self.dont_garb,
-         self.reserved2,
-         self.reserved3,
-         self.reserved4) = c.parse_bitstring(8)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        (obj.deleted,
+         obj.inherit,
+         obj.secret,
+         obj.hide_creator,
+         obj.dont_garb,
+         obj.reserved2,
+         obj.reserved3,
+         obj.reserved4) = conn.parse_bitstring(8)
+        return obj
 
     def to_string(self):
         return "%d%d%d%d%d%d%d%d" % \
@@ -1924,14 +1832,17 @@ class AuxItem:
         self.inherit_limit = 0
         self.data = data
 
-    def parse(self, c):
-        self.aux_no = c.parse_int()
-        self.tag = c.parse_int()
-        self.creator = c.parse_int()
-        self.created_at = c.parse_object(Time)
-        self.flags = c.parse_object(AuxItemFlags)
-        self.inherit_limit = c.parse_int()
-        self.data = c.parse_string()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.aux_no = conn.parse_int()
+        obj.tag = conn.parse_int()
+        obj.creator = conn.parse_int()
+        obj.created_at = conn.parse_object(Time)
+        obj.flags = conn.parse_object(AuxItemFlags)
+        obj.inherit_limit = conn.parse_int()
+        obj.data = conn.parse_string()
+        return obj
 
     def __repr__(self):
         return "<AuxItem %d>" % self.tag
@@ -1957,17 +1868,20 @@ def first_aux_items_with_tag(ail, tag):
 # TEXT
 
 class TextStat:
-    def parse(self, c, old_format = 0):
-        self.creation_time = c.parse_object(Time)
-        self.author = c.parse_int()
-        self.no_of_lines = c.parse_int()
-        self.no_of_chars = c.parse_int()
-        self.no_of_marks = c.parse_int()
-        self.misc_info = c.parse_object(CookedMiscInfo)
+    @classmethod
+    def parse(cls, conn, old_format = 0):
+        obj = cls()
+        obj.creation_time = conn.parse_object(Time)
+        obj.author = conn.parse_int()
+        obj.no_of_lines = conn.parse_int()
+        obj.no_of_chars = conn.parse_int()
+        obj.no_of_marks = conn.parse_int()
+        obj.misc_info = conn.parse_object(CookedMiscInfo)
         if old_format:
-            self.aux_items = []
+            obj.aux_items = []
         else:
-            self.aux_items = c.parse_array(AuxItem)
+            obj.aux_items = conn.parse_array(AuxItem)
+        return obj
 
 # CONFERENCE
 
@@ -1982,25 +1896,28 @@ class ConfType:
         self.reserved2 = 0
         self.reserved3 = 0
 
-    def parse(self, c, old_format = 0):
+    @classmethod
+    def parse(cls, conn, old_format = 0):
+        obj = cls()
         if old_format:
-            (self.rd_prot,
-             self.original,
-             self.secret,
-             self.letterbox) = c.parse_bitstring(4)
-            (self.allow_anonymous,
-             self.forbid_secret,
-             self.reserved2,
-             self.reserved3) = (0,0,0,0)
+            (obj.rd_prot,
+             obj.original,
+             obj.secret,
+             obj.letterbox) = conn.parse_bitstring(4)
+            (obj.allow_anonymous,
+             obj.forbid_secret,
+             obj.reserved2,
+             obj.reserved3) = (0,0,0,0)
         else:
-            (self.rd_prot,
-             self.original,
-             self.secret,
-             self.letterbox,
-             self.allow_anonymous,
-             self.forbid_secret,
-             self.reserved2,
-             self.reserved3) = c.parse_bitstring(8)
+            (obj.rd_prot,
+             obj.original,
+             obj.secret,
+             obj.letterbox,
+             obj.allow_anonymous,
+             obj.forbid_secret,
+             obj.reserved2,
+             obj.reserved3) = conn.parse_bitstring(8)
+        return obj
 
     def to_string(self):
         return "%d%d%d%d%d%d%d%d" % \
@@ -2014,34 +1931,40 @@ class ConfType:
                 self.reserved3)
 
 class Conference:
-    def parse(self, c):
-        self.name = c.parse_string()
-        self.type = c.parse_object(ConfType)
-        self.creation_time = c.parse_object(Time)
-        self.last_written = c.parse_object(Time)
-        self.creator = c.parse_int()
-        self.presentation = c.parse_int()
-        self.supervisor = c.parse_int()
-        self.permitted_submitters = c.parse_int()
-        self.super_conf = c.parse_int()
-        self.msg_of_day = c.parse_int()
-        self.nice = c.parse_int()
-        self.keep_commented = c.parse_int()
-        self.no_of_members = c.parse_int()
-        self.first_local_no = c.parse_int()
-        self.no_of_texts = c.parse_int()
-        self.expire = c.parse_int()
-        self.aux_items = c.parse_array(AuxItem)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.name = conn.parse_string()
+        obj.type = conn.parse_object(ConfType)
+        obj.creation_time = conn.parse_object(Time)
+        obj.last_written = conn.parse_object(Time)
+        obj.creator = conn.parse_int()
+        obj.presentation = conn.parse_int()
+        obj.supervisor = conn.parse_int()
+        obj.permitted_submitters = conn.parse_int()
+        obj.super_conf = conn.parse_int()
+        obj.msg_of_day = conn.parse_int()
+        obj.nice = conn.parse_int()
+        obj.keep_commented = conn.parse_int()
+        obj.no_of_members = conn.parse_int()
+        obj.first_local_no = conn.parse_int()
+        obj.no_of_texts = conn.parse_int()
+        obj.expire = conn.parse_int()
+        obj.aux_items = conn.parse_array(AuxItem)
+        return obj
 
     def __repr__(self):
         return "<Conference %s>" % self.name
     
 class UConference:
-    def parse(self, c):
-        self.name = c.parse_string()
-        self.type = c.parse_object(ConfType)
-        self.highest_local_no = c.parse_int()
-        self.nice = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.name = conn.parse_string()
+        obj.type = conn.parse_object(ConfType)
+        obj.highest_local_no = conn.parse_int()
+        obj.nice = conn.parse_int()
+        return obj
 
     def __repr__(self):
         return "<UConference %s>" % self.name
@@ -2067,23 +1990,26 @@ class PrivBits:
         self.flg15 = 0
         self.flg16 = 0
 
-    def parse(self, c):
-        (self.wheel,
-         self.admin,
-         self.statistic,
-         self.create_pers,
-         self.create_conf,
-         self.change_name,
-         self.flg7,
-         self.flg8,
-         self.flg9,
-         self.flg10,
-         self.flg11,
-         self.flg12,
-         self.flg13,
-         self.flg14,
-         self.flg15,
-         self.flg16) = c.parse_bitstring(16)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        (obj.wheel,
+         obj.admin,
+         obj.statistic,
+         obj.create_pers,
+         obj.create_conf,
+         obj.change_name,
+         obj.flg7,
+         obj.flg8,
+         obj.flg9,
+         obj.flg10,
+         obj.flg11,
+         obj.flg12,
+         obj.flg13,
+         obj.flg14,
+         obj.flg15,
+         obj.flg16) = conn.parse_bitstring(16)
+        return obj
 
     def to_string(self):
         return "%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d" % \
@@ -2115,15 +2041,18 @@ class PersonalFlags:
         self.flg7 = 0
         self.flg8 = 0
 
-    def parse(self, c):
-        (self.unread_is_secret,
-         self.flg2,
-         self.flg3,
-         self.flg4,
-         self.flg5,
-         self.flg6,
-         self.flg7,
-         self.flg8) = c.parse_bitstring(8)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        (obj.unread_is_secret,
+         obj.flg2,
+         obj.flg3,
+         obj.flg4,
+         obj.flg5,
+         obj.flg6,
+         obj.flg7,
+         obj.flg8) = conn.parse_bitstring(8)
+        return obj
 
     def to_string(self):
         return "%d%d%d%d%d%d%d%d" % \
@@ -2137,24 +2066,27 @@ class PersonalFlags:
                 self.flg8)
 
 class Person:
-    def parse(self, c):
-        self.username = c.parse_string()
-        self.privileges = c.parse_object(PrivBits)
-        self.flags = c.parse_object(PersonalFlags)
-        self.last_login = c.parse_object(Time)
-        self.user_area = c.parse_int()
-        self.total_time_present = c.parse_int()
-        self.sessions = c.parse_int()
-        self.created_lines = c.parse_int()
-        self.created_bytes = c.parse_int()
-        self.read_texts = c.parse_int()
-        self.no_of_text_fetches = c.parse_int()
-        self.created_persons = c.parse_int()
-        self.created_confs = c.parse_int()
-        self.first_created_local_no = c.parse_int()
-        self.no_of_created_texts = c.parse_int()
-        self.no_of_marks = c.parse_int()
-        self.no_of_confs = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.username = conn.parse_string()
+        obj.privileges = conn.parse_object(PrivBits)
+        obj.flags = conn.parse_object(PersonalFlags)
+        obj.last_login = conn.parse_object(Time)
+        obj.user_area = conn.parse_int()
+        obj.total_time_present = conn.parse_int()
+        obj.sessions = conn.parse_int()
+        obj.created_lines = conn.parse_int()
+        obj.created_bytes = conn.parse_int()
+        obj.read_texts = conn.parse_int()
+        obj.no_of_text_fetches = conn.parse_int()
+        obj.created_persons = conn.parse_int()
+        obj.created_confs = conn.parse_int()
+        obj.first_created_local_no = conn.parse_int()
+        obj.no_of_created_texts = conn.parse_int()
+        obj.no_of_marks = conn.parse_int()
+        obj.no_of_confs = conn.parse_int()
+        return obj
 
 # MEMBERSHIP
 
@@ -2169,15 +2101,18 @@ class MembershipType:
         self.reserved4 = 0
         self.reserved5 = 0
 
-    def parse(self, c):
-        (self.invitation,
-         self.passive,
-         self.secret,
-         self.passive_message_invert,
-         self.reserved2,
-         self.reserved3,
-         self.reserved4,
-         self.reserved5) = c.parse_bitstring(8)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        (obj.invitation,
+         obj.passive,
+         obj.secret,
+         obj.passive_message_invert,
+         obj.reserved2,
+         obj.reserved3,
+         obj.reserved4,
+         obj.reserved5) = conn.parse_bitstring(8)
+        return obj
 
     def to_string(self):
         return "%d%d%d%d%d%d%d%d" % \
@@ -2191,25 +2126,31 @@ class MembershipType:
                 self.reserved5)
 
 class Membership10:
-    def parse(self, c):
-        self.position = c.parse_int()
-        self.last_time_read  = c.parse_object(Time)
-        self.conference = c.parse_int()
-        self.priority = c.parse_int()
-        self.last_text_read = c.parse_int()
-        self.read_texts = c.parse_array_of_int()
-        self.added_by = c.parse_int()
-        self.added_at = c.parse_object(Time)
-        self.type = c.parse_object(MembershipType)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.position = conn.parse_int()
+        obj.last_time_read  = conn.parse_object(Time)
+        obj.conference = conn.parse_int()
+        obj.priority = conn.parse_int()
+        obj.last_text_read = conn.parse_int()
+        obj.read_texts = conn.parse_array_of_int()
+        obj.added_by = conn.parse_int()
+        obj.added_at = conn.parse_object(Time)
+        obj.type = conn.parse_object(MembershipType)
+        return obj
 
 class ReadRange:
     def __init__(self, first_read = 0, last_read = 0):
         self.first_read = first_read
         self.last_read = last_read
         
-    def parse(self, c):
-        self.first_read = c.parse_int()
-        self.last_read = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.first_read = conn.parse_int()
+        obj.last_read = conn.parse_int()
+        return obj
 
     def __repr__(self):
         return "<ReadRange %d-%d>" % (self.first_read, self.last_read)
@@ -2220,68 +2161,83 @@ class ReadRange:
                 self.last_read)
     
 class Membership11:
-    def parse(self, c):
-        self.position = c.parse_int()
-        self.last_time_read  = c.parse_object(Time)
-        self.conference = c.parse_int()
-        self.priority = c.parse_int()
-        self.read_ranges = c.parse_array(ReadRange)
-        self.added_by = c.parse_int()
-        self.added_at = c.parse_object(Time)
-        self.type = c.parse_object(MembershipType)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.position = conn.parse_int()
+        obj.last_time_read  = conn.parse_object(Time)
+        obj.conference = conn.parse_int()
+        obj.priority = conn.parse_int()
+        obj.read_ranges = conn.parse_array(ReadRange)
+        obj.added_by = conn.parse_int()
+        obj.added_at = conn.parse_object(Time)
+        obj.type = conn.parse_object(MembershipType)
+        return obj
 
 Membership = Membership11
 
 class Member:
-    def parse(self, c):
-        self.member  = c.parse_int()
-        self.added_by = c.parse_int()
-        self.added_at = c.parse_object(Time)
-        self.type = c.parse_object(MembershipType)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.member  = conn.parse_int()
+        obj.added_by = conn.parse_int()
+        obj.added_at = conn.parse_object(Time)
+        obj.type = conn.parse_object(MembershipType)
+        return obj
 
 # TEXT LIST
 
 class TextList:
-    def parse(self, c):
-        self.first_local_no = c.parse_int()
-        self.texts = c.parse_array_of_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.first_local_no = conn.parse_int()
+        obj.texts = conn.parse_array_of_int()
+        return obj
 
 # TEXT MAPPING
 
 class TextNumberPair:
-    def parse(self, c):
-        self.local_number = c.parse_int()
-        self.global_number = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.local_number = conn.parse_int()
+        obj.global_number = conn.parse_int()
+        return obj
     
 class TextMapping:
-    def parse(self, c):
-        self.range_begin = c.parse_int() # Included in the range
-        self.range_end = c.parse_int() # Not included in range (first after)
-        self.later_texts_exists = c.parse_int()
-        self.block_type = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.range_begin = conn.parse_int() # Included in the range
+        obj.range_end = conn.parse_int() # Not included in range (first after)
+        obj.later_texts_exists = conn.parse_int()
+        obj.block_type = conn.parse_int()
 
-        self.dict = {}
-        self.list = []
+        obj.dict = {}
+        obj.list = []
 
-        if self.block_type == 0:
+        if obj.block_type == 0:
             # Sparse
-            self.type_text = "sparse"
-            self.sparse_list = c.parse_array(TextNumberPair)
-            for tnp in self.sparse_list:
-                self.dict[tnp.local_number] = tnp.global_number
-                self.list.append((tnp.local_number, tnp.global_number))
-        elif self.block_type == 1:
+            obj.type_text = "sparse"
+            obj.sparse_list = conn.parse_array(TextNumberPair)
+            for tnp in obj.sparse_list:
+                obj.dict[tnp.local_number] = tnp.global_number
+                obj.list.append((tnp.local_number, tnp.global_number))
+        elif obj.block_type == 1:
             # Dense
-            self.type_text = "dense"
-            self.dense_first = c.parse_int()
-            self.dense_texts = c.parse_array_of_int()
-            local_number = self.dense_first
-            for global_number in self.dense_texts:
-                self.dict[local_number] = global_number
-                self.list.append((local_number, global_number))
+            obj.type_text = "dense"
+            obj.dense_first = conn.parse_int()
+            obj.dense_texts = conn.parse_array_of_int()
+            local_number = obj.dense_first
+            for global_number in obj.dense_texts:
+                obj.dict[local_number] = global_number
+                obj.list.append((local_number, global_number))
                 local_number = local_number + 1
         else:
             raise ProtocolError
+        return obj
 
     def __repr__(self):
         if self.later_texts_exists:
@@ -2295,9 +2251,12 @@ class TextMapping:
 # MARK
 
 class Mark:
-    def parse(self, c):
-        self.text_no = c.parse_int()
-        self.type = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.text_no = conn.parse_int()
+        obj.type = conn.parse_int()
+        return obj
 
     def __repr__(self):
         return "<Mark %d (%d)>" % (self.text_no, self.type)
@@ -2317,14 +2276,17 @@ class Info:
         self.motd_of_lyskom = None
         self.aux_item_list = [] # not part of Info-Old
 
-    def parse(self, c):
-        self.version = c.parse_int()
-        self.conf_pres_conf = c.parse_int()
-        self.pers_pres_conf = c.parse_int()
-        self.motd_conf = c.parse_int()
-        self.kom_news_conf = c.parse_int()
-        self.motd_of_lyskom = c.parse_int()
-        self.aux_item_list = c.parse_array(AuxItem)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.version = conn.parse_int()
+        obj.conf_pres_conf = conn.parse_int()
+        obj.pers_pres_conf = conn.parse_int()
+        obj.motd_conf = conn.parse_int()
+        obj.kom_news_conf = conn.parse_int()
+        obj.motd_of_lyskom = conn.parse_int()
+        obj.aux_item_list = conn.parse_array(AuxItem)
+        return obj
 
     def to_string(self):
         return "%d %d %d %d %d %d" % (
@@ -2336,10 +2298,13 @@ class Info:
             self.motd_of_lyskom)
 
 class VersionInfo:
-    def parse(self, c):
-        self.protocol_version = c.parse_int()
-        self.server_software = c.parse_string()
-        self.software_version = c.parse_string()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.protocol_version = conn.parse_int()
+        obj.server_software = conn.parse_string()
+        obj.software_version = conn.parse_string()
+        return obj
 
     def __repr__(self):
         return "<VersionInfo protocol %d by %s %s>" % \
@@ -2348,15 +2313,18 @@ class VersionInfo:
 
 # New in protocol version 11
 class StaticServerInfo: 
-    def parse(self, c):
-        self.boot_time = c.parse_object(Time)
-        self.save_time = c.parse_object(Time)
-        self.db_status = c.parse_string()
-        self.existing_texts = c.parse_int()
-        self.highest_text_no = c.parse_int()
-        self.existing_confs = c.parse_int()
-        self.existing_persons = c.parse_int()
-        self.highest_conf_no = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.boot_time = conn.parse_object(Time)
+        obj.save_time = conn.parse_object(Time)
+        obj.db_status = conn.parse_string()
+        obj.existing_texts = conn.parse_int()
+        obj.highest_text_no = conn.parse_int()
+        obj.existing_confs = conn.parse_int()
+        obj.existing_persons = conn.parse_int()
+        obj.highest_conf_no = conn.parse_int()
+        return obj
 
     def __repr__(self):
         return "<StaticServerInfo>"
@@ -2364,60 +2332,81 @@ class StaticServerInfo:
 # SESSION INFORMATION
 
 class SessionFlags:
-    def parse(self, c):
-        (self.invisible,
-         self.user_active_used,
-         self.user_absent,
-         self.reserved3,
-         self.reserved4,
-         self.reserved5,
-         self.reserved6,
-         self.reserved7) = c.parse_bitstring(8)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        (obj.invisible,
+         obj.user_active_used,
+         obj.user_absent,
+         obj.reserved3,
+         obj.reserved4,
+         obj.reserved5,
+         obj.reserved6,
+         obj.reserved7) = conn.parse_bitstring(8)
+        return obj
 
 class DynamicSessionInfo:
-    def parse(self, c):
-        self.session = c.parse_int()
-        self.person = c.parse_int()
-        self.working_conference = c.parse_int()
-        self.idle_time = c.parse_int()
-        self.flags = c.parse_object(SessionFlags)
-        self.what_am_i_doing  = c.parse_string()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.session = conn.parse_int()
+        obj.person = conn.parse_int()
+        obj.working_conference = conn.parse_int()
+        obj.idle_time = conn.parse_int()
+        obj.flags = conn.parse_object(SessionFlags)
+        obj.what_am_i_doing  = conn.parse_string()
+        return obj
 
 class StaticSessionInfo:
-    def parse(self, c):
-        self.username = c.parse_string()
-        self.hostname = c.parse_string()
-        self.ident_user = c.parse_string()
-        self.connection_time = c.parse_object(Time)
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.username = conn.parse_string()
+        obj.hostname = conn.parse_string()
+        obj.ident_user = conn.parse_string()
+        obj.connection_time = conn.parse_object(Time)
+        return obj
 
 class SchedulingInfo:
-    def parse(self, c):
-        self.priority = c.parse_int()
-        self.weight = c.parse_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.priority = conn.parse_int()
+        obj.weight = conn.parse_int()
+        return obj
 
 class WhoInfo:
-    def parse(self, c):
-        self.person = c.parse_int()
-        self.working_conference = c.parse_int()
-        self.session = c.parse_int()
-        self.what_am_i_doing  = c.parse_string()
-        self.username = c.parse_string()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.person = conn.parse_int()
+        obj.working_conference = conn.parse_int()
+        obj.session = conn.parse_int()
+        obj.what_am_i_doing  = conn.parse_string()
+        obj.username = conn.parse_string()
+        return obj
      
 # STATISTICS
 
 class StatsDescription:
-    def parse(self, c):
-        self.what = c.parse_array_of_string()
-        self.when = c.parse_array_of_int()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.what = conn.parse_array_of_string()
+        obj.when = conn.parse_array_of_int()
+        return obj
      
     def __repr__(self):
         return "<StatsDescription>"
 
 class Stats:
-    def parse(self, c):
-        self.average = c.parse_float()
-        self.ascent_rate = c.parse_float()
-        self.descent_rate = c.parse_float()
+    @classmethod
+    def parse(cls, conn):
+        obj = cls()
+        obj.average = conn.parse_float()
+        obj.ascent_rate = conn.parse_float()
+        obj.descent_rate = conn.parse_float()
+        return obj
 
     def __repr__(self):
         return "<Stats %f + %f - %f>" % (self.average,
@@ -2425,20 +2414,147 @@ class Stats:
                                          self.descent_rate)
 
 
+class EmptyResponse(object):
+    @classmethod
+    def parse(cls, conn):
+        return None
 
-def array_of_int_to_string(array):
-    return "%d { %s }" % (len(array),
-                         " ".join(list(map(str, array))))
+class String(str):
+    @classmethod
+    def parse(cls, conn):
+        # --> string
+        return cls(conn.parse_string())
 
-def array_to_string(array):
-    return "%d { %s }" % (len(array), 
-                          " ".join([x.to_string() for x in array]))
+class Int16(int):
+    @classmethod
+    def parse(cls, conn):
+        # --> INT16
+        return cls(conn.parse_int())
+
+class Int32(int):
+    @classmethod
+    def parse(cls, conn):
+        # --> INT32
+        return cls(conn.parse_int())
+
+class ConfNo(Int16):
+    pass
+
+class PersNo(ConfNo):
+    pass
+
+class TextNo(Int32):
+    pass
+
+class SessionNo(Int32):
+    pass
+
+class Array(object):
+    def __init__(self, element_cls):
+        self._element_cls = element_cls
+
+    def parse(self, conn):
+        # --> ARRAY <element cls>
+        return conn.parse_array(self._element_cls)
 
 
-def to_hstring(s, encoding='latin1'):
-    """To hollerith string
-    """
-    assert isinstance(s, basestring)
-    if isinstance(s, unicode):
-        s = s.encode(encoding)
-    return "%dH%s" % (len(s), s)
+# Mapping from request type to response type.
+response_dict = {
+    Requests.ACCEPT_ASYNC: EmptyResponse,
+    Requests.ADD_COMMENT: EmptyResponse,
+    Requests.ADD_FOOTNOTE: EmptyResponse,
+    Requests.ADD_MEMBER: EmptyResponse,
+    Requests.ADD_RECIPIENT: EmptyResponse,
+    Requests.CHANGE_CONFERENCE: EmptyResponse,
+    Requests.CHANGE_NAME: EmptyResponse,
+    Requests.CHANGE_WHAT_I_AM_DOING: EmptyResponse,
+    Requests.CREATE_ANONYMOUS_TEXT: TextNo,
+    Requests.CREATE_CONF: ConfNo,
+    Requests.CREATE_PERSON: PersNo,
+    Requests.CREATE_TEXT: TextNo,
+    Requests.DELETE_CONF: EmptyResponse,
+    Requests.DELETE_TEXT: EmptyResponse,
+    Requests.DISCONNECT: EmptyResponse,
+    Requests.ENABLE: EmptyResponse,
+    Requests.FIND_NEXT_CONF_NO: ConfNo,
+    Requests.FIND_NEXT_TEXT_NO: TextNo,
+    Requests.FIND_PREVIOUS_CONF_NO: ConfNo,
+    Requests.FIND_PREVIOUS_TEXT_NO: TextNo,
+    Requests.FIRST_UNUSED_CONF_NO: ConfNo,
+    Requests.FIRST_UNUSED_TEXT_NO: TextNo,
+    Requests.GET_BOOTTIME_INFO: StaticServerInfo,
+    Requests.GET_CLIENT_NAME: String,
+    Requests.GET_CLIENT_VERSION: String,
+    Requests.GET_COLLATE_TABLE: String,
+    Requests.GET_CONF_STAT: Conference,
+    Requests.GET_INFO: EmptyResponse,
+    Requests.GET_INFO: Info,
+    Requests.GET_LAST_TEXT: TextNo,
+    Requests.GET_MAP: TextList,
+    Requests.GET_MARKS: Array(Mark),
+    Requests.GET_MEMBERS: Array(Member),
+    Requests.GET_MEMBERSHIP: Array(Membership11),
+    Requests.GET_MEMBERSHIP_10: Array(Membership10),
+    Requests.GET_PERSON_STAT: Person,
+    Requests.GET_SCHEDULING: SchedulingInfo,
+    Requests.GET_STATIC_SESSION_INFO: StaticSessionInfo,
+    Requests.GET_STATS: Array(Stats),
+    Requests.GET_STATS_DESCRIPTION: StatsDescription,
+    Requests.GET_TEXT: String,
+    Requests.GET_TEXT_STAT: TextStat,
+    Requests.GET_TIME: Time,
+    Requests.GET_UCONF_STAT: UConference,
+    Requests.GET_UNREAD_CONFS: Array(ConfNo),
+    Requests.GET_VERSION_INFO: VersionInfo,
+    Requests.LOCAL_TO_GLOBAL: TextMapping,
+    Requests.LOCAL_TO_GLOBAL_REVERSE: TextMapping,
+    Requests.LOGIN: EmptyResponse,
+    Requests.LOGOUT: EmptyResponse,
+    Requests.LOOKUP_Z_NAME: Array(ConfZInfo),
+    Requests.MAP_CREATED_TEXTS: TextMapping,
+    Requests.MAP_CREATED_TEXTS_REVERSE: TextMapping,
+    Requests.MARK_AS_READ: EmptyResponse,
+    Requests.MARK_AS_UNREAD: EmptyResponse,
+    Requests.MARK_TEXT: EmptyResponse,
+    Requests.MODIFY_CONF_INFO: EmptyResponse,
+    Requests.MODIFY_SYSTEM_INFO: EmptyResponse,
+    Requests.MODIFY_TEXT_INFO: EmptyResponse,
+    Requests.QUERY_ASYNC: Array(Int32),
+    Requests.QUERY_PREDEFINED_AUX_ITEMS: Array(Int32),
+    Requests.QUERY_READ_TEXTS: Membership11,
+    Requests.QUERY_READ_TEXTS_10: Membership10,
+    Requests.RE_Z_LOOKUP: Array(ConfZInfo),
+    Requests.SEND_MESSAGE: EmptyResponse,
+    Requests.SET_CLIENT_VERSION: EmptyResponse,
+    Requests.SET_CONF_TYPE: EmptyResponse,
+    Requests.SET_CONNECTION_TIME_FORMAT: EmptyResponse,
+    Requests.SET_ETC_MOTD: EmptyResponse,
+    Requests.SET_EXPIRE: EmptyResponse,
+    Requests.SET_GARB_NICE: EmptyResponse,
+    Requests.SET_INFO: EmptyResponse,
+    Requests.SET_KEEP_COMMENTED: EmptyResponse,
+    Requests.SET_LAST_READ: EmptyResponse,
+    Requests.SET_MEMBERSHIP_TYPE: EmptyResponse,
+    Requests.SET_MOTD_OF_LYSKOM: EmptyResponse,
+    Requests.SET_PASSWD: EmptyResponse,
+    Requests.SET_PERMITTED_SUBMITTERS: EmptyResponse,
+    Requests.SET_PERS_FLAGS: EmptyResponse,
+    Requests.SET_PRESENTATION: EmptyResponse,
+    Requests.SET_PRIV_BITS: EmptyResponse,
+    Requests.SET_READ_RANGES: EmptyResponse,
+    Requests.SET_SCHEDULING: EmptyResponse,
+    Requests.SET_SUPERVISOR: EmptyResponse,
+    Requests.SET_SUPER_CONF: EmptyResponse,
+    Requests.SET_UNREAD: EmptyResponse,
+    Requests.SET_USER_AREA: EmptyResponse,
+    Requests.SHUTDOWN_KOM: EmptyResponse,
+    Requests.SUB_COMMENT: EmptyResponse,
+    Requests.SUB_FOOTNOTE: EmptyResponse,
+    Requests.SUB_MEMBER: EmptyResponse,
+    Requests.SUB_RECIPIENT: EmptyResponse,
+    Requests.SYNC_KOM: EmptyResponse,
+    Requests.UNMARK_TEXT: EmptyResponse,
+    Requests.USER_ACTIVE: EmptyResponse,
+    Requests.WHO_AM_I: SessionNo,
+    Requests.WHO_IS_ON_DYNAMIC: Array(DynamicSessionInfo),
+}

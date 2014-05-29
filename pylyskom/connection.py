@@ -35,11 +35,13 @@ from .request import default_request_factory
 
 
 class BaseConnection(object):
-    def __init__(self, sock, user=""):
+    def __init__(self, sock, user=None):
         """
         @param sock Socket connected to a LysKOM server.
         """
         self._socket = sock
+        if user is None:
+            user = ""
 
         # Receive buffer
         self.rb = ""    # Buffer for data received from connection
@@ -75,19 +77,15 @@ class BaseConnection(object):
 
     # PARSING KOM DATA TYPES
 
-    def parse_object(self, classname):
-        obj = classname()
-        obj.parse(self)
-        return obj
+    def parse_object(self, cls):
+        return cls.parse(self)
 
-    def parse_old_object(self, classname):
-        obj = classname()
-        obj.parse(self, old_format=1)
-        return obj
+    def parse_old_object(self, cls):
+        return cls.parse(self, old_format=1)
         
     # PARSING ARRAYS
 
-    def parse_array(self, element_class):
+    def parse_array(self, element_cls):
         len = self.parse_int()
         res = []
         if len > 0:
@@ -97,8 +95,7 @@ class BaseConnection(object):
                 return []
             elif left != "{": raise kom.ProtocolError
             for i in range(0, len):
-                obj = element_class()
-                obj.parse(self)
+                obj = element_cls.parse(self)
                 res.append(obj)
             right = self.parse_first_non_ws()
             if right != "}": raise kom.ProtocolError
@@ -240,16 +237,17 @@ class Response(object):
 
 
 class Connection(BaseConnection):
-    def __init__(self, sock, user=""):
+    def __init__(self, sock, user=None):
         BaseConnection.__init__(self, sock, user)
-        self._ref_no = 0           # Last used ID (i.e. increment before use)
-        self._parse_functions = {} # Parse functions for parsing the response
+        self._ref_no = 0 # Last used ID (i.e. increment before use)
+        self._outstanding_requests = {} # Ref-No to Request
         
     def send_request(self, req):
         self._ref_no += 1
         ref_no = self._ref_no
-        self._parse_functions[ref_no] = req.parse_response
+        assert ref_no not in self._outstanding_requests
         self.send_string("%d %s" % (ref_no, req.to_string()))
+        self._outstanding_requests[ref_no] = req
         return ref_no
 
     def read_response(self):
@@ -265,29 +263,29 @@ class Connection(BaseConnection):
 
     def _parse_ok_reply(self):
         ref_no = self.parse_int()
-        if ref_no not in self._parse_functions:
+        if ref_no not in self._outstanding_requests:
             raise kom.BadRequestId(ref_no)
-        resp = self._parse_functions[ref_no](self)
-        del self._parse_functions[ref_no]
+        req = self._outstanding_requests[ref_no]
+        resp = kom.response_dict[req.CALL_NO].parse(self)
+        del self._outstanding_requests[ref_no]
         return ref_no, resp, None
 
     def _parse_error_reply(self):
         ref_no = self.parse_int()
+        if ref_no not in self._outstanding_requests:
+            raise kom.BadRequestId(ref_no)
         error_no = self.parse_int()
         error_status = self.parse_int()
-        if ref_no not in self._parse_functions:
-            raise kom.BadRequestId(ref_no)
         error = kom.error_dict[error_no](error_status)
-        del self._parse_functions[ref_no]
+        del self._outstanding_requests[ref_no]
         return ref_no, None, error
 
     def _parse_asynchronous_message(self):
-        self.parse_int() # read no_args
+        self.parse_int() # read number of arguments (but we don't need it)
         msg_no = self.parse_int()
         if msg_no not in kom.async_dict:
             raise kom.UnimplementedAsync(msg_no)
-        msg = kom.async_dict[msg_no]()
-        msg.parse(self)
+        msg = kom.async_dict[msg_no].parse(self)
         return None, msg, None
         
 

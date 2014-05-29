@@ -4,8 +4,15 @@ import pytest
 from pylyskom import kom
 
 
+def test_all_requests_has_response_type():
+    for k in kom.Requests.__dict__:
+        if k.startswith("__"):
+            continue
+        call_no = getattr(kom.Requests, k)
+        assert call_no in kom.response_dict
+
 def test_to_hstring():
-    kom.to_hstring('foobar') == '6Hfoobar'
+    kom.to_hstring('foobar') == '7Hfoo bar'
 
 def test_to_hstring__encodes_unicode_to_latin1_by_default():
     hs = kom.to_hstring(u'R\xe4ksm\xf6rg\xe5s')
