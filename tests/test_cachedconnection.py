@@ -4,8 +4,7 @@ from pylyskom.errors import NoSuchLocalText
 from pylyskom.datatypes import TextMapping, ReadRange, Membership
 from pylyskom.request import Requests
 from pylyskom.requests import ReqAcceptAsync
-from pylyskom.connection import Client
-from pylyskom.cachedconnection import CachingClient
+from pylyskom.cachedconnection import Client, CachingClient
 
 
 def create_local_to_global(highest_local):

@@ -7,8 +7,6 @@
 import socket
 import errno
 
-from .request import default_request_factory
-
 from .errors import (
     error_dict,
     BadRequestId,
@@ -76,17 +74,18 @@ class ReceiveBuffer(object):
         #      (present, size)
             
 
+#
+#class ResponseType(object):
+#    """Used as an enum of reply types.
+#    """
+#    (OK,
+#     ERROR,
+#     ASYNC) = range(3)
+#
+#class Response(object):
+#    def __init__(self):
+#        pass
 
-class ResponseType(object):
-    """Used as an enum of reply types.
-    """
-    (OK,
-     ERROR,
-     ASYNC) = range(3)
-
-class Response(object):
-    def __init__(self):
-        pass
 
 
 class Connection(object):
@@ -106,6 +105,12 @@ class Connection(object):
         resp = self._buffer.receive_string(7) # FIXME: receive line here
         if resp != "LysKOM\n":
             raise BadInitialResponse()
+
+    def send_request(self, req):
+        return self._send_request(req)
+
+    def read_response(self):
+        return self._parse_response()
 
     def close(self):
         if self._socket is None:
@@ -130,7 +135,7 @@ class Connection(object):
             done = self._socket.send(s)
             s = s[done:]
 
-    def send_request(self, req):
+    def _send_request(self, req):
         self._ref_no += 1
         ref_no = self._ref_no
         assert ref_no not in self._outstanding_requests
@@ -138,7 +143,7 @@ class Connection(object):
         self._outstanding_requests[ref_no] = req
         return ref_no
 
-    def read_response(self):
+    def _parse_response(self):
         ch = read_first_non_ws(self._buffer)
         if ch == "=":
             return self._parse_ok_reply()
@@ -175,85 +180,3 @@ class Connection(object):
             raise UnimplementedAsync(msg_no)
         msg = async_dict[msg_no].parse(self._buffer)
         return None, msg, None
-        
-
-class Client(object):
-    def __init__(self, conn, request_factory=default_request_factory):
-        self._conn = conn
-        self._request_factory = request_factory
-
-        self._ok_queue = {}  # Answers received from the server
-        self._error_queue = {} # Errors received from the server
-        #self._async_queue = Queue()
-        self._async_handlers = {}
-
-    def close(self):
-        self._conn.close()
-
-    def register_async_handler(self, msg_no, handler):
-        """Register a handler for a type of async message.
-
-        @param msg_no Type of async message.
-
-        @param handler Function that should be called when an async
-        message of the specified type is received.
-
-        Important: Does not tell the LysKOM server to start sending
-        async messages.
-        """
-        if msg_no not in async_dict:
-            raise UnimplementedAsync
-        if msg_no in self._async_handlers:
-            self._async_handlers[msg_no].append(handler)
-        else:
-            self._async_handlers[msg_no] = [handler]
-
-    def request(self, request, *args, **kwargs):
-        req = self._request_factory.new(request)(*args, **kwargs)
-        req_id = self.register_request(req)
-        return self.wait_and_dequeue(req_id)
-
-    def register_request(self, req):
-        """Register a request to be sent.
-        """
-        ref_no = self._conn.send_request(req)
-        return ref_no
-
-    def wait_and_dequeue(self, ref_no):
-        """Wait for a request to be answered, return response or raise
-        error.
-        """
-        while ref_no not in self._ok_queue and \
-              ref_no not in self._error_queue:
-            self._read_response()
-
-        if ref_no in self._ok_queue:
-            resp = self._ok_queue[ref_no]
-            del self._ok_queue[ref_no]
-            return resp
-        elif ref_no in self._error_queue:
-            error = self._error_queue[ref_no]
-            del self._error_queue[ref_no]
-            raise error
-        else:
-            raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
-
-    def _read_response(self):
-        ref_no, resp, error = self._conn.read_response()
-        if ref_no is None:
-            # async message
-
-            # TODO: queue or handle?
-            #self._async_queue.put(resp)
-            self._handle_async_message(resp)
-        elif error is not None:
-            # error reply
-            self._error_queue[ref_no] = error
-        else:
-            # ok reply - resp can be None
-            self._ok_queue[ref_no] = resp
-
-    def _handle_async_message(self, msg):
-        if msg.MSG_NO in self._async_handlers:
-            for handler in self._async_handlers[msg.MSG_NO]:
-                handler(msg, self)

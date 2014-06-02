@@ -15,8 +15,7 @@ from .protocol import (
     read_float)
 
 from .errors import (
-    ProtocolError,
-    )
+    ProtocolError)
 
 
 # Constants for Misc-Info (needed in requests below)

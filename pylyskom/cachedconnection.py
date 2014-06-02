@@ -4,10 +4,98 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+import logging
+
 from .request import Requests
 
 from .async import AsyncMessages
 from .errors import NotMember, NoSuchLocalText
+from .request import default_request_factory
+
+
+logger = logging.getLogger(__name__)
+
+
+class Client(object):
+    def __init__(self, conn, request_factory=default_request_factory):
+        self._conn = conn
+        self._request_factory = request_factory
+
+        self._ok_queue = {}  # Answers received from the server
+        self._error_queue = {} # Errors received from the server
+
+    def close(self):
+        self._conn.close()
+
+    def request(self, request, *args, **kwargs):
+        req = self._request_factory.new(request)(*args, **kwargs)
+        logger.debug("sending request: %s" % (req,))
+        req_id = self.register_request(req)
+        resp = self.wait_and_dequeue(req_id)
+        logger.debug("returning response for ref_no: %s" % (req_id,))
+        return resp
+
+    def register_request(self, req):
+        """Register a request to be sent.
+        """
+        ref_no = self._conn.send_request(req)
+        return ref_no
+
+    def wait_and_dequeue(self, ref_no):
+        """Wait for a request to be answered, return response or raise
+        error.
+        """
+        logger.debug("waiting for  response ref_no: %s" % (ref_no,))
+        while ref_no not in self._ok_queue and \
+              ref_no not in self._error_queue:
+            self._read_response()
+
+        if ref_no in self._ok_queue:
+            resp = self._ok_queue[ref_no]
+            del self._ok_queue[ref_no]
+            return resp
+        elif ref_no in self._error_queue:
+            error = self._error_queue[ref_no]
+            del self._error_queue[ref_no]
+            raise error
+        else:
+            raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
+
+    def register_async_handler(self, msg_no, handler, skip_accept_async=False):
+        """Add an async handler and tell the LysKOM sever to
+        start sending async messages of that type.
+        
+        @param skip_accept_async Don't send an AcceptAsync request to
+        the LysKOM server now. This is an optimization feature. The
+        protocol request registers all async message types at once, so
+        this is useful to be able to only have to send one
+        request. First register all but the last async handlers with
+        skip_accept_async=True, and then register the last one with
+        skip_accept_async=False to send the request.
+        """
+        self._conn.register_async_handler(msg_no, handler)
+        if not skip_accept_async:
+            # fixme: using "private" of client
+            self.request(Requests.AcceptAsync, self._conn._async_handlers.keys())
+
+    def _read_response(self):
+        ref_no, resp, error = self._conn.read_response()
+        logger.debug("read response for ref_no: %s" % (ref_no,))
+        if ref_no is None:
+            # async message
+
+            # TODO: queue or handle?
+            #self._async_queue.put(resp)
+            #self._handle_async_message(resp)
+            # moved to AsyncConnection
+            pass
+        elif error is not None:
+            # error reply
+            self._error_queue[ref_no] = error
+        else:
+            # ok reply - resp can be None
+            self._ok_queue[ref_no] = resp
+
 
 
 #
@@ -48,13 +136,13 @@ class CachingClient(object):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.add_async_handler(AsyncMessages.NEW_NAME, self._cah_new_name, True)
-        self.add_async_handler(AsyncMessages.LEAVE_CONF, self._cah_leave_conf, True)
-        self.add_async_handler(AsyncMessages.DELETED_TEXT, self._cah_deleted_text, True)
-        self.add_async_handler(AsyncMessages.NEW_TEXT, self._cah_new_text, True)
-        self.add_async_handler(AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient, True)
-        self.add_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient, True)
-        self.add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
+        self.register_async_handler(AsyncMessages.NEW_NAME, self._cah_new_name, True)
+        self.register_async_handler(AsyncMessages.LEAVE_CONF, self._cah_leave_conf, True)
+        self.register_async_handler(AsyncMessages.DELETED_TEXT, self._cah_deleted_text, True)
+        self.register_async_handler(AsyncMessages.NEW_TEXT, self._cah_new_text, True)
+        self.register_async_handler(AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient, True)
+        self.register_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient, True)
+        self.register_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
 
     def close(self):
         self._client.close()
@@ -62,23 +150,8 @@ class CachingClient(object):
     def request(self, request, *args, **kwargs):
         return self._client.request(request, *args, **kwargs)
 
-    def add_async_handler(self, msg_no, handler, skip_accept_async=False):
-        """Add an async handler and tell the LysKOM sever to
-        start sending async messages of that type.
-        
-        @param skip_accept_async Don't send an AcceptAsync request to
-        the LysKOM server now. This is an optimization feature. The
-        protocol request registers all async message types at once, so
-        this is useful to be able to only have to send one
-        request. First register all but the last async handlers with
-        skip_accept_async=True, and then register the last one with
-        skip_accept_async=False to send the request.
-        """
-        self._client.register_async_handler(msg_no, handler)
-        if not skip_accept_async:
-            # fixme: using "private" of client
-            self.request(Requests.AcceptAsync, self._client._async_handlers.keys())
-
+    def register_async_handler(self, msg_no, handler, skip_accept_async=False):
+        return self._client.register_async_handler(msg_no, handler, skip_accept_async)
 
     # Fetching functions (internal use)
     def _fetch_uconference(self, no):
@@ -96,23 +169,23 @@ class CachingClient(object):
     # Handlers for asynchronous messages (internal use)
     # FIXME: Most of these handlers should do more clever things than just
     # invalidating. 
-    def _cah_new_name(self, msg, c):
+    def _cah_new_name(self, msg):
         # A new name makes uconferences[].name invalid
         self.uconferences.invalidate(msg.conf_no)
         # A new name makes conferences[].name invalid
         self.conferences.invalidate(msg.conf_no)
 
-    def _cah_leave_conf(self, msg, c):
+    def _cah_leave_conf(self, msg):
         # Leaving a conference makes conferences[].no_of_members invalid
         self.conferences.invalidate(msg.conf_no)
 
-    def _cah_deleted_text(self, msg, c):
+    def _cah_deleted_text(self, msg):
         # Deletion of a text makes conferences[].no_of_texts invalid
         ts = msg.text_stat
         for rcpt in ts.misc_info.recipient_list:
             self.conferences.invalidate(rcpt.recpt)
             
-    def _cah_new_text(self, msg, c):
+    def _cah_new_text(self, msg):
         # A new text. conferences[].no_of_texts and
         # uconferences[].highest_local_no is invalid. Also invalidates
         # the textstats for the commented texts.
@@ -123,7 +196,7 @@ class CachingClient(object):
             self.textstats.invalidate(ct.text_no)
         # FIXME: A new text makes persons[author].no_of_created_texts invalid
 
-    def _cah_new_recipient(self, msg, c):
+    def _cah_new_recipient(self, msg):
         # Just like a new text; conferences[].no_of_texts and
         # uconferences[].highest_local_no gets invalid. 
         self.conferences.invalidate(msg.conf_no)
@@ -131,13 +204,13 @@ class CachingClient(object):
         # textstats.misc_info_recipient_list gets invalid as well.
         self.textstats.invalidate(msg.text_no)
 
-    def _cah_sub_recipient(self, msg, c):
+    def _cah_sub_recipient(self, msg):
         # Invalid conferences[].no_of_texts
         self.conferences.invalidate(msg.conf_no)
         # textstats.misc_info_recipient_list gets invalid as well.
         self.textstats.invalidate(msg.text_no)
 
-    def _cah_new_membership(self, msg, c):
+    def _cah_new_membership(self, msg):
         # Joining a conference makes conferences[].no_of_members invalid
         self.conferences.invalidate(msg.conf_no)
 
@@ -156,7 +229,7 @@ class CachingClient(object):
                 return "%s (#%d)" % (conf_name, conf_no)
             else:
                 return conf_name
-        except:
+        except Exception:
             if default.find("%d") != -1:
                 return default % conf_no
             else:
@@ -176,7 +249,7 @@ class CachingClient(object):
                     return [(no, name)]
                 else:
                     return []
-            except:
+            except Exception:
                 return []
         else:
             # Alphabetical case
@@ -341,8 +414,8 @@ class CachingPersonClient(CachingClient):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.add_async_handler(AsyncMessages.LEAVE_CONF, self._cpah_leave_conf, True)
-        self.add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
+        self.register_async_handler(AsyncMessages.LEAVE_CONF, self._cpah_leave_conf, True)
+        self.register_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
 
     def login(self, pers_no, password):
         self.request(Requests.Login, pers_no, password, invisible=0)
@@ -461,14 +534,14 @@ class CachingPersonClient(CachingClient):
         return self.request(Requests.QueryReadTexts11, self._pers_no, conf_no, 0, 0)
     
     # Handlers for asynchronous messages (internal use)
-    def _cpah_leave_conf(self, msg, c):
+    def _cpah_leave_conf(self, msg):
         # Invalidates cached membership
         self._memberships.invalidate(msg.conf_no)
         # We invalidate the entire memberships_by_position because you
         # can change position of memberships.
         self._memberships_by_position = dict()
 
-    def _cpah_new_membership(self, msg, c):
+    def _cpah_new_membership(self, msg):
         # Invalidates self._memberships_by_position
         self._memberships_by_position = dict()
         # The self.memberships cache can only cache actual

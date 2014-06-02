@@ -13,8 +13,8 @@ import mimeparse
 
 from . import komauxitems, utils
 from .request import Requests
-from .connection import Connection, Client
-from .cachedconnection import CachingPersonClient
+from .connection import Connection
+from .cachedconnection import Client, CachingPersonClient
 
 from .datatypes import (
     AuxItem,
@@ -47,7 +47,7 @@ MICommentTo_str_to_type = { 'comment': MIC_COMMENT,
                             'footnote': MIC_FOOTNOTE }
 
 
-def create_connection(host, port, user):
+def create_client(host, port, user):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((host, port))
     conn = Connection(s, user)
@@ -74,15 +74,15 @@ def check_connection(f):
     return decorated
 
 
-# Idea: rename KomSession to KomClient
+# Idea: rename KomSession to KomClient?
 class KomSession(object):
     """ A LysKom session. """
-    def __init__(self, connection_factory=create_connection):
+    def __init__(self, client_factory=create_client):
         # TODO: We actually require the API of a
         # CachingPersonClient. We should enhance the Connection
         # class and make CachingPersonClient have the same API as
         # Connection.
-        self._connection_factory = connection_factory
+        self._client_factory = client_factory
         self._conn = None
         self._session_no = None
         self._client_name = None
@@ -98,7 +98,7 @@ class KomSession(object):
         
         #self._conn = self._connection_factory()
         #self._conn.connect(host, port, user=username + "%" + hostname)
-        self._conn = self._connection_factory(host, port, user=username + "%" + hostname)
+        self._conn = self._client_factory(host, port, user=username + "%" + hostname)
         self._conn.request(Requests.SetClientVersion, client_name, client_version)
         self._client_name = client_name
         self._client_version = client_version
