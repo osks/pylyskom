@@ -8,8 +8,8 @@ import logging
 
 from .request import Requests
 
-from .async import AsyncMessages
-from .errors import NotMember, NoSuchLocalText
+from .async import AsyncMessages, async_dict
+from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
 from .request import default_request_factory
 
 
@@ -17,31 +17,36 @@ logger = logging.getLogger(__name__)
 
 
 class Client(object):
-    def __init__(self, conn, request_factory=default_request_factory):
+    def __init__(self, conn):
         self._conn = conn
-        self._request_factory = request_factory
-
-        self._ok_queue = {}  # Answers received from the server
-        self._error_queue = {} # Errors received from the server
+        self._ok_queue = {}
+        self._error_queue = {}
+        self._async_handler_func = None
 
     def close(self):
         self._conn.close()
 
-    def request(self, request, *args, **kwargs):
-        req = self._request_factory.new(request)(*args, **kwargs)
-        logger.debug("sending request: %s" % (req,))
-        req_id = self.register_request(req)
-        resp = self.wait_and_dequeue(req_id)
-        logger.debug("returning response for ref_no: %s" % (req_id,))
+    def request(self, request):
+        """
+        Send an request and return the response.
+        """
+        logger.debug("sending request: %s" % (request,))
+        ref_no = self._conn.send_request(request)
+        resp = self._wait_and_dequeue(ref_no)
+        logger.debug("returning response for ref_no: %s" % (ref_no, ))
         return resp
 
-    def register_request(self, req):
-        """Register a request to be sent.
+    def set_async_handler(self, handler_func):
+        """Set the async handler function.
+        
+        @param handler_func Function that will be called when an async
+        message is received. Will receive the async message as
+        argument. If handler_func is None, there will be no handling
+        of async messages.
         """
-        ref_no = self._conn.send_request(req)
-        return ref_no
+        self._async_handler_func = handler_func
 
-    def wait_and_dequeue(self, ref_no):
+    def _wait_and_dequeue(self, ref_no):
         """Wait for a request to be answered, return response or raise
         error.
         """
@@ -52,49 +57,33 @@ class Client(object):
 
         if ref_no in self._ok_queue:
             resp = self._ok_queue[ref_no]
+            logger.debug("got response %s ref_no: %s" % (resp, ref_no))
             del self._ok_queue[ref_no]
             return resp
         elif ref_no in self._error_queue:
             error = self._error_queue[ref_no]
+            logger.debug("got error %s ref_no: %s" % (error, ref_no))
             del self._error_queue[ref_no]
             raise error
         else:
             raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
-
-    def register_async_handler(self, msg_no, handler, skip_accept_async=False):
-        """Add an async handler and tell the LysKOM sever to
-        start sending async messages of that type.
-        
-        @param skip_accept_async Don't send an AcceptAsync request to
-        the LysKOM server now. This is an optimization feature. The
-        protocol request registers all async message types at once, so
-        this is useful to be able to only have to send one
-        request. First register all but the last async handlers with
-        skip_accept_async=True, and then register the last one with
-        skip_accept_async=False to send the request.
-        """
-        self._conn.register_async_handler(msg_no, handler)
-        if not skip_accept_async:
-            # fixme: using "private" of client
-            self.request(Requests.AcceptAsync, self._conn._async_handlers.keys())
 
     def _read_response(self):
         ref_no, resp, error = self._conn.read_response()
         logger.debug("read response for ref_no: %s" % (ref_no,))
         if ref_no is None:
             # async message
-
-            # TODO: queue or handle?
-            #self._async_queue.put(resp)
-            #self._handle_async_message(resp)
-            # moved to AsyncConnection
-            pass
+            self._handle_async_message(resp)
         elif error is not None:
             # error reply
             self._error_queue[ref_no] = error
         else:
             # ok reply - resp can be None
             self._ok_queue[ref_no] = resp
+
+    def _handle_async_message(self, msg):
+        if self._async_handler_func is not None:
+            self._async_handler_func(msg)
 
 
 
@@ -114,8 +103,11 @@ class Client(object):
 #   numbers of all unread text in a conference for a person
 
 class CachingClient(object):
-    def __init__(self, client):
+    def __init__(self, client, request_factory=default_request_factory):
         self._client = client
+        self._request_factory = request_factory
+        self._async_handlers = {}
+        self._client.set_async_handler(self._handle_async_message)
 
         # Caches
         #
@@ -144,31 +136,58 @@ class CachingClient(object):
         self.register_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient, True)
         self.register_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
 
+
     def close(self):
         self._client.close()
 
-    def request(self, request, *args, **kwargs):
-        return self._client.request(request, *args, **kwargs)
+    def request(self, request_type, *args, **kwargs):
+        request = self._request_factory.new(request_type)(*args, **kwargs)
+        return self._client.request(request)
+
+
+    # Async handling
+
+    def _handle_async_message(self, msg):
+        if msg.MSG_NO in self._async_handlers:
+            for handler in self._async_handlers[msg.MSG_NO]:
+                handler(msg)
+
+    def _add_async_handler(self, msg_no, handler):
+        """Register a handler for a type of async message.
+
+        @param msg_no Type of async message.
+
+        @param handler Function that should be called when an async
+        message of the specified type is received.
+        """
+        if msg_no not in async_dict:
+            raise UnimplementedAsync
+        if msg_no in self._async_handlers:
+            self._async_handlers[msg_no].append(handler)
+        else:
+            self._async_handlers[msg_no] = [handler]
 
     def register_async_handler(self, msg_no, handler, skip_accept_async=False):
-        return self._client.register_async_handler(msg_no, handler, skip_accept_async)
+        """Add an async handler and tell the LysKOM sever to
+        start sending async messages of that type.
+        
+        @param skip_accept_async Don't send an AcceptAsync request to
+        the LysKOM server now. This is an optimization feature. The
+        protocol request registers all async message types at once, so
+        this is useful to be able to only have to send one
+        request. First register all but the last async handlers with
+        skip_accept_async=True, and then register the last one with
+        skip_accept_async=False to send the request.
+        """
+        self._add_async_handler(msg_no, handler)
+        if not skip_accept_async:
+            self.request(Requests.AcceptAsync, self._async_handlers.keys())
 
-    # Fetching functions (internal use)
-    def _fetch_uconference(self, no):
-        return self.request(Requests.GetUconfStat, no)
 
-    def _fetch_conference(self, no):
-        return self.request(Requests.GetConfStat, no)
+    # Handlers for asynchronous messages (internal use) FIXME: Most of
+    # these handlers could do more clever things than just
+    # invalidating.
 
-    def _fetch_person(self, no):
-        return self.request(Requests.GetPersonStat, no)
-
-    def _fetch_textstat(self, no):
-        return self.request(Requests.GetTextStat, no)
-
-    # Handlers for asynchronous messages (internal use)
-    # FIXME: Most of these handlers should do more clever things than just
-    # invalidating. 
     def _cah_new_name(self, msg):
         # A new name makes uconferences[].name invalid
         self.uconferences.invalidate(msg.conf_no)
@@ -213,6 +232,21 @@ class CachingClient(object):
     def _cah_new_membership(self, msg):
         # Joining a conference makes conferences[].no_of_members invalid
         self.conferences.invalidate(msg.conf_no)
+
+
+    # Fetching functions (internal use)
+    def _fetch_uconference(self, no):
+        return self.request(Requests.GetUconfStat, no)
+
+    def _fetch_conference(self, no):
+        return self.request(Requests.GetConfStat, no)
+
+    def _fetch_person(self, no):
+        return self.request(Requests.GetPersonStat, no)
+
+    def _fetch_textstat(self, no):
+        return self.request(Requests.GetTextStat, no)
+
 
     # Report cache usage
     def report_cache_usage(self):
@@ -590,3 +624,104 @@ class Cache:
                                                     self.cached,
                                                     self.uncached))
         
+
+
+
+
+
+#class Client(object):
+#    def __init__(self, conn, request_factory=default_request_factory):
+#        self._conn = conn
+#        self._request_factory = request_factory
+#
+#        self._ok_queue = {}
+#        self._error_queue = {}
+#        self._async_handlers = {}
+#
+#    def close(self):
+#        self._conn.close()
+#
+#    def request(self, request, *args, **kwargs):
+#        req = self._request_factory.new(request)(*args, **kwargs)
+#        logger.debug("sending request: %s" % (req,))
+#        req_id = self._register_request(req)
+#        resp = self._wait_and_dequeue(req_id)
+#        logger.debug("returning response for ref_no: %s" % (req_id, ))
+#        return resp
+#
+#    def register_async_handler(self, msg_no, handler, skip_accept_async=False):
+#        """Add an async handler and tell the LysKOM sever to
+#        start sending async messages of that type.
+#        
+#        @param skip_accept_async Don't send an AcceptAsync request to
+#        the LysKOM server now. This is an optimization feature. The
+#        protocol request registers all async message types at once, so
+#        this is useful to be able to only have to send one
+#        request. First register all but the last async handlers with
+#        skip_accept_async=True, and then register the last one with
+#        skip_accept_async=False to send the request.
+#        """
+#        self._add_async_handler(msg_no, handler)
+#        if not skip_accept_async:
+#            self.request(Requests.AcceptAsync, self._async_handlers.keys())
+#
+#    def _register_request(self, req):
+#        """Register a request to be sent.
+#        """
+#        ref_no = self._conn.send_request(req)
+#        return ref_no
+#
+#    def _wait_and_dequeue(self, ref_no):
+#        """Wait for a request to be answered, return response or raise
+#        error.
+#        """
+#        logger.debug("waiting for  response ref_no: %s" % (ref_no,))
+#        while ref_no not in self._ok_queue and \
+#              ref_no not in self._error_queue:
+#            self._read_response()
+#
+#        if ref_no in self._ok_queue:
+#            resp = self._ok_queue[ref_no]
+#            logger.debug("got response %s ref_no: %s" % (resp, ref_no))
+#            del self._ok_queue[ref_no]
+#            return resp
+#        elif ref_no in self._error_queue:
+#            error = self._error_queue[ref_no]
+#            logger.debug("got error %s ref_no: %s" % (error, ref_no))
+#            del self._error_queue[ref_no]
+#            raise error
+#        else:
+#            raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
+#
+#    def _read_response(self):
+#        ref_no, resp, error = self._conn.read_response()
+#        logger.debug("read response for ref_no: %s" % (ref_no,))
+#        if ref_no is None:
+#            # async message
+#            self._handle_async_message(resp)
+#        elif error is not None:
+#            # error reply
+#            self._error_queue[ref_no] = error
+#        else:
+#            # ok reply - resp can be None
+#            self._ok_queue[ref_no] = resp
+#
+#    def _handle_async_message(self, msg):
+#        if msg.MSG_NO in self._async_handlers:
+#            for handler in self._async_handlers[msg.MSG_NO]:
+#                handler(msg)
+#
+#    def _add_async_handler(self, msg_no, handler):
+#        """Register a handler for a type of async message.
+#
+#        @param msg_no Type of async message.
+#
+#        @param handler Function that should be called when an async
+#        message of the specified type is received.
+#        """
+#        if msg_no not in async_dict:
+#            raise UnimplementedAsync
+#        if msg_no in self._async_handlers:
+#            self._async_handlers[msg_no].append(handler)
+#        else:
+#            self._async_handlers[msg_no] = [handler]

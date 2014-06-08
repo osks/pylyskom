@@ -200,7 +200,7 @@ class Time(object):
             self.year + 1900, self.month + 1, self.day,
             self.hours, self.minutes, self.seconds)
 
-    def __repr__(self):
+    def __str__(self):
         return "<Time %s, dst=%d>" % (self.to_date_and_time(), self.is_dst)
 
     def __eq__(self, other):
@@ -229,7 +229,7 @@ class ConfZInfo(object):
         obj.conf_no = ConfNo.parse(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<ConfZInfo %d: %s>" % \
             (self.conf_no, self.name)
 
@@ -254,7 +254,7 @@ class RawMiscInfo(object):
             obj.data = read_int(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<MiscInfo %d: %s>" % (self.type, self.data)
 
     def __eq__(self, other):
@@ -475,7 +475,7 @@ class AuxItem(object):
         obj.data = String.parse(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<AuxItem %d>" % self.tag
 
     def to_string(self):
@@ -624,7 +624,7 @@ class Conference(object):
         obj.aux_items = Array(AuxItem).parse(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<Conference %s>" % self.name
     
 class UConference(object):
@@ -637,7 +637,7 @@ class UConference(object):
         obj.nice = read_int(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<UConference %s>" % self.name
     
 # PERSON
@@ -838,7 +838,7 @@ class ReadRange(object):
         obj.last_read = read_int(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<ReadRange %d-%d>" % (self.first_read, self.last_read)
 
     def to_string(self):
@@ -925,7 +925,7 @@ class TextMapping(object):
             raise ProtocolError
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         if self.later_texts_exists:
             more = " (more exists)"
         else:
@@ -948,7 +948,7 @@ class Mark(object):
         obj.type = read_int(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<Mark %d (%d)>" % (self.text_no, self.type)
 
     def __eq__(self, other):
@@ -1003,7 +1003,7 @@ class VersionInfo(object):
         obj.software_version = String.parse(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<VersionInfo protocol %d by %s %s>" % \
                (self.protocol_version,
                 self.server_software, self.software_version)
@@ -1023,7 +1023,7 @@ class StaticServerInfo(object):
         obj.highest_conf_no = read_int(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<StaticServerInfo>"
 
 # SESSION INFORMATION
@@ -1115,7 +1115,7 @@ class StatsDescription(object):
         obj.when = Array(Int32).parse(buf)
         return obj
      
-    def __repr__(self):
+    def __str__(self):
         return "<StatsDescription>"
 
     def __eq__(self, other):
@@ -1139,7 +1139,7 @@ class Stats(object):
         obj.descent_rate = Float.parse(buf)
         return obj
 
-    def __repr__(self):
+    def __str__(self):
         return "<Stats %f + %f - %f>" % (self.average,
                                          self.ascent_rate,
                                          self.descent_rate)

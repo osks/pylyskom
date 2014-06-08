@@ -48,20 +48,63 @@ class AsyncMessages(object):
 
 class AsyncMessage(object):
     MSG_NO = None
+
+    def to_json(self):
+        """Serializes the message to a dictionary that can be
+        represented as json. The MSG_NO for the AsyncMessage should be
+        available as the value for the key 'msg_no'.
+
+        Subclasses should override this if they have more
+        properties. The 'msg_no' key should still always be available.
+        
+        @returns A dictionary that can be json serialized.
+        """
+        return dict(msg_no=self.MSG_NO)
+
     @classmethod
     def parse(cls, conn):
         """Parses the message from the connection and returns a new
         instance of the parsed message."""
         raise NotImplementedError()
 
+    @classmethod
+    def from_json(cls, json_obj):
+        """Parses the message from a dictionary that has be
+        deserialized form json, and returns a new instance of the
+        parsed message.
+        
+        @param json_obj A dictionary with the json representation.
+
+        @returns A new instance of the message.
+        """
+        raise NotImplementedError()
+
 # async-new-text-old [0] (1) Obsolete (10) <DEFAULT>
 class AsyncNewTextOld(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_TEXT_OLD
+
+    def __init__(self, text_no, text_stat):
+        self.text_no = text_no
+        self.text_stat = text_stat
+
+    def to_json(self):
+        d = AsyncMessage.to_json(self)
+        d['text_no'] = self.text_no
+        # TODO: text_stat=self.text_stat.to_json()
+        return d
+
+    def __str__(self):
+        return "<AsyncNewTextOld %d>" % (self.text_no,)
+
     @classmethod
     def parse(cls, conn):
-        obj = cls()
-        obj.text_no = TextNo.parse(conn)
-        obj.text_stat = TextStat.parse(conn, old_format=1)
+        obj = cls(TextNo.parse(conn), TextStat.parse(conn, old_format=1))
+        return obj
+
+    @classmethod
+    def from_json(cls, json_obj):
+        obj = cls(json_obj['text_no'])
+        #TODO: cls.text_stat = TextStat.from_json(json_obj['text_stat'])
         return obj
 
 # async-i-am-off [1] (1) Obsolete
@@ -78,6 +121,9 @@ class AsyncNewName(AsyncMessage):
         obj.new_name = String.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncNewName %d: %s => %s>" % (self.conf_no, self.old_name, self.new_name)
+
 # async-i-am-on [6] Recommended
 class AsyncIAmOn(AsyncMessage):
     MSG_NO = AsyncMessages.I_AM_ON
@@ -87,6 +133,9 @@ class AsyncIAmOn(AsyncMessage):
         obj.info = WhoInfo.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncIAmOn %s>" % (self.info, )
+
 # async-sync-db [7] (1) Recommended <DEFAULT>
 class AsyncSyncDB(AsyncMessage):
     MSG_NO = AsyncMessages.SYNC_DB
@@ -94,6 +143,9 @@ class AsyncSyncDB(AsyncMessage):
     def parse(cls, conn):
         obj = cls()
         return obj
+
+    def __str__(self):
+        return "<AsyncSyncDB>"
 
 # async-leave-conf [8] (1) Recommended <DEFAULT>
 class AsyncLeaveConf(AsyncMessage):
@@ -104,15 +156,36 @@ class AsyncLeaveConf(AsyncMessage):
         obj.conf_no = ConfNo.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncLeaveConf %d>" % (self.conf_no, )
+
 # async-login [9] (1) Recommended <DEFAULT>
 class AsyncLogin(AsyncMessage):
     MSG_NO = AsyncMessages.LOGIN
+
+    def __init__(self, person_no, session_no):
+        self.person_no = person_no
+        self.session_no = session_no
+
+    def to_json(self):
+        d = AsyncMessage.to_json(self)
+        d['person_no'] = self.person_no
+        d['session_no'] = self.session_no
+        return d
+
+    def __str__(self):
+        return "<AsyncLogin %d (session: %d)>" % (self.person_no, self.session_no)
+
     @classmethod
     def parse(cls, conn):
-        obj = cls()
-        obj.person_no = PersonNo.parse(conn)
-        obj.session_no = SessionNo.parse(conn)
+        obj = cls(PersonNo.parse(conn), SessionNo.parse(conn))
         return obj
+
+    @classmethod
+    def from_json(cls, json_obj):
+        obj = cls(json_obj['person_no'], json_obj['session_no'])
+        return obj
+
 
 # async-broadcast [10] Obsolete
 
@@ -123,6 +196,9 @@ class AsyncRejectedConnection(AsyncMessage):
     def parse(cls, conn):
         obj = cls()
         return obj
+
+    def __str__(self):
+        return "<AsyncRejectedConnection>"
 
 # async-send-message [12] (1) Recommended <DEFAULT>
 class AsyncSendMessage(AsyncMessage):
@@ -135,14 +211,34 @@ class AsyncSendMessage(AsyncMessage):
         obj.message = String.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncSendMessage %d => %d: %s>" % (self.sender, self.recipient, self.message)
+
 # async-logout [13] (1) Recommended <DEFAULT>
 class AsyncLogout(AsyncMessage):
     MSG_NO = AsyncMessages.LOGOUT
+
+    def __init__(self, person_no, session_no):
+        self.person_no = person_no
+        self.session_no = session_no
+
+    def to_json(self):
+        d = AsyncMessage.to_json(self)
+        d['person_no'] = self.person_no
+        d['session_no'] = self.session_no
+        return d
+
+    def __str__(self):
+        return "<AsyncLogout %d (session: %s)>" % (self.person_no, self.session_no)
+
     @classmethod
     def parse(cls, conn):
-        obj = cls()
-        obj.person_no = PersonNo.parse(conn)
-        obj.session_no = SessionNo.parse(conn)
+        obj = cls(PersonNo.parse(conn), SessionNo.parse(conn))
+        return obj
+
+    @classmethod
+    def from_json(cls, json_obj):
+        obj = cls(json_obj['person_no'], json_obj['session_no'])
         return obj
 
 # async-deleted-text [14] (10) Recommended
@@ -155,14 +251,35 @@ class AsyncDeletedText(AsyncMessage):
         obj.text_stat = TextStat.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncDeletedText %d>" % (self.text_no,)
+
 # async-new-text [15] (10) Recommended
 class AsyncNewText(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_TEXT
+
+    def __init__(self, text_no, text_stat):
+        self.text_no = text_no
+        self.text_stat = text_stat
+
+    def to_json(self):
+        d = AsyncMessage.to_json(self)
+        d['text_no'] = self.text_no
+        # TODO: d['text_stat'] = self.text_stat.to_json()
+        return d
+
+    def __str__(self):
+        return "<AsyncNewText %d>" % (self.text_no,)
+
     @classmethod
     def parse(cls, conn):
-        obj = cls()
-        obj.text_no = TextNo.parse(conn)
-        obj.text_stat = TextStat.parse(conn)
+        obj = cls(TextNo.parse(conn), TextStat.parse(conn))
+        return obj
+
+    @classmethod
+    def from_json(cls, json_obj):
+        obj = cls(json_obj['text_no'], None)
+        #TODO: cls.text_stat = TextStat.from_json(json_obj['text_stat'])
         return obj
 
 # async-new-recipient [16] (10) Recommended
@@ -176,6 +293,9 @@ class AsyncNewRecipient(AsyncMessage):
         obj.type = Int32.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncNewRecipient %d: %d>" % (self.text_no, self.conf_no)
+
 # async-sub-recipient [17] (10) Recommended
 class AsyncSubRecipient(AsyncMessage):
     MSG_NO = AsyncMessages.SUB_RECIPIENT
@@ -187,6 +307,9 @@ class AsyncSubRecipient(AsyncMessage):
         obj.type = Int32.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncSubRecipient %d: %d>" % (self.text_no, self.conf_no)
+
 # async-new-membership [18] (10) Recommended
 class AsyncNewMembership(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_MEMBERSHIP
@@ -196,6 +319,9 @@ class AsyncNewMembership(AsyncMessage):
         obj.person_no = PersonNo.parse(conn)
         obj.conf_no = ConfNo.parse(conn)
         return obj
+
+    def __str__(self):
+        return "<AsyncNewMembership %d: %d>" % (self.person_no, self.conf_no)
 
 # async-new-user-area [19] (11) Recommended
 class AsyncNewUserArea(AsyncMessage):
@@ -208,6 +334,10 @@ class AsyncNewUserArea(AsyncMessage):
         obj.new_user_area = TextNo.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncNewUserArea %d: %d => %d>" % (
+            self.person_no, self.old_user_area, self.new_user_area)
+
 # async-new-presentation [20] (11) Recommended
 class AsyncNewPresentation(AsyncMessage):
     MSG_NO = AsyncMessages.NEW_PRESENTATION
@@ -218,6 +348,10 @@ class AsyncNewPresentation(AsyncMessage):
         obj.old_presentation = TextNo.parse(conn)
         obj.new_presentation = TextNo.parse(conn)
         return obj
+
+    def __str__(self):
+        return "<AsyncNewPresentation %d: %d => %d>" % (
+            self.conf_no, self.old_presentation, self.new_presentation)
 
 # async-new-motd [21] (11) Recommended
 class AsyncNewMotd(AsyncMessage):
@@ -230,6 +364,10 @@ class AsyncNewMotd(AsyncMessage):
         obj.new_motd = TextNo.parse(conn)
         return obj
 
+    def __str__(self):
+        return "<AsyncNewMotd %d: %d => %d>" % (
+            self.conf_no, self.old_motd, self.new_motd)
+
 # async-text-aux-changed [22] (11) Recommended
 class AsyncTextAuxChanged(AsyncMessage):
     MSG_NO = AsyncMessages.TEXT_AUX_CHANGED
@@ -240,6 +378,10 @@ class AsyncTextAuxChanged(AsyncMessage):
         obj.deleted = Array(AuxItem).parse(conn)
         obj.added = Array(AuxItem).parse(conn)
         return obj
+
+    def __str__(self):
+        return "<AsyncTextAuxChanged %d>" % (self.text_no,)
+
 
 async_dict = {
     AsyncMessages.NEW_TEXT_OLD: AsyncNewTextOld,

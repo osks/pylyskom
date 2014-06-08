@@ -59,34 +59,15 @@ class ReceiveBuffer(object):
         present = self._rb_len - self._rb_pos 
         while present < size:
             needed = size - present
-            wanted = max(needed,128) # FIXME: Optimize
-            #print "Only %d chars present, need %d: asking for %d" % \
-            #      (present, size, wanted)
+            wanted = max(needed, 128) # FIXME: Optimize
             data = self._socket.recv(wanted)
             if len(data) == 0:
                 raise ReceiveError()
-            #print("<<<", data)
             self._rb = self._rb[self._rb_pos:] + data
             self._rb_pos = 0
             self._rb_len = len(self._rb)
             present = self._rb_len
-        #print "%d chars present (needed %d)" % \
-        #      (present, size)
             
-
-#
-#class ResponseType(object):
-#    """Used as an enum of reply types.
-#    """
-#    (OK,
-#     ERROR,
-#     ASYNC) = range(3)
-#
-#class Response(object):
-#    def __init__(self):
-#        pass
-
-
 
 class Connection(object):
     def __init__(self, sock, user=None):
