@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import mimeparse
-
-import kom
+from . import mimeparse, kom
 
 
 def decode_text(text, encoding, backup_encoding='latin1'):

@@ -2,7 +2,7 @@
 
 import json
 
-from pylyskom.utils import decode_user_area, encode_user_area
+from pylyskom.utils import decode_user_area, encode_user_area, parse_content_type
 
 
 def test_decode_user_area__handles_empty_string():
@@ -105,3 +105,19 @@ def test_encode_user_area__example():
     ua = encode_user_area(blocks)
     
     assert ua == "17H 6Hcommon 5Helisp 0H 72H32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
+
+
+def test_parse_content_type():
+    ct = 'application/pdf; name=foobar.pdf'
+    parsed = parse_content_type(ct)
+    assert parsed == (('application', 'pdf', dict(name='foobar.pdf')), None)
+
+def test_parse_content_type_from_email():
+    ct = 'application/pdf; name="=?iso-8859-1?q?f=f6rslag=5fmedlemsavgifter=2epdf?="'
+    parsed = parse_content_type(ct)
+    assert parsed == (('application', 'pdf', dict(name='"=?iso-8859-1?q?f=f6rslag=5fmedlemsavgifter=2epdf?="')), None)
+
+def test_parse_content_type_from_androkom_image():
+    ct = 'image/jpeg; name=https://lh3.googleusercontent.com/0D_7y-M=s0-d'
+    parsed = parse_content_type(ct)
+    assert parsed == (('image', 'jpeg', dict(name='https://lh3.googleusercontent.com/0D_7y-M=s0-d')), None)
