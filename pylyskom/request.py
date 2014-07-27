@@ -2,6 +2,10 @@
 
 import requests
 
+# TODO: this file is pretty much not needed (but it is still used)
+# after the refactorings.
+
+
 class Requests(object):
     """Used as an enum.
     """

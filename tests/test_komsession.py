@@ -18,7 +18,7 @@ from mocks import MockConnection, MockTextStat, MockPerson
 
 
 def create_komsession(pers_no, connection):
-    ks = KomSession(connection_factory=lambda *args, **kwargs: connection)
+    ks = KomSession(client_factory=lambda *args, **kwargs: connection)
     ks.connect('host', 'port', "test", "localhost", "test", "0.1")
     ks.login(pers_no, '') # needed because we change the user area for the logged in person
     return ks
@@ -29,7 +29,7 @@ def create_mockconnection():
     ts = MockTextStat(creation_time=Time())
     ts.aux_items.append(
         AuxItem(komauxitems.AI_CONTENT_TYPE, data='x-kom/user-area'.encode('ascii')))
-    c = MockConnection()
+    c = MockConnection() # really a mock CachingPersonClient
     c.mock_request(Requests.GetTextStat, lambda *args, **kwargs: ts)
     return c
 

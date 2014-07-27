@@ -3,6 +3,7 @@ from mock import Mock
 from pylyskom.errors import NoSuchLocalText
 from pylyskom.datatypes import TextMapping, ReadRange, Membership
 from pylyskom.request import Requests
+import pylyskom.requests
 from pylyskom.requests import ReqAcceptAsync
 from pylyskom.cachedconnection import Client, CachingClient
 
@@ -32,13 +33,21 @@ def create_connection(request_mapping=None):
     if Requests.AcceptAsync not in request_mapping:
         request_mapping[Requests.AcceptAsync] = ReqAcceptAsync
 
-    def mock_request(request, *args, **kwargs):
+    def mock_request(request):
+        # this is because the request factory method in CachingClient
+        # is used from the constructor, before we can replace it.
+        assert request.CALL_NO == pylyskom.requests.Requests.ACCEPT_ASYNC
+
+    def mock_request_factory(request, *args, **kwargs):
         assert request in request_mapping
         return request_mapping[request](*args, **kwargs)
 
-    client = Client(Mock(), Mock())
+    conn = Mock()
+    client = Client(conn)
     client.request = mock_request
-    return CachingClient(client)
+    caching_client = CachingClient(client)
+    caching_client.request = mock_request_factory
+    return caching_client
 
 
 def test_read_ranges_to_gaps_and_last_with_empty_list():
