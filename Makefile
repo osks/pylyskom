@@ -1,4 +1,4 @@
-all: test
+all: auxitems test
 
 auxitems:
 	python make_komauxitems
@@ -10,4 +10,4 @@ pyflakes:
 test: pyflakes
 	py.test --maxfail 1 ./tests
 
-.PHONY: auxitems test pyflakes
+.PHONY: all auxitems test pyflakes
