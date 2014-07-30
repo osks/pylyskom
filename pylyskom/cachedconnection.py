@@ -6,11 +6,10 @@
 
 import logging
 
-from .request import Requests
 
+import requests
 from .async import AsyncMessages, async_dict
 from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
-from .request import default_request_factory
 
 
 logger = logging.getLogger(__name__)
@@ -103,9 +102,8 @@ class Client(object):
 #   numbers of all unread text in a conference for a person
 
 class CachingClient(object):
-    def __init__(self, client, request_factory=default_request_factory):
+    def __init__(self, client):
         self._client = client
-        self._request_factory = request_factory
         self._async_handlers = {}
         self._client.set_async_handler(self._handle_async_message)
 
@@ -140,8 +138,7 @@ class CachingClient(object):
     def close(self):
         self._client.close()
 
-    def request(self, request_type, *args, **kwargs):
-        request = self._request_factory.new(request_type)(*args, **kwargs)
+    def request(self, request):
         return self._client.request(request)
 
 
@@ -181,7 +178,7 @@ class CachingClient(object):
         """
         self._add_async_handler(msg_no, handler)
         if not skip_accept_async:
-            self.request(Requests.AcceptAsync, self._async_handlers.keys())
+            self.request(requests.ReqAcceptAsync(self._async_handlers.keys()))
 
 
     # Handlers for asynchronous messages (internal use) FIXME: Most of
@@ -236,16 +233,16 @@ class CachingClient(object):
 
     # Fetching functions (internal use)
     def _fetch_uconference(self, no):
-        return self.request(Requests.GetUconfStat, no)
+        return self.request(requests.ReqGetUconfStat(no))
 
     def _fetch_conference(self, no):
-        return self.request(Requests.GetConfStat, no)
+        return self.request(requests.ReqGetConfStat(no))
 
     def _fetch_person(self, no):
-        return self.request(Requests.GetPersonStat, no)
+        return self.request(requests.ReqGetPersonStat(no))
 
     def _fetch_textstat(self, no):
-        return self.request(Requests.GetTextStat, no)
+        return self.request(requests.ReqGetTextStat(no))
 
 
     # Report cache usage
@@ -288,10 +285,10 @@ class CachingClient(object):
         else:
             # Alphabetical case
             matches = self.request(
-                Requests.LookupZName, 
-                name,
-                want_pers = want_pers,
-                want_confs = want_confs)
+                requests.ReqLookupZName(
+                    name,
+                    want_pers = want_pers,
+                    want_confs = want_confs))
             return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
     def regexp_lookup(self, regexp, want_pers, want_confs,
@@ -304,17 +301,17 @@ class CachingClient(object):
             regexp = self._case_insensitive_regexp(regexp)
 
         matches = self.request(
-            Requests.ReZLookup,
-            regexp,
-            want_pers = want_pers,
-            want_confs = want_confs)
+            requests.ReqReZLookup(
+                regexp,
+                want_pers=want_pers,
+                want_confs=want_confs))
         return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
     def _case_insensitive_regexp(self, regexp):
         """Make regular expression case insensitive"""
         result = ""
         # FIXME: Cache collate_table
-        collate_table = self.request(Requests.GetCollateTable)
+        collate_table = self.request(requests.ReqGetCollateTable())
         inside_brackets = 0
         for c in regexp:
             if c == "[":
@@ -387,7 +384,7 @@ class CachingClient(object):
                 gap_len -= n
                 try:
                     mapping = self.request(
-                        Requests.LocalToGlobal, membership.conference, first_local, n)
+                        requests.ReqLocalToGlobal(membership.conference, first_local, n))
                     unread.extend([e[1] for e in mapping.list if e[1] != 0])
                     first_local = mapping.range_end
                     more_to_fetch = mapping.later_texts_exists
@@ -401,7 +398,7 @@ class CachingClient(object):
         while more_to_fetch:
             try:
                 mapping = self.request(
-                    Requests.LocalToGlobal, membership.conference, first_local, 255)
+                    requests.ReqLocalToGlobal(membership.conference, first_local, 255))
                 unread.extend([e[1] for e in mapping.list if e[1] != 0])
                 first_local = mapping.range_end
                 more_to_fetch = mapping.later_texts_exists
@@ -413,12 +410,12 @@ class CachingClient(object):
         return [ text_no for text_no in unread if text_no != 0]
 
     def mark_text(self, text_no, mark_type):
-        self.request(Requests.MarkText, text_no, mark_type)
+        self.request(requests.ReqMarkText(text_no, mark_type))
         # textstat.misc_info.no_of_marks is now invalid
         self.textstats.invalidate(text_no)
 
     def unmark_text(self, text_no):
-        self.request(Requests.UnmarkText, text_no)
+        self.request(requests.ReqUnmarkText(text_no))
         # textstat.misc_info.no_of_marks is now invalid
         self.textstats.invalidate(text_no)
 
@@ -452,13 +449,13 @@ class CachingPersonClient(CachingClient):
         self.register_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
 
     def login(self, pers_no, password):
-        self.request(Requests.Login, pers_no, password, invisible=0)
+        self.request(requests.ReqLogin(pers_no, password, invisible=0))
         # We need to know the current person to be able to have and
         # invalidate caches.
         self._pers_no = pers_no
 
     def logout(self):
-        self.request(Requests.Logout)
+        self.request(requests.ReqLogout())
         # Invalidate caches that are/were for the current person
         self._pers_no = 0
         self._memberships_by_position = dict()
@@ -477,20 +474,20 @@ class CachingPersonClient(CachingClient):
         # current conference to be able to invalidate the membership
         # correctly.
         prev_conf_no = self._current_conference_no
-        self.request(Requests.ChangeConference, conf_no)
+        self.request(requests.ReqChangeConference(conf_no))
         self._current_conference_no = conf_no
         if prev_conf_no != 0:
             self._invalidate_membership(prev_conf_no)
 
     def mark_as_read_local(self, conf_no, local_text_no):
         try:
-            self.request(Requests.MarkAsRead, conf_no, [local_text_no])
+            self.request(requests.ReqMarkAsRead(conf_no, [local_text_no]))
         except NotMember:
             pass
 
     def mark_as_unread_local(self, conf_no, local_text_no):
         try:
-            self.request(Requests.MarkAsUnread, conf_no, local_text_no)
+            self.request(requests.ReqMarkAsUnread(conf_no, local_text_no))
         except NotMember:
             pass
 
@@ -527,7 +524,7 @@ class CachingPersonClient(CachingClient):
         """
         if want_read_ranges:
             return self.request(
-                Requests.GetMembership11, pers_no, 0, no_of_confs, 1, 0)
+                requests.ReqGetMembership11(pers_no, 0, no_of_confs, 1, 0))
         else:
             if pers_no == self._pers_no:
                 # We cache the result for the current person and without
@@ -536,26 +533,26 @@ class CachingPersonClient(CachingClient):
                 memberships = self._get_cached_memberships_by_position(first, no_of_confs)
                 if memberships is None:
                     memberships = self.request(
-                        Requests.GetMembership11,
-                        self._pers_no, first, no_of_confs, 0, 0)
+                        requests.ReqGetMembership11(
+                            self._pers_no, first, no_of_confs, 0, 0))
                     self._update_cached_memberships_by_position(memberships)
                 return memberships
             else:
                 return self.request(
-                    Requests.GetMembership11, pers_no, 0, no_of_confs, 0, 0)
+                    requests.ReqGetMembership11(pers_no, 0, no_of_confs, 0, 0))
 
     def get_membership(self, pers_no, conf_no, want_read_ranges=False):
         """Get a membership for a person
         """
         if want_read_ranges:
-            return self.request(Requests.QueryReadTexts, pers_no, conf_no, 1, 0)
+            return self.request(requests.ReqQueryReadTexts(pers_no, conf_no, 1, 0))
         else:
             if pers_no == self._pers_no:
                 # If it's a membership for the current person and
                 # without read ranges, use the cache.
                 return self._memberships[conf_no]
             else:
-                return self.request(Requests.QueryReadTexts, pers_no, conf_no, 0, 0)
+                return self.request(requests.ReqQueryReadTexts(pers_no, conf_no, 0, 0))
 
     def _fetch_membership(self, conf_no):
         """Fetch the membership for a conf the current person. Does not
@@ -565,7 +562,7 @@ class CachingPersonClient(CachingClient):
         # person, because we don't receive async leave/join messages
         # for other persons. We also only cache memberships without
         # read ranges, because it is easier to invalidate correctly.
-        return self.request(Requests.QueryReadTexts11, self._pers_no, conf_no, 0, 0)
+        return self.request(requests.ReqQueryReadTexts11(self._pers_no, conf_no, 0, 0))
     
     # Handlers for asynchronous messages (internal use)
     def _cpah_leave_conf(self, msg):
@@ -623,105 +620,3 @@ class Cache:
         print("Cache %s: %d cached, %d uncached" % (self.name,
                                                     self.cached,
                                                     self.uncached))
-        
-
-
-
-
-
-#class Client(object):
-#    def __init__(self, conn, request_factory=default_request_factory):
-#        self._conn = conn
-#        self._request_factory = request_factory
-#
-#        self._ok_queue = {}
-#        self._error_queue = {}
-#        self._async_handlers = {}
-#
-#    def close(self):
-#        self._conn.close()
-#
-#    def request(self, request, *args, **kwargs):
-#        req = self._request_factory.new(request)(*args, **kwargs)
-#        logger.debug("sending request: %s" % (req,))
-#        req_id = self._register_request(req)
-#        resp = self._wait_and_dequeue(req_id)
-#        logger.debug("returning response for ref_no: %s" % (req_id, ))
-#        return resp
-#
-#    def register_async_handler(self, msg_no, handler, skip_accept_async=False):
-#        """Add an async handler and tell the LysKOM sever to
-#        start sending async messages of that type.
-#        
-#        @param skip_accept_async Don't send an AcceptAsync request to
-#        the LysKOM server now. This is an optimization feature. The
-#        protocol request registers all async message types at once, so
-#        this is useful to be able to only have to send one
-#        request. First register all but the last async handlers with
-#        skip_accept_async=True, and then register the last one with
-#        skip_accept_async=False to send the request.
-#        """
-#        self._add_async_handler(msg_no, handler)
-#        if not skip_accept_async:
-#            self.request(Requests.AcceptAsync, self._async_handlers.keys())
-#
-#    def _register_request(self, req):
-#        """Register a request to be sent.
-#        """
-#        ref_no = self._conn.send_request(req)
-#        return ref_no
-#
-#    def _wait_and_dequeue(self, ref_no):
-#        """Wait for a request to be answered, return response or raise
-#        error.
-#        """
-#        logger.debug("waiting for  response ref_no: %s" % (ref_no,))
-#        while ref_no not in self._ok_queue and \
-#              ref_no not in self._error_queue:
-#            self._read_response()
-#
-#        if ref_no in self._ok_queue:
-#            resp = self._ok_queue[ref_no]
-#            logger.debug("got response %s ref_no: %s" % (resp, ref_no))
-#            del self._ok_queue[ref_no]
-#            return resp
-#        elif ref_no in self._error_queue:
-#            error = self._error_queue[ref_no]
-#            logger.debug("got error %s ref_no: %s" % (error, ref_no))
-#            del self._error_queue[ref_no]
-#            raise error
-#        else:
-#            raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
-#
-#    def _read_response(self):
-#        ref_no, resp, error = self._conn.read_response()
-#        logger.debug("read response for ref_no: %s" % (ref_no,))
-#        if ref_no is None:
-#            # async message
-#            self._handle_async_message(resp)
-#        elif error is not None:
-#            # error reply
-#            self._error_queue[ref_no] = error
-#        else:
-#            # ok reply - resp can be None
-#            self._ok_queue[ref_no] = resp
-#
-#    def _handle_async_message(self, msg):
-#        if msg.MSG_NO in self._async_handlers:
-#            for handler in self._async_handlers[msg.MSG_NO]:
-#                handler(msg)
-#
-#    def _add_async_handler(self, msg_no, handler):
-#        """Register a handler for a type of async message.
-#
-#        @param msg_no Type of async message.
-#
-#        @param handler Function that should be called when an async
-#        message of the specified type is received.
-#        """
-#        if msg_no not in async_dict:
-#            raise UnimplementedAsync
-#        if msg_no in self._async_handlers:
-#            self._async_handlers[msg_no].append(handler)
-#        else:
-#            self._async_handlers[msg_no] = [handler]

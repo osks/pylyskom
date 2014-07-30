@@ -1,5 +1,5 @@
+from pylyskom import requests
 from pylyskom.datatypes import CookedMiscInfo
-from pylyskom.request import Requests
 from pylyskom.cachedconnection import Cache
 
 
@@ -42,44 +42,45 @@ class MockConnection(object):
         self.textstats = Cache(self.fetch_textstat, "TextStat")
 
     def fetch_textstat(self, no):
-        return self.request(Requests.GetTextStat, no)
+        return self.request(requests.ReqGetTextStat(no))
 
     def connect(self, host, port, user):
         pass
 
     def login(self, pers_no, password):
-        self.request(Requests.Login, pers_no, password, invisible=0)
+        self.request(requests.ReqLogin(pers_no, password, invisible=0))
         self._pers_no = pers_no
 
     def logout(self):
-        self.request(Requests.Logout)
+        self.request(requests.ReqLogout())
         self._pers_no = 0
 
     def get_person_no(self):
         return self._pers_no
 
-    def request(self, request, *args, **kwargs):
-        if request not in self.__request_calls:
-            self.__request_calls[request] = []
+    def request(self, request):
+        request_no = request.CALL_NO
+        if request_no not in self.__request_calls:
+            self.__request_calls[request_no] = []
         
-        self.__request_calls[request].append(dict(args=args, kwargs=kwargs))
+        self.__request_calls[request_no].append(request)
 
-        if request in self.__mocked_requests:
-            return self.__mocked_requests[request](*args, **kwargs)
+        if request_no in self.__mocked_requests:
+            return self.__mocked_requests[request_no](request)
         else:
             # Default is to return None
             return None
 
-    def mock_request(self, request, func):
+    def mock_request(self, request_no, func):
         if func is None:
             raise Exception("Mocked request function is None")
-        self.__mocked_requests[request] = func
+        self.__mocked_requests[request_no] = func
 
-    def mock_get_request_calls(self, request=None):
-        if request is None:
+    def mock_get_request_calls(self, request_no=None):
+        if request_no is None:
             return self.__request_calls
         else:
-            return self.__request_calls.get(request, [])
+            return self.__request_calls.get(request_no, [])
 
 
 

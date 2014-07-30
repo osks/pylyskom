@@ -2,14 +2,14 @@ from mock import Mock
 
 from pylyskom.errors import NoSuchLocalText
 from pylyskom.datatypes import TextMapping, ReadRange, Membership
-from pylyskom.request import Requests
-import pylyskom.requests
-from pylyskom.requests import ReqAcceptAsync
+from pylyskom.requests import Requests
 from pylyskom.cachedconnection import Client, CachingClient
 
 
-def create_local_to_global(highest_local):
-    def local_to_global(conf, first, n):
+def create_local_to_global_handler(highest_local):
+    def handle_local_to_global_request(request):
+        first = request.first_local_no
+        n = request.no_of_existing_texts
         if first > highest_local:
             print "first is greater than highest local (first: %d, highest_local: %d" % (
                 first, highest_local)
@@ -23,30 +23,25 @@ def create_local_to_global(highest_local):
         mapping.list = [ (i, i) for i in range(mapping.range_begin, mapping.range_end) ]
         print mapping
         return mapping
-    return local_to_global
+    return handle_local_to_global_request
 
 
 def create_connection(request_mapping=None):
     if request_mapping is None:
         request_mapping = dict()
         
-    if Requests.AcceptAsync not in request_mapping:
-        request_mapping[Requests.AcceptAsync] = ReqAcceptAsync
+    if Requests.ACCEPT_ASYNC not in request_mapping:
+        request_mapping[Requests.ACCEPT_ASYNC] = lambda request: None
 
     def mock_request(request):
-        # this is because the request factory method in CachingClient
-        # is used from the constructor, before we can replace it.
-        assert request.CALL_NO == pylyskom.requests.Requests.ACCEPT_ASYNC
-
-    def mock_request_factory(request, *args, **kwargs):
-        assert request in request_mapping
-        return request_mapping[request](*args, **kwargs)
+        assert request.CALL_NO in request_mapping
+        return request_mapping[request.CALL_NO](request)
 
     conn = Mock()
     client = Client(conn)
     client.request = mock_request
     caching_client = CachingClient(client)
-    caching_client.request = mock_request_factory
+    caching_client.request = mock_request
     return caching_client
 
 
@@ -88,7 +83,7 @@ def test_get_unread_texts_from_membership_small():
     membership.read_ranges = [
         ReadRange(1, 1), ReadRange(2, 3), ReadRange(5, 5), ReadRange(8, 10) ]
     last_text = 12
-    c = create_connection({ Requests.LocalToGlobal: create_local_to_global(last_text) })
+    c = create_connection({ Requests.LOCAL_TO_GLOBAL: create_local_to_global_handler(last_text) })
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
@@ -100,7 +95,7 @@ def test_get_unread_texts_from_membership_large():
     membership.read_ranges = [
         ReadRange(1, 300), ReadRange(1000, 2000), ReadRange(2100, 3000) ]
     highest_local = 4000
-    c = create_connection({ Requests.LocalToGlobal: create_local_to_global(highest_local) })
+    c = create_connection({ Requests.LOCAL_TO_GLOBAL: create_local_to_global_handler(highest_local) })
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
@@ -128,7 +123,7 @@ def test_get_unread_texts_from_membership_fetches_the_correct_mappings():
     membership = Membership()
     membership.conference = 1
     membership.read_ranges = [ ReadRange(last_text, last_text) ]
-    c = create_connection({ Requests.LocalToGlobal: create_local_to_global(last_text) })
+    c = create_connection({ Requests.LOCAL_TO_GLOBAL: create_local_to_global_handler(last_text) })
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
