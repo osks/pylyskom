@@ -104,8 +104,6 @@ class Client(object):
 class CachingClient(object):
     def __init__(self, client):
         self._client = client
-        self._async_handlers = {}
-        self._client.set_async_handler(self._handle_async_message)
 
         # Caches
         #
@@ -124,15 +122,19 @@ class CachingClient(object):
         self.persons = Cache(self._fetch_person, "Person")
         self.textstats = Cache(self._fetch_textstat, "TextStat")
 
+        self._async_handlers = {}
+        self._client.set_async_handler(self._handle_async_message)
+
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.register_async_handler(AsyncMessages.NEW_NAME, self._cah_new_name, True)
-        self.register_async_handler(AsyncMessages.LEAVE_CONF, self._cah_leave_conf, True)
-        self.register_async_handler(AsyncMessages.DELETED_TEXT, self._cah_deleted_text, True)
-        self.register_async_handler(AsyncMessages.NEW_TEXT, self._cah_new_text, True)
-        self.register_async_handler(AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient, True)
-        self.register_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient, True)
-        self.register_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
+        self._add_async_handler(AsyncMessages.NEW_NAME, self._cah_new_name)
+        self._add_async_handler(AsyncMessages.LEAVE_CONF, self._cah_leave_conf)
+        self._add_async_handler(AsyncMessages.DELETED_TEXT, self._cah_deleted_text)
+        self._add_async_handler(AsyncMessages.NEW_TEXT, self._cah_new_text)
+        self._add_async_handler(AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient)
+        self._add_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient)
+        self._add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
+        self.request(requests.ReqAcceptAsync(self._async_handlers.keys()))
 
 
     def close(self):
@@ -445,8 +447,9 @@ class CachingPersonClient(CachingClient):
 
         # Setup up async handlers for invalidating cache entries. Skip
         # sending accept-async until the last call.
-        self.register_async_handler(AsyncMessages.LEAVE_CONF, self._cpah_leave_conf, True)
-        self.register_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
+        self._add_async_handler(AsyncMessages.LEAVE_CONF, self._cpah_leave_conf)
+        self._add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
+        self.request(requests.ReqAcceptAsync(self._async_handlers.keys()))
 
     def login(self, pers_no, password):
         self.request(requests.ReqLogin(pers_no, password, invisible=0))
