@@ -15,5 +15,5 @@ setup(name='pylyskom',
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
-      install_requires=['mimeparse']
+      install_requires=[]
       )
