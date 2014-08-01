@@ -71,6 +71,10 @@ class ReceiveBuffer(object):
 
 class Connection(object):
     def __init__(self, sock, user=None):
+        """
+
+        @param user: See Protocol A spec.
+        """
         self._socket = sock
         if user is None:
             user = ""

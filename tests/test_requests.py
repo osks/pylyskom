@@ -24,10 +24,50 @@ def test_ReqLogout():
 def test_ReqChangeConference():
     r = requests.ReqChangeConference(14506)
     assert r.to_string() == "2 14506\n"
+
+def test_ReqChangeConference_constructor():
+    r1 = requests.ReqChangeConference(14506)
+    assert r1.to_string() == "2 14506\n"
+    assert r1.conf_no == 14506
+    r2 = requests.ReqChangeConference(conf_no=14506)
+    assert r2.to_string() == "2 14506\n"
+    assert r2.conf_no == 14506
+    with pytest.raises(TypeError):
+        requests.ReqChangeConference()
+    with pytest.raises(TypeError):
+        requests.ReqChangeConference(14506, conf_no=14506)
+    with pytest.raises(TypeError):
+        requests.ReqChangeConference(foo=14506)
     
 def test_ReqChangeName():
     r = requests.ReqChangeName(14506, u'R\xe4ksm\xf6rg\xe5s')
     assert r.to_string() == "3 14506 10HR\xe4ksm\xf6rg\xe5s\n"
+
+def test_ReqChangeName_constructor():
+    r1 = requests.ReqChangeName(14506, "foo")
+    assert r1.to_string() == "3 14506 3Hfoo\n"
+    assert r1.conf_no == 14506
+
+    r2 = requests.ReqChangeName(conf_no=14506, new_name="foo")
+    assert r2.to_string() == "3 14506 3Hfoo\n"
+    assert r2.conf_no == 14506
+
+    r3 = requests.ReqChangeName(14506, new_name="foo")
+    assert r3.to_string() == "3 14506 3Hfoo\n"
+    assert r3.conf_no == 14506
+
+    with pytest.raises(TypeError):
+        requests.ReqChangeName()
+    with pytest.raises(TypeError):
+        requests.ReqChangeName(14506, conf_no=14506)
+    with pytest.raises(TypeError):
+        requests.ReqChangeName("foo", conf_no=14506)
+    with pytest.raises(TypeError):
+        requests.ReqChangeName(14506, "foo", conf_no=14506)
+    with pytest.raises(TypeError):
+        requests.ReqChangeName(14506, "foo", new_name="foo")
+    with pytest.raises(TypeError):
+        requests.ReqChangeName(14506, "foo", conf_no=14506, new_name="foo")
 
 def test_ReqChangeWhatIAmDoing():
     r = requests.ReqChangeWhatIAmDoing('what')

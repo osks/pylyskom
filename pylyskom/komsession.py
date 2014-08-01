@@ -75,7 +75,10 @@ def check_connection(f):
 
 # Idea: rename KomSession to KomClient?
 class KomSession(object):
-    """ A LysKom session. """
+    """ A LysKom session.
+    
+    Should handle either unicode strings or utf-8 encoded strings.
+    """
     def __init__(self, client_factory=create_client):
         # TODO: We actually require the API of a
         # CachingPersonClient. We should enhance the Connection
@@ -95,12 +98,16 @@ class KomSession(object):
         if isinstance(client_version, str):
             client_version = client_version.decode('utf-8')
         
-        #self._conn = self._connection_factory()
-        #self._conn.connect(host, port, user=username + "%" + hostname)
         self._client = self._client_factory(host, port, user=username + "%" + hostname)
+
+        # todo: we shouldn't require client name/version. specify in
+        # constructor instead (because I don't think it should be
+        # possible to change after connecting) - but send the request
+        # here (if they are set).
         self._client.request(requests.ReqSetClientVersion(client_name, client_version))
         self._client_name = client_name
         self._client_version = client_version
+
         self._session_no = self.who_am_i()
         self._client.request(requests.ReqSetConnectionTimeFormat(use_utc=1))
     
@@ -134,6 +141,8 @@ class KomSession(object):
     
     @check_connection
     def login(self, pers_no, password):
+        if isinstance(password, str):
+            password = password.decode('utf-8')
         pers_no = int(pers_no)
         self._client.login(pers_no, password)
         person_stat = self._client.request(requests.ReqGetPersonStat(pers_no))

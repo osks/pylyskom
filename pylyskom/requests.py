@@ -19,13 +19,15 @@ from .datatypes import (
     DynamicSessionInfo,
     EmptyResponse,
     Info,
+    Int16,
     Int32,
     Mark,
     Member,
     Membership10,
     Membership11,
-    PersonNo,
+    PersNo,
     Person,
+    PrivBits,
     SchedulingInfo,
     SessionNo,
     StaticServerInfo,
@@ -151,7 +153,7 @@ class Requests(object):
 #
 
 class Request(object):
-    CALL_NO = None # Override
+    CALL_NO = None # Override - Integer protocol request call number.
 
     def get_request(self):
         """Returns the serialized call parameters.
@@ -170,138 +172,145 @@ class Request(object):
         return s + "\n"
 
 
+
+class Argument(object):
+    def __init__(self, name, data_type):
+        self.name = name
+        self.data_type = data_type
+
+
+class NewRequest(Request):
+    CALL_NO = None # Override - Integer protocol request call number.
+    ARGS = None # Override - List of Argument(s).
+
+    def __init__(self, *args, **kwargs):
+        """
+        @param *args Arguments supplied in the same order as ARGS.
+
+        @param **kwargs Key-word arguments with the names specified in ARGS.
+        """
+
+        args_count = len(self.ARGS)
+        given_args = len(args)
+        given_kwargs = len(kwargs)
+        given_total = given_args + given_kwargs
+        if given_total > args_count:
+            raise TypeError("Takes at most {:d} arguments ({:d} given)".format(
+                    args_count, given_total))
+
+        self.args = []
+        self._serialized_args = []
+        for i, arg_def in enumerate(self.ARGS):
+            if i < given_args:
+                val = args[i]
+                if arg_def.name in kwargs:
+                    raise TypeError("Argument {} specified both "
+                                    "as positional and keyword argument".format(
+                            arg_def.name))
+            else:
+                if arg_def.name not in kwargs:
+                    raise TypeError("Argument {} is missing".format(arg_def.name))
+                val = kwargs[arg_def.name]
+            
+            assert not hasattr(self, arg_def.name), "Invalid argument name"
+            arg = arg_def.data_type(val)
+            setattr(self, arg_def.name, arg)
+            self.args.append(arg)
+            self._serialized_args.append(arg.to_string())
+
+    def to_string(self):
+        """Returns the full serialized request, including CALL_NO and
+        end of line.
+        """
+        return ' '.join(["%d" % (self.CALL_NO, )] + self._serialized_args) + "\n"
+
+
 # login-old [0] (1) Obsolete (4) Use login (62)
 
 # logout [1] (1) Recommended
-class ReqLogout(Request):
+class ReqLogout(NewRequest):
     CALL_NO = Requests.LOGOUT
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # change-conference [2] (1) Recommended
-class ReqChangeConference(Request):
+class ReqChangeConference(NewRequest):
     CALL_NO = Requests.CHANGE_CONFERENCE
-    def __init__(self, conf_no):
-        self.conf_no = conf_no
-
-    def get_request(self):
-        return "%d" % (self.conf_no,)
+    ARGS = [ Argument('conf_no', Int16) ]
 
 # change-name [3] (1) Recommended
-class ReqChangeName(Request):
+class ReqChangeName(NewRequest):
     CALL_NO = Requests.CHANGE_NAME
-    def __init__(self, conf_no, new_name):
-        self.conf_no = conf_no
-        self.new_name = new_name
-
-    def get_request(self):
-        return "%d %s" % (self.conf_no, to_hstring(self.new_name))
+    ARGS = [ Argument('conf_no', Int16),
+             Argument('new_name', String) ]
 
 # change-what-i-am-doing [4] (1) Recommended
-class ReqChangeWhatIAmDoing(Request):
+class ReqChangeWhatIAmDoing(NewRequest):
     CALL_NO = Requests.CHANGE_WHAT_I_AM_DOING
-    def __init__(self, what):
-        self.what = what
-
-    def get_request(self):
-        return "%s" % (to_hstring(self.what),)
+    ARGS = [ Argument('what', String) ]
 
 # create-person-old [5] (1) Obsolete (10) Use create-person (89)
 # get-person-stat-old [6] (1) Obsolete (1) Use get-person-stat (49)
 
 # set-priv-bits [7] (1) Recommended
-class ReqSetPrivBits(Request):
+class ReqSetPrivBits(NewRequest):
     CALL_NO = Requests.SET_PRIV_BITS
-    def __init__(self, person_no, privileges):
-        self.person_no = person_no
-        self.privileges = privileges
-
-    def get_request(self):
-        return "%d %s" % (self.person_no, self.privileges.to_string())
+    ARGS = [ Argument('person', PersNo),
+             Argument('privileges', PrivBits) ]
 
 # set-passwd [8] (1) Recommended
-class ReqSetPasswd(Request):
+class ReqSetPasswd(NewRequest):
     CALL_NO = Requests.SET_PASSWD
-    def __init__(self, person_no, old_pwd, new_pwd):
-        self.person_no = person_no
-        self.old_pwd = old_pwd
-        self.new_pwd = new_pwd
-
-    def get_request(self):
-        return "%d %s %s" % (self.person_no,
-                             to_hstring(self.old_pwd),
-                             to_hstring(self.new_pwd))
+    ARGS = [ Argument('person', PersNo),
+             Argument('old_pwd', String),
+             Argument('new_pwd', String) ]
 
 # query-read-texts-old [9] (1) Obsolete (10) Use query-read-texts (98)
 # create-conf-old [10] (1) Obsolete (10) Use create-conf (88)
 
 # delete-conf [11] (1) Recommended
-class ReqDeleteConf(Request):
+class ReqDeleteConf(NewRequest):
     CALL_NO = Requests.DELETE_CONF
-    def __init__(self, conf_no):
-        self.conf_no = conf_no
-
-    def get_request(self):
-        return "%d" % (self.conf_no,)
+    ARGS = [ Argument('conf', ConfNo) ]
 
 # lookup-name [12] (1) Obsolete (7) Use lookup-z-name (76)
 # get-conf-stat-older [13] (1) Obsolete (10) Use get-conf-stat (91)
 # add-member-old [14] (1) Obsolete (10) Use add-member (100)
 
 # sub-member [15] (1) Recommended
-class ReqSubMember(Request):
+class ReqSubMember(NewRequest):
     CALL_NO = Requests.SUB_MEMBER
-    def __init__(self, conf_no, person_no):
-        self.conf_no = conf_no
-        self.person_no = person_no
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.person_no)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('pers_no', PersNo) ]
 
 # set-presentation [16] (1) Recommended
-class ReqSetPresentation(Request):
+class ReqSetPresentation(NewRequest):
     CALL_NO = Requests.SET_PRESENTATION
-    def __init__(self, conf_no, text_no):
-        self.conf_no = conf_no
-        self.text_no = text_no
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.text_no)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('text_no', TextNo) ]
 
 # set-etc-motd [17] (1) Recommended
-class ReqSetEtcMoTD(Request):
+class ReqSetEtcMoTD(NewRequest):
     CALL_NO = Requests.SET_ETC_MOTD
-    def __init__(self, conf_no, text_no):
-        self.conf_no = conf_no
-        self.text_no = text_no
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.text_no)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('text_no', TextNo) ]
 
 # set-supervisor [18] (1) Recommended
-class ReqSetSupervisor(Request):
+class ReqSetSupervisor(NewRequest):
     CALL_NO = Requests.SET_SUPERVISOR
-    def __init__(self, conf_no, admin):
-        self.conf_no = conf_no
-        self.admin = admin
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.admin)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('admin', ConfNo) ]
 
 # set-permitted-submitters [19] (1) Recommended
-class ReqSetPermittedSubmitters(Request):
+class ReqSetPermittedSubmitters(NewRequest):
     CALL_NO = Requests.SET_PERMITTED_SUBMITTERS
-    def __init__(self, conf_no, perm_sub):
-        self.conf_no = conf_no
-        self.perm_sub = perm_sub
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.perm_sub)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('perm_sub', ConfNo) ]
 
 # set-super-conf [20] (1) Recommended
 class ReqSetSuperConf(Request):
     CALL_NO = Requests.SET_SUPER_CONF
     def __init__(self, conf_no, super_conf):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.super_conf = super_conf
         
@@ -312,6 +321,7 @@ class ReqSetSuperConf(Request):
 class ReqSetConfType(Request):
     CALL_NO = Requests.SET_CONF_TYPE
     def __init__(self, conf_no, conf_type):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.conf_type = conf_type
         
@@ -322,6 +332,7 @@ class ReqSetConfType(Request):
 class ReqSetGarbNice(Request):
     CALL_NO = Requests.SET_GARB_NICE
     def __init__(self, conf_no, nice):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.nice = nice
         
@@ -340,13 +351,14 @@ class ReqGetMarks(Request):
 class ReqGetText(Request):
     CALL_NO = Requests.GET_TEXT
     def __init__(self, text_no, start_char=0, end_char=MAX_TEXT_SIZE):
+        Request.__init__(self)
         self.text_no = text_no
         self.start_char = start_char
         self.end_char = end_char
 
     def get_request(self):
-        return ("%d %d %d" % (self.text_no, self.start_char,
-                              self.end_char)).encode('latin1')
+        return "%d %d %d" % (self.text_no, self.start_char,
+                             self.end_char)
     
 # get-text-stat-old [26] (1) Obsolete (10) Use get-text-stat (90)
 
@@ -354,12 +366,13 @@ class ReqGetText(Request):
 class ReqMarkAsRead(Request):
     CALL_NO = Requests.MARK_AS_READ
     def __init__(self, conf_no, texts):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.texts = texts
 
     def get_request(self):
         return ("%d %s" % (self.conf_no,
-                           array_of_int_to_string(self.texts))).encode('latin1')
+                           array_of_int_to_string(self.texts)))
                       
 # create-text-old [28] (1) Obsolete (10) Use create-text (86)
 
@@ -367,6 +380,7 @@ class ReqMarkAsRead(Request):
 class ReqDeleteText(Request):
     CALL_NO = Requests.DELETE_TEXT
     def __init__(self, text_no):
+        Request.__init__(self)
         self.text_no = text_no
         
     def get_request(self):
@@ -376,6 +390,7 @@ class ReqDeleteText(Request):
 class ReqAddRecipient(Request):
     CALL_NO = Requests.ADD_RECIPIENT
     def __init__(self, text_no, conf_no, recpt_type=MIR_TO):
+        Request.__init__(self)
         self.text_no = text_no
         self.conf_no = conf_no
         self.recpt_type = recpt_type
@@ -387,6 +402,7 @@ class ReqAddRecipient(Request):
 class ReqSubRecipient(Request):
     CALL_NO = Requests.SUB_RECIPIENT
     def __init__(self, text_no, conf_no):
+        Request.__init__(self)
         self.text_no = text_no
         self.conf_no = conf_no
         
@@ -397,6 +413,7 @@ class ReqSubRecipient(Request):
 class ReqAddComment(Request):
     CALL_NO = Requests.ADD_COMMENT
     def __init__(self, text_no, comment_to):
+        Request.__init__(self)
         self.text_no = text_no
         self.comment_to = comment_to
         
@@ -407,6 +424,7 @@ class ReqAddComment(Request):
 class ReqSubComment(Request):
     CALL_NO = Requests.SUB_COMMENT
     def __init__(self, text_no, comment_to):
+        Request.__init__(self)
         self.text_no = text_no
         self.comment_to = comment_to
         
@@ -417,6 +435,7 @@ class ReqSubComment(Request):
 class ReqGetMap(Request):
     CALL_NO = Requests.GET_MAP
     def __init__(self, conf_no, first_local_no, no_of_texts):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.first_local_no = first_local_no
         self.no_of_texts = no_of_texts
@@ -436,6 +455,7 @@ class ReqGetTime(Request):
 class ReqAddFootnote(Request):
     CALL_NO = Requests.ADD_FOOTNOTE
     def __init__(self, text_no, footnote_to):
+        Request.__init__(self)
         self.text_no = text_no
         self.footnote_to = footnote_to
         
@@ -446,6 +466,7 @@ class ReqAddFootnote(Request):
 class ReqSubFootnote(Request):
     CALL_NO = Requests.SUB_FOOTNOTE
     def __init__(self, text_no, footnote_to):
+        Request.__init__(self)
         self.text_no = text_no
         self.footnote_to = footnote_to
         
@@ -459,6 +480,7 @@ class ReqSubFootnote(Request):
 class ReqSetUnread(Request):
     CALL_NO = Requests.SET_UNREAD
     def __init__(self, conf_no, no_of_unread):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.no_of_unread = no_of_unread
         
@@ -469,6 +491,7 @@ class ReqSetUnread(Request):
 class ReqSetMoTDOfLysKOM(Request):
     CALL_NO = Requests.SET_MOTD_OF_LYSKOM
     def __init__(self, text_no):
+        Request.__init__(self)
         self.text_no = text_no
         
     def get_request(self):
@@ -478,6 +501,7 @@ class ReqSetMoTDOfLysKOM(Request):
 class ReqEnable(Request):
     CALL_NO = Requests.ENABLE
     def __init__(self, level):
+        Request.__init__(self)
         self.level = level
         
     def get_request(self):
@@ -493,6 +517,7 @@ class ReqSyncKOM(Request):
 class ReqShutdownKOM(Request):
     CALL_NO = Requests.SHUTDOWN_KOM
     def __init__(self, exit_val):
+        Request.__init__(self)
         self.exit_val = exit_val
         
     def get_request(self):
@@ -507,6 +532,7 @@ class ReqShutdownKOM(Request):
 class ReqGetPersonStat(Request):
     CALL_NO = Requests.GET_PERSON_STAT
     def __init__(self, person_no):
+        Request.__init__(self)
         self.person_no = person_no
         
     def get_request(self):
@@ -521,15 +547,17 @@ class ReqGetPersonStat(Request):
 class ReqGetUnreadConfs(Request):
     CALL_NO = Requests.GET_UNREAD_CONFS
     def __init__(self, person_no):
+        Request.__init__(self)
         self.person_no = person_no
         
     def get_request(self):
-        return ("%d" % (self.person_no,)).encode('latin1')
+        return "%d" % (self.person_no,)
 
 # send-message [53] (1) Recommended
 class ReqSendMessage(Request):
     CALL_NO = Requests.SEND_MESSAGE
     def __init__(self, conf_no, message):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.message = message
         
@@ -542,6 +570,7 @@ class ReqSendMessage(Request):
 class ReqDisconnect(Request):
     CALL_NO = Requests.DISCONNECT
     def __init__(self, session_no):
+        Request.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
@@ -557,6 +586,7 @@ class ReqWhoAmI(Request):
 class ReqSetUserArea(Request):
     CALL_NO = Requests.SET_USER_AREA
     def __init__(self, person_no, user_area):
+        Request.__init__(self)
         self.person_no = person_no
         self.user_area = user_area
         
@@ -567,6 +597,7 @@ class ReqSetUserArea(Request):
 class ReqGetLastText(Request):
     CALL_NO = Requests.GET_LAST_TEXT
     def __init__(self, before):
+        Request.__init__(self)
         self.before = before
         
     def get_request(self):
@@ -579,6 +610,7 @@ class ReqGetLastText(Request):
 class ReqFindNextTextNo(Request):
     CALL_NO = Requests.FIND_NEXT_TEXT_NO
     def __init__(self, start):
+        Request.__init__(self)
         self.start = start
         
     def get_request(self):
@@ -588,6 +620,7 @@ class ReqFindNextTextNo(Request):
 class ReqFindPreviousTextNo(Request):
     CALL_NO = Requests.FIND_PREVIOUS_TEXT_NO
     def __init__(self, start):
+        Request.__init__(self)
         self.start = start
         
     def get_request(self):
@@ -597,6 +630,7 @@ class ReqFindPreviousTextNo(Request):
 class ReqLogin(Request):
     CALL_NO = Requests.LOGIN
     def __init__(self, person_no, password, invisible=1):
+        Request.__init__(self)
         self.person_no = person_no
         self.password = password
         self.invisible = invisible
@@ -618,6 +652,7 @@ class ReqLogin(Request):
 class ReqSetClientVersion(Request):
     CALL_NO = Requests.SET_CLIENT_VERSION
     def __init__(self, client_name, client_version):
+        Request.__init__(self)
         self.client_name = client_name
         self.client_version = client_version
         
@@ -629,6 +664,7 @@ class ReqSetClientVersion(Request):
 class ReqGetClientName(Request):
     CALL_NO = Requests.GET_CLIENT_NAME
     def __init__(self, session_no):
+        Request.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
@@ -638,6 +674,7 @@ class ReqGetClientName(Request):
 class ReqGetClientVersion(Request):
     CALL_NO = Requests.GET_CLIENT_VERSION
     def __init__(self, session_no):
+        Request.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
@@ -647,8 +684,8 @@ class ReqGetClientVersion(Request):
 class ReqMarkText(Request):
     CALL_NO = Requests.MARK_TEXT
     def __init__(self, text_no, mark_type):
+        Request.__init__(self)
         self.text_no = text_no
-        pass
         
     def get_request(self):
         return "%d %d" % (self.text_no, self.mark_type)
@@ -657,6 +694,7 @@ class ReqMarkText(Request):
 class ReqUnmarkText(Request):
     CALL_NO = Requests.UNMARK_TEXT
     def __init__(self, text_no):
+        Request.__init__(self)
         self.text_no = text_no
         
     def get_request(self):
@@ -666,6 +704,7 @@ class ReqUnmarkText(Request):
 class ReqReZLookup(Request):
     CALL_NO = Requests.RE_Z_LOOKUP
     def __init__(self, regexp, want_pers=0, want_confs=0):
+        Request.__init__(self)
         self.regexp = regexp
         self.want_pers = want_pers
         self.want_confs = want_confs
@@ -683,6 +722,7 @@ class ReqGetVersionInfo(Request):
 class ReqLookupZName(Request):
     CALL_NO = Requests.LOOKUP_Z_NAME
     def __init__(self, name, want_pers=0, want_confs=0):
+        Request.__init__(self)
         self.name = name
         self.want_pers = want_pers
         self.want_confs = want_confs
@@ -695,6 +735,7 @@ class ReqLookupZName(Request):
 class ReqSetLastRead(Request):
     CALL_NO = Requests.SET_LAST_READ
     def __init__(self, conf_no, last_read):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.last_read = last_read
         
@@ -705,15 +746,17 @@ class ReqSetLastRead(Request):
 class ReqGetUconfStat(Request):
     CALL_NO = Requests.GET_UCONF_STAT
     def __init__(self, conf_no):
+        Request.__init__(self)
         self.conf_no = conf_no
         
     def get_request(self):
-        return ("%d" % (self.conf_no,)).encode('latin1')
+        return ("%d" % (self.conf_no,))
 
 # set-info [79] (9) Recommended
 class ReqSetInfo(Request):
     CALL_NO = Requests.SET_INFO
     def __init__(self, info):
+        Request.__init__(self)
         self.info = info
         
     def get_request(self):
@@ -723,10 +766,11 @@ class ReqSetInfo(Request):
 class ReqAcceptAsync(Request):
     CALL_NO = Requests.ACCEPT_ASYNC
     def __init__(self, request_list):
+        Request.__init__(self)
         self.request_list = request_list
         
     def get_request(self):
-        return ("%s" % (array_of_int_to_string(self.request_list),)).encode('latin1')
+        return ("%s" % (array_of_int_to_string(self.request_list),))
 
 # query-async [81] (9) Recommended
 class ReqQueryAsync(Request):
@@ -744,6 +788,7 @@ class ReqUserActive(Request):
 class ReqWhoIsOnDynamic(Request):
     CALL_NO = Requests.WHO_IS_ON_DYNAMIC
     def __init__(self, want_visible=1, want_invisible=0, active_last=0):
+        Request.__init__(self)
         self.want_visible = want_visible
         self.want_invisible = want_invisible
         self.active_last = active_last
@@ -755,6 +800,7 @@ class ReqWhoIsOnDynamic(Request):
 class ReqGetStaticSessionInfo(Request):
     CALL_NO = Requests.GET_STATIC_SESSION_INFO
     def __init__(self, session_no):
+        Request.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
@@ -770,6 +816,7 @@ class ReqGetCollateTable(Request):
 class ReqCreateText(Request):
     CALL_NO = Requests.CREATE_TEXT
     def __init__(self, text, misc_info, aux_items=[]):
+        Request.__init__(self)
         self.text = text
         self.misc_info = misc_info
         self.aux_items = aux_items
@@ -783,6 +830,7 @@ class ReqCreateText(Request):
 class ReqCreateAnonymousText(Request):
     CALL_NO = Requests.CREATE_ANONYMOUS_TEXT
     def __init__(self, text, misc_info, aux_items=[]):
+        Request.__init__(self)
         self.text = text
         self.misc_info = misc_info
         self.aux_items = aux_items
@@ -796,6 +844,7 @@ class ReqCreateAnonymousText(Request):
 class ReqCreateConf(Request):
     CALL_NO = Requests.CREATE_CONF
     def __init__(self, name, conf_type, aux_items=[]):
+        Request.__init__(self)
         self.name = name
         self.conf_type = conf_type
         self.aux_items = aux_items
@@ -809,6 +858,7 @@ class ReqCreateConf(Request):
 class ReqCreatePerson(Request):
     CALL_NO = Requests.CREATE_PERSON
     def __init__(self, name, passwd, flags, aux_items=[]):
+        Request.__init__(self)
         self.name = name
         self.passwd = passwd
         self.flags = flags
@@ -824,24 +874,27 @@ class ReqCreatePerson(Request):
 class ReqGetTextStat(Request):
     CALL_NO = Requests.GET_TEXT_STAT
     def __init__(self, text_no):
+        Request.__init__(self)
         self.text_no = text_no
         
     def get_request(self):
-        return ("%d" % (self.text_no,)).encode('latin1')
+        return ("%d" % (self.text_no,))
 
 # get-conf-stat [91] (10) Recommended
 class ReqGetConfStat(Request):
     CALL_NO = Requests.GET_CONF_STAT
     def __init__(self, conf_no):
+        Request.__init__(self)
         self.conf_no = conf_no
         
     def get_request(self):
-        return ("%d" % (self.conf_no,)).encode('latin1')
+        return ("%d" % (self.conf_no,))
 
 # modify-text-info [92] (10) Recommended
 class ReqModifyTextInfo(Request):
     CALL_NO = Requests.MODIFY_TEXT_INFO
     def __init__(self, text_no, delete, add):
+        Request.__init__(self)
         self.text_no = text_no
         self.delete = delete
         self.add = add
@@ -855,6 +908,7 @@ class ReqModifyTextInfo(Request):
 class ReqModifyConfInfo(Request):
     CALL_NO = Requests.MODIFY_CONF_INFO
     def __init__(self, conf_no, delete, add):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.delete = delete
         self.add = add
@@ -874,6 +928,7 @@ class ReqGetInfo(Request):
 class ReqModifySystemInfo(Request):
     CALL_NO = Requests.MODIFY_SYSTEM_INFO
     def __init__(self, delete, add):
+        Request.__init__(self)
         self.delete = delete
         self.add = add
         
@@ -891,6 +946,7 @@ class ReqQueryPredefinedAuxItems(Request):
 class ReqSetExpire(Request):
     CALL_NO = Requests.SET_EXPIRE
     def __init__(self, conf_no, expire):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.expire = expire
         
@@ -901,6 +957,7 @@ class ReqSetExpire(Request):
 class ReqQueryReadTexts10(Request):
     CALL_NO = Requests.QUERY_READ_TEXTS_10
     def __init__(self, person_no, conf_no):
+        Request.__init__(self)
         self.person_no = person_no
         self.conf_no = conf_no
         
@@ -912,6 +969,7 @@ class ReqQueryReadTexts10(Request):
 class ReqGetMembership10(Request):
     CALL_NO = Requests.GET_MEMBERSHIP_10
     def __init__(self, person_no, first, no_of_confs, want_read_texts):
+        Request.__init__(self)
         self.person_no = person_no
         self.first = first
         self.no_of_confs = no_of_confs
@@ -925,6 +983,7 @@ class ReqGetMembership10(Request):
 class ReqAddMember(Request):
     CALL_NO = Requests.ADD_MEMBER
     def __init__(self, conf_no, person_no, priority, where, membership_type):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.person_no = person_no
         self.priority = priority
@@ -940,6 +999,7 @@ class ReqAddMember(Request):
 class ReqGetMembers(Request):
     CALL_NO = Requests.GET_MEMBERS
     def __init__(self, conf_no, first, no_of_members):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.first = first
         self.no_of_members = no_of_members
@@ -952,6 +1012,7 @@ class ReqGetMembers(Request):
 class ReqSetMembershipType(Request):
     CALL_NO = Requests.SET_MEMBERSHIP_TYPE
     def __init__(self, person_no, conf_no, membership_type):
+        Request.__init__(self)
         self.person_no = person_no
         self.conf_no = conf_no
         self.membership_type = membership_type
@@ -963,18 +1024,20 @@ class ReqSetMembershipType(Request):
 class ReqLocalToGlobal(Request):
     CALL_NO = Requests.LOCAL_TO_GLOBAL
     def __init__(self, conf_no, first_local_no, no_of_existing_texts):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.first_local_no = first_local_no
         self.no_of_existing_texts = no_of_existing_texts
         
     def get_request(self):
         return ("%d %d %d" % (self.conf_no, self.first_local_no, 
-                              self.no_of_existing_texts)).encode('latin1')
+                              self.no_of_existing_texts))
 
 # map-created-texts [104] (10) Recommended
 class ReqMapCreatedTexts(Request):
     CALL_NO = Requests.MAP_CREATED_TEXTS
     def __init__(self, author, first_local_no, no_of_existing_texts):
+        Request.__init__(self)
         self.author = author
         self.first_local_no = first_local_no
         self.no_of_existing_texts = no_of_existing_texts
@@ -986,6 +1049,7 @@ class ReqMapCreatedTexts(Request):
 class ReqSetKeepCommented(Request):
     CALL_NO = Requests.SET_KEEP_COMMENTED
     def __init__(self, conf_no, keep_commented):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.keep_commented = keep_commented
         
@@ -996,6 +1060,7 @@ class ReqSetKeepCommented(Request):
 
 class ReqSetPersFlags(Request):
     def __init__(self, person_no, flags):
+        Request.__init__(self)
         self.person_no = person_no
         self.flags = flags
         
@@ -1009,6 +1074,7 @@ class ReqQueryReadTexts11(Request):
     CALL_NO = Requests.QUERY_READ_TEXTS
     def __init__(self, person_no, conf_no,
                  want_read_ranges, max_ranges):
+        Request.__init__(self)
         self.person_no = person_no
         self.conf_no = conf_no
         self.want_read_ranges = want_read_ranges
@@ -1017,7 +1083,7 @@ class ReqQueryReadTexts11(Request):
     def get_request(self):
         return ("%d %d %d %d" % (self.person_no, self.conf_no,
                                  self.want_read_ranges,
-                                 self.max_ranges)).encode('latin1')
+                                 self.max_ranges))
 
 ReqQueryReadTexts = ReqQueryReadTexts11
 
@@ -1026,6 +1092,7 @@ class ReqGetMembership11(Request):
     CALL_NO = Requests.GET_MEMBERSHIP
     def __init__(self, person_no, first, no_of_confs,
                  want_read_ranges, max_ranges):
+        Request.__init__(self)
         self.person_no = person_no
         self.first = first
         self.no_of_confs = no_of_confs
@@ -1043,6 +1110,7 @@ ReqGetMembership = ReqGetMembership11
 class ReqMarkAsUnread(Request):
     CALL_NO = Requests.MARK_AS_UNREAD
     def __init__(self, conf_no, text_no):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.text_no = text_no
         
@@ -1053,6 +1121,7 @@ class ReqMarkAsUnread(Request):
 class ReqSetReadRanges(Request):
     CALL_NO = Requests.SET_READ_RANGES
     def __init__(self, conf_no, read_ranges):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.read_ranges = read_ranges
         
@@ -1069,6 +1138,7 @@ class ReqGetStatsDescription(Request):
 class ReqGetStats(Request):
     CALL_NO = Requests.GET_STATS
     def __init__(self, what):
+        Request.__init__(self)
         self.what = what
         
     def get_request(self):
@@ -1096,8 +1166,8 @@ class ReqFirstUnusedTextNo(Request):
 class ReqFindNextConfNo(Request):
     CALL_NO = Requests.FIND_NEXT_CONF_NO
     def __init__(self, conf_no):
+        Request.__init__(self)
         self.conf_no = conf_no
-        pass
         
     def get_request(self):
         return "%d" % (self.conf_no,)
@@ -1106,8 +1176,8 @@ class ReqFindNextConfNo(Request):
 class ReqFindPreviousConfNo(Request):
     CALL_NO = Requests.FIND_PREVIOUS_CONF_NO
     def __init__(self, conf_no):
+        Request.__init__(self)
         self.conf_no = conf_no
-        pass
         
     def get_request(self):
         return "%d" % (self.conf_no,)
@@ -1116,8 +1186,8 @@ class ReqFindPreviousConfNo(Request):
 class ReqGetScheduling(Request):
     CALL_NO = Requests.GET_SCHEDULING
     def __init__(self, session_no):
+        Request.__init__(self)
         self.session_no = session_no
-        pass
         
     def get_request(self):
         return "%d" % (self.session_no,)
@@ -1126,6 +1196,7 @@ class ReqGetScheduling(Request):
 class ReqSetScheduling(Request):
     CALL_NO = Requests.SET_SCHEDULING
     def __init__(self, session_no, priority, weight):
+        Request.__init__(self)
         self.session_no = session_no
         self.prority = priority
         self.weight = weight
@@ -1137,6 +1208,7 @@ class ReqSetScheduling(Request):
 class ReqSetConnectionTimeFormat(Request):
     CALL_NO = Requests.SET_CONNECTION_TIME_FORMAT
     def __init__(self, use_utc):
+        Request.__init__(self)
         self.use_utc = use_utc
         
     def get_request(self):
@@ -1146,6 +1218,7 @@ class ReqSetConnectionTimeFormat(Request):
 class ReqLocalToGlobalReverse(Request):
     CALL_NO = Requests.LOCAL_TO_GLOBAL_REVERSE
     def __init__(self, conf_no, local_no_ceiling, no_of_existing_texts):
+        Request.__init__(self)
         self.conf_no = conf_no
         self.local_no_ceiling = local_no_ceiling
         self.no_of_existing_texts = no_of_existing_texts
@@ -1157,6 +1230,7 @@ class ReqLocalToGlobalReverse(Request):
 class ReqMapCreatedTextsReverse(Request):
     CALL_NO = Requests.MAP_CREATED_TEXTS_REVERSE
     def __init__(self, author, local_no_ceiling, no_of_existing_texts):
+        Request.__init__(self)
         self.author = author
         self.local_no_ceiling = local_no_ceiling
         self.no_of_existing_texts = no_of_existing_texts
@@ -1180,7 +1254,7 @@ response_dict = {
     Requests.CHANGE_WHAT_I_AM_DOING: EmptyResponse,
     Requests.CREATE_ANONYMOUS_TEXT: TextNo,
     Requests.CREATE_CONF: ConfNo,
-    Requests.CREATE_PERSON: PersonNo,
+    Requests.CREATE_PERSON: PersNo,
     Requests.CREATE_TEXT: TextNo,
     Requests.DELETE_CONF: EmptyResponse,
     Requests.DELETE_TEXT: EmptyResponse,

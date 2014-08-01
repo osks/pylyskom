@@ -10,7 +10,7 @@ from .datatypes import (
     String,
     ConfNo,
     TextNo,
-    PersonNo,
+    PersNo,
     Int32,
     TextStat,
     SessionNo,
@@ -178,7 +178,7 @@ class AsyncLogin(AsyncMessage):
 
     @classmethod
     def parse(cls, conn):
-        obj = cls(PersonNo.parse(conn), SessionNo.parse(conn))
+        obj = cls(PersNo.parse(conn), SessionNo.parse(conn))
         return obj
 
     @classmethod
@@ -207,7 +207,7 @@ class AsyncSendMessage(AsyncMessage):
     def parse(cls, conn):
         obj = cls()
         obj.recipient = ConfNo.parse(conn)
-        obj.sender = PersonNo.parse(conn)
+        obj.sender = PersNo.parse(conn)
         obj.message = String.parse(conn)
         return obj
 
@@ -233,7 +233,7 @@ class AsyncLogout(AsyncMessage):
 
     @classmethod
     def parse(cls, conn):
-        obj = cls(PersonNo.parse(conn), SessionNo.parse(conn))
+        obj = cls(PersNo.parse(conn), SessionNo.parse(conn))
         return obj
 
     @classmethod
@@ -316,7 +316,7 @@ class AsyncNewMembership(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.person_no = PersonNo.parse(conn)
+        obj.person_no = PersNo.parse(conn)
         obj.conf_no = ConfNo.parse(conn)
         return obj
 
@@ -329,7 +329,7 @@ class AsyncNewUserArea(AsyncMessage):
     @classmethod
     def parse(cls, conn):
         obj = cls()
-        obj.person_no = PersonNo.parse(conn)
+        obj.person_no = PersNo.parse(conn)
         obj.old_user_area = TextNo.parse(conn)
         obj.new_user_area = TextNo.parse(conn)
         return obj

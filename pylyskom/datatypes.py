@@ -45,7 +45,7 @@ class EmptyResponse(object):
     def parse(cls, buf):
         return None
 
-class String(str):
+class String(unicode):
     @classmethod
     def parse(cls, buf):
         # Parse a string (Hollerith notation)
@@ -54,15 +54,24 @@ class String(str):
             raise ProtocolError()
         return cls(buf.receive_string(length))
 
+    def to_string(self):
+        return "{:s}".format(to_hstring(self))
+
 class Float(float):
     @classmethod
     def parse(cls, buf):
         return read_float(buf)
 
+    def to_string(self):
+        raise NotImplementedError()
+
 class Int(int):
     @classmethod
     def parse(cls, buf):
         return read_int(buf)
+
+    def to_string(self):
+        return "{:d}".format(self)
 
         
 class Int16(Int):
@@ -74,7 +83,7 @@ class Int32(Int):
 class ConfNo(Int16):
     pass
 
-class PersonNo(ConfNo):
+class PersNo(ConfNo):
     pass
 
 class TextNo(Int32):
@@ -643,23 +652,44 @@ class UConference(object):
 # PERSON
 
 class PrivBits(object):
-    def __init__(self):
-        self.wheel = 0
-        self.admin = 0
-        self.statistic = 0
-        self.create_pers = 0
-        self.create_conf = 0
-        self.change_name = 0
-        self.flg7 = 0
-        self.flg8 = 0
-        self.flg9 = 0
-        self.flg10 = 0
-        self.flg11 = 0
-        self.flg12 = 0
-        self.flg13 = 0
-        self.flg14 = 0
-        self.flg15 = 0
-        self.flg16 = 0
+    def __init__(self, priv_bits=None, wheel=0, admin=0, statistic=0, create_pers=0,
+                 create_conf=0, change_name=0, flg7=0, flg8=0,
+                 flg9=0, flg10=0, flg11=0, flg12=0,
+                 flg13=0, flg14=0, flg15=0, flg16=0):
+        if priv_bits is not None:
+            self.wheel = priv_bits.wheel
+            self.admin = priv_bits.admin
+            self.statistic = priv_bits.statistic
+            self.create_pers = priv_bits.create_pers
+            self.create_conf = priv_bits.create_conf
+            self.change_name = priv_bits.change_name
+            self.flg7 = priv_bits.flg7
+            self.flg8 = priv_bits.flg8
+            self.flg9 = priv_bits.flg9
+            self.flg10 = priv_bits.flg10
+            self.flg11 = priv_bits.flg11
+            self.flg12 = priv_bits.flg12
+            self.flg13 = priv_bits.flg13
+            self.flg14 = priv_bits.flg14
+            self.flg15 = priv_bits.flg15
+            self.flg16 = priv_bits.flg16
+
+        self.wheel = wheel
+        self.admin = admin
+        self.statistic = statistic
+        self.create_pers = create_pers
+        self.create_conf = create_conf
+        self.change_name = change_name
+        self.flg7 = flg7
+        self.flg8 = flg8
+        self.flg9 = flg9
+        self.flg10 = flg10
+        self.flg11 = flg11
+        self.flg12 = flg12
+        self.flg13 = flg13
+        self.flg14 = flg14
+        self.flg15 = flg15
+        self.flg16 = flg16
 
     @classmethod
     def parse(cls, buf):

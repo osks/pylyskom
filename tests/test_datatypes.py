@@ -29,6 +29,6 @@ def test_Array_can_parse_array_non_zero_length_with_star_special_case():
 def test_String_can_parse_hollerith_string():
     s = MockSocket("7Hfoo bar")
     buf = ReceiveBuffer(s)
-    res = String().parse(buf)
+    res = String.parse(buf)
     assert res == "foo bar"
 
