@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from mock import MagicMock
+
 from pylyskom import komauxitems
 from pylyskom.requests import Requests
 from pylyskom.komsession import KomSession
@@ -206,3 +208,25 @@ def test_set_user_area__sets_user_area_for_the_correct_person_and_text_no():
     assert len(set_ua_requests) == 1
     assert set_ua_requests[0].person_no == pers_no
     assert set_ua_requests[0].user_area == new_ua_text_no
+
+
+def test_lookup_name_should_decode_utf8_string():
+    mock_client = MagicMock()
+    ks = KomSession(client_factory=lambda *args, **kwargs: mock_client)
+    ks.connect('host', 'port', 'user', 'hostname', 'client_name', 'client_version')
+
+    name = 'bj\xc3\xb6rn'
+    ks.lookup_name(name, 1, 0)
+
+    mock_client.lookup_name.assert_called_with(name.decode('utf-8'), 1, 0)
+
+
+def test_lookup_name_should_handle_unicode_string():
+    mock_client = MagicMock()
+    ks = KomSession(client_factory=lambda *args, **kwargs: mock_client)
+    ks.connect('host', 'port', 'user', 'hostname', 'client_name', 'client_version')
+
+    name = u'bj\xf6rn'
+    ks.lookup_name(name, 1, 0)
+
+    mock_client.lookup_name.assert_called_with(name, 1, 0)

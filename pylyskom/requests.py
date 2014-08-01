@@ -534,7 +534,7 @@ class ReqSendMessage(Request):
         self.message = message
         
     def get_request(self):
-        return ("%d %s" % (self.conf_no, to_hstring(self.message))).encode('latin1')
+        return "%d %s" % (self.conf_no, to_hstring(self.message))
 
 # get-session-info [54] (1) Obsolete (9) Use who-is-on-dynamic (83)
 
@@ -603,7 +603,7 @@ class ReqLogin(Request):
         
     def get_request(self):
         return ("%d %s %d" %
-                (self.person_no, to_hstring(self.password), self.invisible)).encode('latin1')
+                (self.person_no, to_hstring(self.password), self.invisible))
 
 # who-is-on-ident [63] (4) Obsolete (9) Use who-is-on-dynamic (83) and
 #                                           get-static-session-info (84)
@@ -623,7 +623,7 @@ class ReqSetClientVersion(Request):
         
     def get_request(self):
         return ("%s %s" % (to_hstring(self.client_name),
-                           to_hstring(self.client_version))).encode('latin1')
+                           to_hstring(self.client_version)))
 
 # get-client-name [70] (6) Recommended
 class ReqGetClientName(Request):
@@ -688,8 +688,8 @@ class ReqLookupZName(Request):
         self.want_confs = want_confs
         
     def get_request(self):
-        return ("%s %d %d" % (to_hstring(self.name), self.want_pers,
-                              self.want_confs)).encode('latin1')
+        return "%s %d %d" % (to_hstring(self.name), self.want_pers,
+                             self.want_confs)
 
 # set-last-read [77] (8) Recommended
 class ReqSetLastRead(Request):

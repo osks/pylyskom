@@ -191,6 +191,8 @@ class KomSession(object):
     
     @check_connection
     def lookup_name(self, name, want_pers, want_confs):
+        if isinstance(name, str):
+            name = name.decode('utf-8')
         return self._client.lookup_name(name, want_pers, want_confs)
 
     def lookup_name_exact(self, name, want_pers, want_confs):

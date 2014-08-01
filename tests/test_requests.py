@@ -73,3 +73,25 @@ def test_ReqSetSuperConf():
 def test_ReqAcceptAsync():
     r = requests.ReqAcceptAsync([])
     assert r.to_string() == "80 0 {  }\n"
+
+
+def test_ReqLookupZName_handles_unicode_string():
+    name = u'bj\xf6rn'
+    r = requests.ReqLookupZName(name)
+    assert r.to_string() == '76 5Hbj\xf6rn 0 0\n'
+
+def test_ReqSendMessage_handles_unicode_string():
+    msg = u'hej bj\xf6rn'
+    r = requests.ReqSendMessage(123, msg)
+    assert r.to_string() == '53 123 9Hhej bj\xf6rn\n'
+
+def test_ReqLogin_handles_unicode_string():
+    pwd = u'xyz123bj\xf6rn'
+    r = requests.ReqLogin(123, pwd)
+    assert r.to_string() == '62 123 11Hxyz123bj\xf6rn 1\n'
+
+def test_ReqSetClientVersion_handles_unicode_string():
+    name = u'bj\xf6rn'
+    version = u'123.bj\xf6rn'
+    r = requests.ReqSetClientVersion(name, version)
+    assert r.to_string() == '69 5Hbj\xf6rn 9H123.bj\xf6rn\n'
