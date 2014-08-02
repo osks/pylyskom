@@ -2,7 +2,7 @@
 import pytest
 
 from pylyskom.protocol import MAX_TEXT_SIZE
-from pylyskom.datatypes import PrivBits, ConfType, ExtendedConfType
+from pylyskom.datatypes import PrivBits, ConfType, ExtendedConfType, LocalTextNo
 from pylyskom import requests
 
 
@@ -136,10 +136,19 @@ def test_ReqGetText_with_default_start_char():
     r = requests.ReqGetText(123, start_char=17)
     assert r.to_string() == "25 123 17 %d\n" % MAX_TEXT_SIZE
 
+def test_ReqMarkAsRead():
+    r = requests.ReqMarkAsRead(14506, [])
+    assert r.to_string() == "27 14506 0 {  }\n"
+
+    r = requests.ReqMarkAsRead(14506, [LocalTextNo(17), LocalTextNo(4711)])
+    assert r.to_string() == "27 14506 2 { 17 4711 }\n"
+
+    r = requests.ReqMarkAsRead(14506, [17, 4711])
+    assert r.to_string() == "27 14506 2 { 17 4711 }\n"
+
 def test_ReqAcceptAsync():
     r = requests.ReqAcceptAsync([])
     assert r.to_string() == "80 0 {  }\n"
-
 
 def test_ReqLookupZName_handles_unicode_string():
     name = u'bj\xf6rn'

@@ -5,13 +5,13 @@ from .mocks import MockSocket
 
 from pylyskom.errors import ReceiveError
 from pylyskom.connection import ReceiveBuffer
-from pylyskom.datatypes import Array, Bitstring, String, Int32, ConfType, ExtendedConfType
+from pylyskom.datatypes import ArrayInt32, Int32, String, ConfType, ExtendedConfType
 
 
 def test_Array_can_parse_empty_array_with_star_format():
     s = MockSocket(["0 *"])
     buf = ReceiveBuffer(s)
-    res = Array(Int32).parse(buf)
+    res = ArrayInt32.parse(buf)
     assert res == []
 
 def test_Array_can_parse_empty_array_with_normal_format():
@@ -19,13 +19,13 @@ def test_Array_can_parse_empty_array_with_normal_format():
     # are sent as "0 *", but I think we should handle it anyway.
     s = MockSocket("0 { }")
     buf = ReceiveBuffer(s)
-    res = Array(Int32).parse(buf)
+    res = ArrayInt32.parse(buf)
     assert res == []
 
 def test_Array_can_parse_array_non_zero_length_with_star_special_case():
     s = MockSocket("5 *") # length 5 but no array content
     buf = ReceiveBuffer(s)
-    res = Array(Int32).parse(buf)
+    res = ArrayInt32.parse(buf)
     assert res == []
 
 def test_String_can_parse_hollerith_string():
@@ -33,34 +33,6 @@ def test_String_can_parse_hollerith_string():
     buf = ReceiveBuffer(s)
     res = String.parse(buf)
     assert res == "foo bar"
-
-
-def test_Bitstring_constructor():
-    bs1 = Bitstring([0], length=1)
-    assert len(bs1) == 1
-    bs2 = Bitstring([0, 1, 0, 1, 1], length=5)
-    assert len(bs2) == 5
-    bs4 = Bitstring(length=2)
-    assert len(bs4) == 2
-    bs5 = Bitstring(None, length=3)
-    assert len(bs5) == 3
-
-    with pytest.raises(ValueError):
-        Bitstring([1, 0]) # no length
-    with pytest.raises(ValueError):
-        Bitstring()
-    with pytest.raises(ValueError):
-        Bitstring(length=0) # invalid length
-    with pytest.raises(ValueError):
-        Bitstring([], length=0) # invalid length
-    with pytest.raises(ValueError):
-        Bitstring(None)
-    with pytest.raises(ValueError):
-        Bitstring([2])
-    with pytest.raises(ValueError):
-        Bitstring([-1])
-    with pytest.raises(ValueError):
-        Bitstring([0, 1, 2])
 
 
 def test_ConfType_length():
@@ -205,3 +177,54 @@ def test_ExtendedConfType_parse():
         
     ect = ExtendedConfType.parse(ReceiveBuffer(MockSocket("00110011 ")))
     assert ect.to_string() == "00110011"
+
+
+def test_ArrayInt32_parse():
+    a = ArrayInt32.parse(ReceiveBuffer(MockSocket("3 { 17 4711 0 }")))
+    for v in a:
+        assert isinstance(v, Int32)
+    assert a.to_string() == "3 { 17 4711 0 }"
+
+def test_ArrayInt32_constructor_convert_elements():
+    a = ArrayInt32([ 17, 4711, 0 ])
+    assert a.to_string() == "3 { 17 4711 0 }"
+
+def test_ArrayInt32_setitem_convert_element():
+    a = ArrayInt32([0, 0])
+    a[0] = 17
+    a[1] = 4711
+    assert a.to_string() == "2 { 17 4711 }"
+
+def test_ArrayInt32_append_convert_element():
+    a = ArrayInt32()
+    a.append(17)
+    a.append(4711)
+    assert a.to_string() == "2 { 17 4711 }"
+
+def test_ArrayInt32_insert_convert_element():
+    a = ArrayInt32()
+    a.insert(0, 17)
+    a.insert(1, 4711)
+    assert a.to_string() == "2 { 17 4711 }"
+
+def test_ArrayInt32_repr():
+    a = ArrayInt32([1, 2, 3])
+    assert repr(a) == "ArrayInt32([1, 2, 3])"
+
+def test_ArrayInt32_add():
+    a = ArrayInt32([1, 2, 3])
+    b = ArrayInt32([4, 5, 6])
+    a = a + b
+    assert a.to_string() == "6 { 1 2 3 4 5 6 }"
+
+def test_ArrayInt32_add_convert_element():
+    a = ArrayInt32([1, 2, 3])
+    b = [4, 5, 6]
+    a = a + b
+    assert a.to_string() == "6 { 1 2 3 4 5 6 }"
+
+def test_ArrayInt32_extend_convert_element():
+    a = ArrayInt32([1, 2, 3])
+    b = [4, 5, 6]
+    a.extend(b)
+    assert a.to_string() == "6 { 1 2 3 4 5 6 }"

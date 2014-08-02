@@ -5,8 +5,7 @@
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 from .datatypes import (
-    Array,
-    AuxItem,
+    ArrayAuxItem,
     String,
     ConfNo,
     TextNo,
@@ -375,8 +374,8 @@ class AsyncTextAuxChanged(AsyncMessage):
     def parse(cls, conn):
         obj = cls()
         obj.text_no = TextNo.parse(conn)
-        obj.deleted = Array(AuxItem).parse(conn)
-        obj.added = Array(AuxItem).parse(conn)
+        obj.deleted = ArrayAuxItem.parse(conn)
+        obj.added = ArrayAuxItem.parse(conn)
         return obj
 
     def __str__(self):

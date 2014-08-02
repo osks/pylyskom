@@ -13,18 +13,25 @@ from .protocol import (
 from .datatypes import (
     MIR_TO,
     AnyConfType,
-    Array,
+    ArrayAuxItem,
+    ArrayDynamicSessionInfo,
+    ArrayInt32,
+    ArrayLocalTextNo,
+    ArrayMark,
+    ArrayMember,
+    ArrayMembership11,
+    ArrayMembership10,
+    ArrayStats,
+    ArrayConfNo,
+    ArrayConfZInfo,
     ConfNo,
-    ConfZInfo,
     Conference,
-    DynamicSessionInfo,
+    CookedMiscInfo,
     EmptyResponse,
     GarbNice,
     Info,
     Int16,
     Int32,
-    Mark,
-    Member,
     Membership10,
     Membership11,
     PersNo,
@@ -34,7 +41,6 @@ from .datatypes import (
     SessionNo,
     StaticServerInfo,
     StaticSessionInfo,
-    Stats,
     StatsDescription,
     String,
     TextList,
@@ -349,16 +355,10 @@ class ReqGetText(NewRequest):
 # get-text-stat-old [26] (1) Obsolete (10) Use get-text-stat (90)
 
 # mark-as-read [27] (1) Recommended
-class ReqMarkAsRead(Request):
+class ReqMarkAsRead(NewRequest):
     CALL_NO = Requests.MARK_AS_READ
-    def __init__(self, conf_no, texts):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        self.texts = texts
-
-    def get_request(self):
-        return ("%d %s" % (self.conf_no,
-                           array_of_int_to_string(self.texts)))
+    ARGS = [ Argument('conf_no', ConfNo), 
+             Argument('texts', ArrayLocalTextNo) ]
                       
 # create-text-old [28] (1) Obsolete (10) Use create-text (86)
 
@@ -799,18 +799,11 @@ class ReqGetCollateTable(Request):
         return ""
 
 # create-text [86] (10) Recommended
-class ReqCreateText(Request):
+class ReqCreateText(NewRequest):
     CALL_NO = Requests.CREATE_TEXT
-    def __init__(self, text, misc_info, aux_items=[]):
-        Request.__init__(self)
-        self.text = text
-        self.misc_info = misc_info
-        self.aux_items = aux_items
-        
-    def get_request(self):
-        return "%s %s %s" % (to_hstring(self.text),
-                             self.misc_info.to_string(),
-                             array_to_string(self.aux_items))
+    ARGS = [ Argument('text', String),
+             Argument('misc_info', CookedMiscInfo),
+             Argument('aux_items', ArrayAuxItem) ]
 
 # create-anonymous-text [87] (10) Recommended
 class ReqCreateAnonymousText(Request):
@@ -1261,26 +1254,26 @@ response_dict = {
     Requests.GET_INFO: Info,
     Requests.GET_LAST_TEXT: TextNo,
     Requests.GET_MAP: TextList,
-    Requests.GET_MARKS: Array(Mark),
-    Requests.GET_MEMBERS: Array(Member),
-    Requests.GET_MEMBERSHIP: Array(Membership11),
-    Requests.GET_MEMBERSHIP_10: Array(Membership10),
+    Requests.GET_MARKS: ArrayMark,
+    Requests.GET_MEMBERS: ArrayMember,
+    Requests.GET_MEMBERSHIP: ArrayMembership11,
+    Requests.GET_MEMBERSHIP_10: ArrayMembership10,
     Requests.GET_PERSON_STAT: Person,
     Requests.GET_SCHEDULING: SchedulingInfo,
     Requests.GET_STATIC_SESSION_INFO: StaticSessionInfo,
-    Requests.GET_STATS: Array(Stats),
+    Requests.GET_STATS: ArrayStats,
     Requests.GET_STATS_DESCRIPTION: StatsDescription,
     Requests.GET_TEXT: String,
     Requests.GET_TEXT_STAT: TextStat,
     Requests.GET_TIME: Time,
     Requests.GET_UCONF_STAT: UConference,
-    Requests.GET_UNREAD_CONFS: Array(ConfNo),
+    Requests.GET_UNREAD_CONFS: ArrayConfNo,
     Requests.GET_VERSION_INFO: VersionInfo,
     Requests.LOCAL_TO_GLOBAL: TextMapping,
     Requests.LOCAL_TO_GLOBAL_REVERSE: TextMapping,
     Requests.LOGIN: EmptyResponse,
     Requests.LOGOUT: EmptyResponse,
-    Requests.LOOKUP_Z_NAME: Array(ConfZInfo),
+    Requests.LOOKUP_Z_NAME: ArrayConfZInfo,
     Requests.MAP_CREATED_TEXTS: TextMapping,
     Requests.MAP_CREATED_TEXTS_REVERSE: TextMapping,
     Requests.MARK_AS_READ: EmptyResponse,
@@ -1289,11 +1282,11 @@ response_dict = {
     Requests.MODIFY_CONF_INFO: EmptyResponse,
     Requests.MODIFY_SYSTEM_INFO: EmptyResponse,
     Requests.MODIFY_TEXT_INFO: EmptyResponse,
-    Requests.QUERY_ASYNC: Array(Int32),
-    Requests.QUERY_PREDEFINED_AUX_ITEMS: Array(Int32),
+    Requests.QUERY_ASYNC: ArrayInt32,
+    Requests.QUERY_PREDEFINED_AUX_ITEMS: ArrayInt32,
     Requests.QUERY_READ_TEXTS: Membership11,
     Requests.QUERY_READ_TEXTS_10: Membership10,
-    Requests.RE_Z_LOOKUP: Array(ConfZInfo),
+    Requests.RE_Z_LOOKUP: ArrayConfZInfo,
     Requests.SEND_MESSAGE: EmptyResponse,
     Requests.SET_CLIENT_VERSION: EmptyResponse,
     Requests.SET_CONF_TYPE: EmptyResponse,
@@ -1326,5 +1319,5 @@ response_dict = {
     Requests.UNMARK_TEXT: EmptyResponse,
     Requests.USER_ACTIVE: EmptyResponse,
     Requests.WHO_AM_I: SessionNo,
-    Requests.WHO_IS_ON_DYNAMIC: Array(DynamicSessionInfo),
+    Requests.WHO_IS_ON_DYNAMIC: ArrayDynamicSessionInfo,
 }

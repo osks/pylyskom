@@ -98,63 +98,109 @@ class SessionNo(Int32):
 class GarbNice(Int32):
     pass
 
-class Array(object):
-    def __init__(self, element_cls):
-        self._element_cls = element_cls
+class Array(list):
+    """Sub-class this to use it.
+    """
+    ELEMENT_CLASS = None # Must be set in subclass
 
-    def parse(self, buf):
+    def __init__(self, iterable=None):
+        if self.ELEMENT_CLASS is None:
+            raise ValueError("No element class specified")
+        if iterable is None:
+            list.__init__(self)
+        else:
+            iterable = [ self.ELEMENT_CLASS(v) for v in iterable ]
+            list.__init__(self, iterable)
+
+    def __setitem__(self, i, y):
+        if not isinstance(y, self.ELEMENT_CLASS):
+            y = self.ELEMENT_CLASS(y)
+        return list.__setitem__(self, i, y)
+
+    def append(self, x):
+        if not isinstance(x, self.ELEMENT_CLASS):
+            x = self.ELEMENT_CLASS(x)
+        return list.append(self, x)
+
+    def insert(self, i, x):
+        if not isinstance(x, self.ELEMENT_CLASS):
+            x = self.ELEMENT_CLASS(x)
+        return list.insert(self, i, x)
+
+    def extend(self, l):
+        return list.extend(self, self.__class__(l))
+
+    def __add__(self, other):
+        return self.__class__(list.__add__(self, other))
+
+    def __repr__(self):
+        return "{:s}({:s})".format(
+            self.__class__.__name__,
+            list.__repr__(self))
+
+    @classmethod
+    def parse(cls, buf):
         length = read_int(buf)
-        res = []
+        obj = cls()
         left = read_first_non_ws(buf)
         if left == "*":
             # Empty or special case of unwanted data
-            return res
+            return obj
         elif left != "{":
             raise ProtocolError()
         for i in range(0, length):
-            obj = self._element_cls.parse(buf)
-            res.append(obj)
+            el = cls.ELEMENT_CLASS.parse(buf)
+            obj.append(el)
         right = read_first_non_ws(buf)
         if right != "}":
             raise ProtocolError()
-        return res
+        return obj
+
+    def to_string(self):
+        self._validate_array()
+        return "%d { %s }" % (len(self), " ".join([x.to_string() for x in self]))
+
+    def _validate_array(self):
+        for v in self:
+            if not isinstance(v, self.ELEMENT_CLASS):
+                raise ValueError("Array of {!r} contains invalid element ({!r})".format(
+                        self.ELEMENT_CLASS, v))
+
+
+class ArrayInt32(Array):
+    ELEMENT_CLASS = Int32
+
+class ArrayLocalTextNo(Array):
+    ELEMENT_CLASS = LocalTextNo
+
+class ArrayTextNo(Array):
+    ELEMENT_CLASS = TextNo
+
+class ArrayString(Array):
+    ELEMENT_CLASS = String
 
 class Bitstring(list):
-    LENGTH = None # override in subclass
+    """Some type of base class. Not meant to be used directly as datatype.
+    """
+    LENGTH = None # Must be set in subclass
 
-    def __init__(self, iterable=None, **kwargs):
-        length = kwargs.get('length', None) # Only allow as keyword argument
-        if self.LENGTH is None:
-            if length is None:
-                raise ValueError("No length specified")
-            self.LENGTH = length
-        else:
-            length = self.LENGTH
+    def __init__(self, iterable=None):
+        length = self.LENGTH
+        if length is None:
+            raise ValueError("No length specified")
         if length < 1:
             raise ValueError("Cannot be empty")
         if iterable is None:
             iterable = [0]*length
         if len(iterable) != length:
             raise ValueError("Wrong length, expected {:d}".format(length))
-        Bitstring._validate(iterable)
         list.__init__(self, iterable)
-
-    @staticmethod
-    def _validate(obj):
-        for v in obj:
-            if v not in (0, 1):
-                raise ValueError("Bitstring values can only be 0 or 1 (got {!r})".format(v))
-        
+        self._validate_bitstring()
 
     @classmethod
-    def parse(cls, buf, length=None):
-        if cls.LENGTH:
-            obj = cls()
-            length = cls.LENGTH
-        else:
-            if length is None:
-                raise ValueError("No length specified")
-            obj = cls(length=length)
+    def parse(cls, buf):
+        obj = cls()
+        length = cls.LENGTH
         char = read_first_non_ws(buf)
         for i in range(0, length):
             if char == "0":
@@ -167,32 +213,43 @@ class Bitstring(list):
         return obj
 
     def to_string(self):
-        return Bitstring.bitstring_to_string(self)
+        self._validate_bitstring()
+        return ("%d"*self.LENGTH) % tuple(self)
 
-    @staticmethod
-    def bitstring_to_string(obj):
-        assert len(obj) == obj.LENGTH
-        Bitstring._validate(obj)
-        return ("%d"*obj.LENGTH) % tuple(obj)
-
-    @staticmethod
-    def _create_accessors(index):
-        """For creating named properties for certain list indicies.
-
-        Usage: original = property(*Bitstring._create_accessors(0))
+    def _validate_bitstring(self):
+        assert len(self) == self.LENGTH
+        for v in self:
+            if v not in (0, 1):
+                raise ValueError("Bitstring values can only be 0 or 1 (got {!r})".format(v))
         
-        """
-        assert index >= 0
-        def _create_get(index):
-            def get_wrapper(self):
-                return self.__getitem__(index)
-            return get_wrapper
-        def _create_set(index):
-            def set_wrapper(self, value):
-                return self.__setitem__(index, value)
-            return set_wrapper
 
-        return (_create_get(index), _create_set(index))
+class Bitstring4(Bitstring):
+    LENGTH = 4
+
+class Bitstring8(Bitstring):
+    LENGTH = 8
+
+class Bitstring16(Bitstring):
+    LENGTH = 16
+
+def _create_bitstring_accessors(index):
+    """For creating named properties for certain list indicies.
+
+    Usage: original = property(*_create_bitstring_accessors(0))
+    
+    """
+    assert index >= 0
+    def _create_get(index):
+        def get_wrapper(self):
+            return self.__getitem__(index)
+        return get_wrapper
+    def _create_set(index):
+        def set_wrapper(self, value):
+            return self.__setitem__(index, value)
+        return set_wrapper
+
+    return (_create_get(index), _create_set(index))
+
 
 
 # TIME
@@ -336,6 +393,9 @@ class RawMiscInfo(object):
     def __ne__(self, other):
         return not self == other
 
+class ArrayRawMiscInfo(Array):
+    ELEMENT_CLASS = RawMiscInfo
+
 
 # COOKED MISC-INFO (MORE TASTY)
 # N.B: This class represents the whole array, not just one item
@@ -425,15 +485,20 @@ class MICommentIn(object):
         return not self == other
 
 class CookedMiscInfo(object):
-    def __init__(self):
-        self.recipient_list = []
-        self.comment_to_list = []
-        self.comment_in_list = []
+    def __init__(self, other=None):
+        if other is None:
+            self.recipient_list = []
+            self.comment_to_list = []
+            self.comment_in_list = []
+        else:
+            self.recipient_list = other.recipient_list
+            self.comment_to_list = other.comment_to_list
+            self.comment_in_list = other.comment_in_list
 
     @classmethod
     def parse(cls, buf):
         obj = cls()
-        raw = Array(RawMiscInfo).parse(buf)
+        raw = ArrayRawMiscInfo.parse(buf)
         i = 0
         while i < len(raw):
             if raw[i].type in [MI_RECPT, MI_CC_RECPT, MI_BCC_RECPT]:
@@ -471,32 +536,40 @@ class CookedMiscInfo(object):
     def __ne__(self, other):
         return not self == other
 
-
 # AUX INFO
 
-class AuxItemFlags(Bitstring):
-    LENGTH = 8
-    deleted = property(*Bitstring._create_accessors(0))
-    inherit = property(*Bitstring._create_accessors(1))
-    secret = property(*Bitstring._create_accessors(2))
-    hide_creator = property(*Bitstring._create_accessors(3))
-    dont_garb = property(*Bitstring._create_accessors(4))
-    reserved2 = property(*Bitstring._create_accessors(5))
-    reserved3 = property(*Bitstring._create_accessors(6))
-    reserved4 = property(*Bitstring._create_accessors(7))
+class AuxItemFlags(Bitstring8):
+    deleted = property(*_create_bitstring_accessors(0))
+    inherit = property(*_create_bitstring_accessors(1))
+    secret = property(*_create_bitstring_accessors(2))
+    hide_creator = property(*_create_bitstring_accessors(3))
+    dont_garb = property(*_create_bitstring_accessors(4))
+    reserved2 = property(*_create_bitstring_accessors(5))
+    reserved3 = property(*_create_bitstring_accessors(6))
+    reserved4 = property(*_create_bitstring_accessors(7))
         
 
 # This class works as Aux-Item on reception, and
 # Aux-Item-Input when being sent.
 class AuxItem(object): 
-    def __init__(self, tag = None, data = ""):
-        self.aux_no = None # not part of Aux-Item-Input
-        self.tag = tag
-        self.creator = None # not part of Aux-Item-Input
-        self.created_at = None # not part of Aux-Item-Input
-        self.flags = AuxItemFlags()
-        self.inherit_limit = 0
-        self.data = data
+    def __init__(self, tag=None, data=""):
+        if isinstance(tag, AuxItem):
+            other = tag
+            self.aux_no = other.aux_no
+            self.tag = other.tag
+            self.creator = other.creator
+            self.created_at = other.created_at
+            self.flags = other.flags
+            self.inherit_limit = other.inherit_limit
+            self.data = other.data
+        else:
+            self.aux_no = None # not part of Aux-Item-Input
+            self.tag = tag
+            self.creator = None # not part of Aux-Item-Input
+            self.created_at = None # not part of Aux-Item-Input
+            self.flags = AuxItemFlags()
+            self.inherit_limit = 0
+            self.data = data
 
     @classmethod
     def parse(cls, buf):
@@ -514,6 +587,10 @@ class AuxItem(object):
         return "<AuxItem %d>" % self.tag
 
     def to_string(self):
+        print self.tag
+        print self.flags.to_string()
+        print self.inherit_limit
+        print to_hstring(self.data)
         return "%d %s %d %s" % \
                (self.tag,
                 self.flags.to_string(),
@@ -531,6 +608,10 @@ class AuxItem(object):
 
     def __ne__(self, other):
         return not self == other
+
+class ArrayAuxItem(Array):
+    ELEMENT_CLASS = AuxItem
+
 
 # Functions operating on lists of AuxItems
 
@@ -573,7 +654,7 @@ class TextStat(object):
         if old_format:
             obj.aux_items = []
         else:
-            obj.aux_items = Array(AuxItem).parse(buf)
+            obj.aux_items = ArrayAuxItem.parse(buf)
         return obj
 
     def __eq__(self, other):
@@ -591,27 +672,25 @@ class TextStat(object):
 
 # CONFERENCE
 
-class ConfType(Bitstring):
-    LENGTH = 4
-    rd_prot = property(*Bitstring._create_accessors(0))
-    original = property(*Bitstring._create_accessors(1))
-    secret = property(*Bitstring._create_accessors(2))
-    letterbox = property(*Bitstring._create_accessors(3))
+class ConfType(Bitstring4):
+    rd_prot = property(*_create_bitstring_accessors(0))
+    original = property(*_create_bitstring_accessors(1))
+    secret = property(*_create_bitstring_accessors(2))
+    letterbox = property(*_create_bitstring_accessors(3))
 
-class ExtendedConfType(Bitstring):
-    LENGTH = 8
+class ExtendedConfType(Bitstring8):
     def __init__(self, conf_type=None):
         if isinstance(conf_type, ConfType):
             conf_type = conf_type + [0]*(ExtendedConfType.LENGTH - ConfType.LENGTH)
-        Bitstring.__init__(self, conf_type)
-    rd_prot = property(*Bitstring._create_accessors(0))
-    original = property(*Bitstring._create_accessors(1))
-    secret = property(*Bitstring._create_accessors(2))
-    letterbox = property(*Bitstring._create_accessors(3))
-    allow_anonymous = property(*Bitstring._create_accessors(4))
-    forbid_secret = property(*Bitstring._create_accessors(5))
-    reserved2 = property(*Bitstring._create_accessors(6))
-    reserved3 = property(*Bitstring._create_accessors(7))
+        Bitstring8.__init__(self, conf_type)
+    rd_prot = property(*_create_bitstring_accessors(0))
+    original = property(*_create_bitstring_accessors(1))
+    secret = property(*_create_bitstring_accessors(2))
+    letterbox = property(*_create_bitstring_accessors(3))
+    allow_anonymous = property(*_create_bitstring_accessors(4))
+    forbid_secret = property(*_create_bitstring_accessors(5))
+    reserved2 = property(*_create_bitstring_accessors(6))
+    reserved3 = property(*_create_bitstring_accessors(7))
 
 class AnyConfType(ExtendedConfType):
     """Alias for ExtendedConfType.
@@ -640,7 +719,7 @@ class Conference(object):
         obj.first_local_no = read_int(buf)
         obj.no_of_texts = read_int(buf)
         obj.expire = read_int(buf)
-        obj.aux_items = Array(AuxItem).parse(buf)
+        obj.aux_items = ArrayAuxItem.parse(buf)
         return obj
 
     def __str__(self):
@@ -661,35 +740,33 @@ class UConference(object):
     
 # PERSON
 
-class PrivBits(Bitstring):
-    LENGTH = 16
-    wheel = property(*Bitstring._create_accessors(0))
-    admin = property(*Bitstring._create_accessors(1))
-    statistic = property(*Bitstring._create_accessors(2))
-    create_pers = property(*Bitstring._create_accessors(3))
-    create_conf = property(*Bitstring._create_accessors(4))
-    change_name = property(*Bitstring._create_accessors(5))
-    flg7 = property(*Bitstring._create_accessors(6))
-    flg8 = property(*Bitstring._create_accessors(7))
-    flg9 = property(*Bitstring._create_accessors(8))
-    flg10 = property(*Bitstring._create_accessors(9))
-    flg11 = property(*Bitstring._create_accessors(10))
-    flg12 = property(*Bitstring._create_accessors(11))
-    flg13 = property(*Bitstring._create_accessors(12))
-    flg14 = property(*Bitstring._create_accessors(13))
-    flg15 = property(*Bitstring._create_accessors(14))
-    flg16 = property(*Bitstring._create_accessors(15))
+class PrivBits(Bitstring16):
+    wheel = property(*_create_bitstring_accessors(0))
+    admin = property(*_create_bitstring_accessors(1))
+    statistic = property(*_create_bitstring_accessors(2))
+    create_pers = property(*_create_bitstring_accessors(3))
+    create_conf = property(*_create_bitstring_accessors(4))
+    change_name = property(*_create_bitstring_accessors(5))
+    flg7 = property(*_create_bitstring_accessors(6))
+    flg8 = property(*_create_bitstring_accessors(7))
+    flg9 = property(*_create_bitstring_accessors(8))
+    flg10 = property(*_create_bitstring_accessors(9))
+    flg11 = property(*_create_bitstring_accessors(10))
+    flg12 = property(*_create_bitstring_accessors(11))
+    flg13 = property(*_create_bitstring_accessors(12))
+    flg14 = property(*_create_bitstring_accessors(13))
+    flg15 = property(*_create_bitstring_accessors(14))
+    flg16 = property(*_create_bitstring_accessors(15))
     
-class PersonalFlags(Bitstring):
-    LENGTH = 8
-    unread_is_secret = property(*Bitstring._create_accessors(0))
-    flg2 = property(*Bitstring._create_accessors(1))
-    flg3 = property(*Bitstring._create_accessors(2))
-    flg4 = property(*Bitstring._create_accessors(3))
-    flg5 = property(*Bitstring._create_accessors(4))
-    flg6 = property(*Bitstring._create_accessors(5))
-    flg7 = property(*Bitstring._create_accessors(6))
-    flg8 = property(*Bitstring._create_accessors(7))
+class PersonalFlags(Bitstring8):
+    unread_is_secret = property(*_create_bitstring_accessors(0))
+    flg2 = property(*_create_bitstring_accessors(1))
+    flg3 = property(*_create_bitstring_accessors(2))
+    flg4 = property(*_create_bitstring_accessors(3))
+    flg5 = property(*_create_bitstring_accessors(4))
+    flg6 = property(*_create_bitstring_accessors(5))
+    flg7 = property(*_create_bitstring_accessors(6))
+    flg8 = property(*_create_bitstring_accessors(7))
 
 class Person(object):
     @classmethod
@@ -718,14 +795,14 @@ class Person(object):
 
 class MembershipType(Bitstring):
     LENGTH = 8
-    invitation = property(*Bitstring._create_accessors(0))
-    passive = property(*Bitstring._create_accessors(1))
-    secret = property(*Bitstring._create_accessors(2))
-    passive_message_invert = property(*Bitstring._create_accessors(3))
-    reserved2 = property(*Bitstring._create_accessors(4))
-    reserved3 = property(*Bitstring._create_accessors(5))
-    reserved4 = property(*Bitstring._create_accessors(6))
-    reserved5 = property(*Bitstring._create_accessors(7))
+    invitation = property(*_create_bitstring_accessors(0))
+    passive = property(*_create_bitstring_accessors(1))
+    secret = property(*_create_bitstring_accessors(2))
+    passive_message_invert = property(*_create_bitstring_accessors(3))
+    reserved2 = property(*_create_bitstring_accessors(4))
+    reserved3 = property(*_create_bitstring_accessors(5))
+    reserved4 = property(*_create_bitstring_accessors(6))
+    reserved5 = property(*_create_bitstring_accessors(7))
 
 class Membership10(object):
     @classmethod
@@ -736,7 +813,7 @@ class Membership10(object):
         obj.conference = read_int(buf)
         obj.priority = read_int(buf)
         obj.last_text_read = read_int(buf)
-        obj.read_texts = Array(LocalTextNo).parse(buf)
+        obj.read_texts = ArrayLocalTextNo.parse(buf)
         obj.added_by = read_int(buf)
         obj.added_at = Time.parse(buf)
         obj.type = MembershipType.parse(buf)
@@ -761,7 +838,10 @@ class ReadRange(object):
         return "%d %d" % \
                (self.first_read,
                 self.last_read)
-    
+
+class ArrayReadRange(Array):
+    ELEMENT_CLASS = ReadRange
+
 class Membership11(object):
     @classmethod
     def parse(cls, buf):
@@ -770,7 +850,7 @@ class Membership11(object):
         obj.last_time_read  = Time.parse(buf)
         obj.conference = read_int(buf)
         obj.priority = read_int(buf)
-        obj.read_ranges = Array(ReadRange).parse(buf)
+        obj.read_ranges = ArrayReadRange.parse(buf)
         obj.added_by = read_int(buf)
         obj.added_at = Time.parse(buf)
         obj.type = MembershipType.parse(buf)
@@ -795,7 +875,7 @@ class TextList(object):
     def parse(cls, buf):
         obj = cls()
         obj.first_local_no = read_int(buf)
-        obj.texts = Array(TextNo).parse(buf)
+        obj.texts = ArrayTextNo.parse(buf)
         return obj
 
 # TEXT MAPPING
@@ -807,7 +887,10 @@ class TextNumberPair(object):
         obj.local_number = read_int(buf)
         obj.global_number = read_int(buf)
         return obj
-    
+
+class ArrayTextNumberPair(Array):
+    ELEMENT_CLASS = TextNumberPair
+
 class TextMapping(object):
     @classmethod
     def parse(cls, buf):
@@ -823,7 +906,7 @@ class TextMapping(object):
         if obj.block_type == 0:
             # Sparse
             obj.type_text = "sparse"
-            obj.sparse_list = Array(TextNumberPair).parse(buf)
+            obj.sparse_list = ArrayTextNumberPair.parse(buf)
             for tnp in obj.sparse_list:
                 obj.dict[tnp.local_number] = tnp.global_number
                 obj.list.append((tnp.local_number, tnp.global_number))
@@ -831,7 +914,7 @@ class TextMapping(object):
             # Dense
             obj.type_text = "dense"
             obj.dense_first = read_int(buf)
-            obj.dense_texts = Array(Int32).parse(buf)
+            obj.dense_texts = ArrayInt32.parse(buf)
             local_number = obj.dense_first
             for global_number in obj.dense_texts:
                 obj.dict[local_number] = global_number
@@ -898,7 +981,7 @@ class Info(object):
         obj.motd_conf = read_int(buf)
         obj.kom_news_conf = read_int(buf)
         obj.motd_of_lyskom = read_int(buf)
-        obj.aux_item_list = Array(AuxItem).parse(buf)
+        obj.aux_item_list = ArrayAuxItem.parse(buf)
         return obj
 
     def to_string(self):
@@ -946,14 +1029,14 @@ class StaticServerInfo(object):
 
 class SessionFlags(Bitstring):
     LENGTH = 8
-    invisible = property(*Bitstring._create_accessors(0))
-    user_active_used = property(*Bitstring._create_accessors(1))
-    user_absent = property(*Bitstring._create_accessors(2))
-    reserved3 = property(*Bitstring._create_accessors(3))
-    reserved4 = property(*Bitstring._create_accessors(4))
-    reserved5 = property(*Bitstring._create_accessors(5))
-    reserved6 = property(*Bitstring._create_accessors(6))
-    reserved7 = property(*Bitstring._create_accessors(7))
+    invisible = property(*_create_bitstring_accessors(0))
+    user_active_used = property(*_create_bitstring_accessors(1))
+    user_absent = property(*_create_bitstring_accessors(2))
+    reserved3 = property(*_create_bitstring_accessors(3))
+    reserved4 = property(*_create_bitstring_accessors(4))
+    reserved5 = property(*_create_bitstring_accessors(5))
+    reserved6 = property(*_create_bitstring_accessors(6))
+    reserved7 = property(*_create_bitstring_accessors(7))
 
 class DynamicSessionInfo(object):
     @classmethod
@@ -1024,8 +1107,8 @@ class StatsDescription(object):
     @classmethod
     def parse(cls, buf):
         obj = cls()
-        obj.what = Array(String).parse(buf)
-        obj.when = Array(Int32).parse(buf)
+        obj.what = ArrayString.parse(buf)
+        obj.when = ArrayInt32.parse(buf)
         return obj
      
     def __str__(self):
@@ -1064,3 +1147,28 @@ class Stats(object):
 
     def __ne__(self, other):
         return not self == other
+
+
+class ArrayMark(Array):
+    ELEMENT_CLASS = Mark
+
+class ArrayMember(Array):
+    ELEMENT_CLASS = Array
+
+class ArrayMembership11(Array):
+    ELEMENT_CLASS = Membership11
+
+class ArrayMembership10(Array):
+    ELEMENT_CLASS = Membership10
+
+class ArrayStats(Array):
+    ELEMENT_CLASS = Stats
+
+class ArrayConfNo(Array):
+    ELEMENT_CLASS = ConfNo
+
+class ArrayConfZInfo(Array):
+    ELEMENT_CLASS = ConfZInfo
+
+class ArrayDynamicSessionInfo(Array):
+    ELEMENT_CLASS = DynamicSessionInfo
