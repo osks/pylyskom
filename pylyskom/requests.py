@@ -163,7 +163,7 @@ class Requests(object):
 # Classes for requests to the server are all subclasses of Request.
 #
 
-class Request(object):
+class OldRequest(object):
     CALL_NO = None # Override - Integer protocol request call number.
 
     def get_request(self):
@@ -194,7 +194,7 @@ class Argument(object):
             self.name, self.data_type, self.default)
 
 
-class NewRequest(Request):
+class NewRequest(OldRequest):
     CALL_NO = None # Override - Integer protocol request call number.
     ARGS = None # Override - List of Argument(s).
 
@@ -470,10 +470,10 @@ class ReqGetUnreadConfs(NewRequest):
     ARGS = [ Argument('pers_no', PersNo) ] 
 
 # send-message [53] (1) Recommended
-class ReqSendMessage(Request):
+class ReqSendMessage(OldRequest):
     CALL_NO = Requests.SEND_MESSAGE
     def __init__(self, conf_no, message):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.message = message
         
@@ -483,26 +483,26 @@ class ReqSendMessage(Request):
 # get-session-info [54] (1) Obsolete (9) Use who-is-on-dynamic (83)
 
 # disconnect [55] (1) Recommended
-class ReqDisconnect(Request):
+class ReqDisconnect(OldRequest):
     CALL_NO = Requests.DISCONNECT
     def __init__(self, session_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
         return "%d" % (self.session_no,)
 
 # who-am-i [56] (1) Recommended
-class ReqWhoAmI(Request):
+class ReqWhoAmI(OldRequest):
     CALL_NO = Requests.WHO_AM_I
     def get_request(self):
         return ""
 
 # set-user-area [57] (2) Recommended
-class ReqSetUserArea(Request):
+class ReqSetUserArea(OldRequest):
     CALL_NO = Requests.SET_USER_AREA
     def __init__(self, person_no, user_area):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.user_area = user_area
         
@@ -510,10 +510,10 @@ class ReqSetUserArea(Request):
         return "%d %d" % (self.person_no, self.user_area)
 
 # get-last-text [58] (3) Recommended
-class ReqGetLastText(Request):
+class ReqGetLastText(OldRequest):
     CALL_NO = Requests.GET_LAST_TEXT
     def __init__(self, before):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.before = before
         
     def get_request(self):
@@ -523,30 +523,30 @@ class ReqGetLastText(Request):
 #                                    Use create-anonymous-text (87)
 
 # find-next-text-no [60] (3) Recommended
-class ReqFindNextTextNo(Request):
+class ReqFindNextTextNo(OldRequest):
     CALL_NO = Requests.FIND_NEXT_TEXT_NO
     def __init__(self, start):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.start = start
         
     def get_request(self):
         return "%d" % (self.start,)
 
 # find-previous-text-no [61] (3) Recommended
-class ReqFindPreviousTextNo(Request):
+class ReqFindPreviousTextNo(OldRequest):
     CALL_NO = Requests.FIND_PREVIOUS_TEXT_NO
     def __init__(self, start):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.start = start
         
     def get_request(self):
         return "%d" % (self.start,)
 
 # login [62] (4) Recommended
-class ReqLogin(Request):
+class ReqLogin(OldRequest):
     CALL_NO = Requests.LOGIN
     def __init__(self, person_no, password, invisible=1):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.password = password
         self.invisible = invisible
@@ -565,10 +565,10 @@ class ReqLogin(Request):
 # lookup-conf [68] (6) Obsolete (7) Use lookup-z-name (76)
 
 # set-client-version [69] (6) Recommended
-class ReqSetClientVersion(Request):
+class ReqSetClientVersion(OldRequest):
     CALL_NO = Requests.SET_CLIENT_VERSION
     def __init__(self, client_name, client_version):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.client_name = client_name
         self.client_version = client_version
         
@@ -577,50 +577,50 @@ class ReqSetClientVersion(Request):
                            to_hstring(self.client_version)))
 
 # get-client-name [70] (6) Recommended
-class ReqGetClientName(Request):
+class ReqGetClientName(OldRequest):
     CALL_NO = Requests.GET_CLIENT_NAME
     def __init__(self, session_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
         return "%d" % (self.session_no,)
 
 # get-client-version [71] (6) Recommended
-class ReqGetClientVersion(Request):
+class ReqGetClientVersion(OldRequest):
     CALL_NO = Requests.GET_CLIENT_VERSION
     def __init__(self, session_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
         return "%d" % (self.session_no,)
 
 # mark-text [72] (4) Recommended
-class ReqMarkText(Request):
+class ReqMarkText(OldRequest):
     CALL_NO = Requests.MARK_TEXT
     def __init__(self, text_no, mark_type):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.text_no = text_no
         
     def get_request(self):
         return "%d %d" % (self.text_no, self.mark_type)
 
 # unmark-text [73] (6) Recommended
-class ReqUnmarkText(Request):
+class ReqUnmarkText(OldRequest):
     CALL_NO = Requests.UNMARK_TEXT
     def __init__(self, text_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.text_no = text_no
         
     def get_request(self):
         return "%d" % (self.text_no,)
 
 # re-z-lookup [74] (7) Recommended
-class ReqReZLookup(Request):
+class ReqReZLookup(OldRequest):
     CALL_NO = Requests.RE_Z_LOOKUP
     def __init__(self, regexp, want_pers=0, want_confs=0):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.regexp = regexp
         self.want_pers = want_pers
         self.want_confs = want_confs
@@ -629,16 +629,16 @@ class ReqReZLookup(Request):
         return "%s %d %d" % (to_hstring(self.regexp), self.want_pers, self.want_confs)
 
 # get-version-info [75] (7) Recommended
-class ReqGetVersionInfo(Request):
+class ReqGetVersionInfo(OldRequest):
     CALL_NO = Requests.GET_VERSION_INFO
     def get_request(self):
         return ""
 
 # lookup-z-name [76] (7) Recommended
-class ReqLookupZName(Request):
+class ReqLookupZName(OldRequest):
     CALL_NO = Requests.LOOKUP_Z_NAME
     def __init__(self, name, want_pers=0, want_confs=0):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.name = name
         self.want_pers = want_pers
         self.want_confs = want_confs
@@ -648,10 +648,10 @@ class ReqLookupZName(Request):
                              self.want_confs)
 
 # set-last-read [77] (8) Recommended
-class ReqSetLastRead(Request):
+class ReqSetLastRead(OldRequest):
     CALL_NO = Requests.SET_LAST_READ
     def __init__(self, conf_no, last_read):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.last_read = last_read
         
@@ -667,42 +667,42 @@ class ReqGetUconfStat(NewRequest):
         return "ReqGetUconfStat(%d)" % self.conf_no
 
 # set-info [79] (9) Recommended
-class ReqSetInfo(Request):
+class ReqSetInfo(OldRequest):
     CALL_NO = Requests.SET_INFO
     def __init__(self, info):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.info = info
         
     def get_request(self):
         return "%s" % (self.info.to_string(),)
 
 # accept-async [80] (9) Recommended
-class ReqAcceptAsync(Request):
+class ReqAcceptAsync(OldRequest):
     CALL_NO = Requests.ACCEPT_ASYNC
     def __init__(self, request_list):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.request_list = request_list
         
     def get_request(self):
         return ("%s" % (array_of_int_to_string(self.request_list),))
 
 # query-async [81] (9) Recommended
-class ReqQueryAsync(Request):
+class ReqQueryAsync(OldRequest):
     CALL_NO = Requests.QUERY_ASYNC
     def get_request(self):
         return ""
 
 # user-active [82] (9) Recommended
-class ReqUserActive(Request):
+class ReqUserActive(OldRequest):
     CALL_NO = Requests.USER_ACTIVE
     def get_request(self):
         return ""
 
 # who-is-on-dynamic [83] (9) Recommended
-class ReqWhoIsOnDynamic(Request):
+class ReqWhoIsOnDynamic(OldRequest):
     CALL_NO = Requests.WHO_IS_ON_DYNAMIC
     def __init__(self, want_visible=1, want_invisible=0, active_last=0):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.want_visible = want_visible
         self.want_invisible = want_invisible
         self.active_last = active_last
@@ -711,17 +711,17 @@ class ReqWhoIsOnDynamic(Request):
         return "%d %d %d" % (self.want_visible, self.want_invisible, self.active_last)
 
 # get-static-session-info [84] (9) Recommended
-class ReqGetStaticSessionInfo(Request):
+class ReqGetStaticSessionInfo(OldRequest):
     CALL_NO = Requests.GET_STATIC_SESSION_INFO
     def __init__(self, session_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
         return "%d" % (self.session_no,)
 
 # get-collate-table [85] (10) Recommended
-class ReqGetCollateTable(Request):
+class ReqGetCollateTable(OldRequest):
     CALL_NO = Requests.GET_COLLATE_TABLE
     def get_request(self):
         return ""
@@ -734,10 +734,10 @@ class ReqCreateText(NewRequest):
              Argument('aux_items', ArrayAuxItem) ]
 
 # create-anonymous-text [87] (10) Recommended
-class ReqCreateAnonymousText(Request):
+class ReqCreateAnonymousText(OldRequest):
     CALL_NO = Requests.CREATE_ANONYMOUS_TEXT
     def __init__(self, text, misc_info, aux_items=[]):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.text = text
         self.misc_info = misc_info
         self.aux_items = aux_items
@@ -748,10 +748,10 @@ class ReqCreateAnonymousText(Request):
                              array_to_string(self.aux_items))
 
 # create-conf [88] (10) Recommended
-class ReqCreateConf(Request):
+class ReqCreateConf(OldRequest):
     CALL_NO = Requests.CREATE_CONF
     def __init__(self, name, conf_type, aux_items=[]):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.name = name
         self.conf_type = conf_type
         self.aux_items = aux_items
@@ -770,30 +770,20 @@ class ReqCreatePerson(NewRequest):
              Argument('aux_items', ArrayAuxItem) ]
 
 # get-text-stat [90] (10) Recommended
-class ReqGetTextStat(Request):
+class ReqGetTextStat(NewRequest):
     CALL_NO = Requests.GET_TEXT_STAT
-    def __init__(self, text_no):
-        Request.__init__(self)
-        self.text_no = text_no
-        
-    def get_request(self):
-        return ("%d" % (self.text_no,))
+    ARGS = [ Argument('text_no', TextNo) ]
 
 # get-conf-stat [91] (10) Recommended
-class ReqGetConfStat(Request):
+class ReqGetConfStat(NewRequest):
     CALL_NO = Requests.GET_CONF_STAT
-    def __init__(self, conf_no):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        
-    def get_request(self):
-        return ("%d" % (self.conf_no,))
+    ARGS = [ Argument('conf_no', ConfNo) ]
 
 # modify-text-info [92] (10) Recommended
-class ReqModifyTextInfo(Request):
+class ReqModifyTextInfo(OldRequest):
     CALL_NO = Requests.MODIFY_TEXT_INFO
     def __init__(self, text_no, delete, add):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.text_no = text_no
         self.delete = delete
         self.add = add
@@ -804,10 +794,10 @@ class ReqModifyTextInfo(Request):
                              array_to_string(self.add))
 
 # modify-conf-info [93] (10) Recommended
-class ReqModifyConfInfo(Request):
+class ReqModifyConfInfo(OldRequest):
     CALL_NO = Requests.MODIFY_CONF_INFO
     def __init__(self, conf_no, delete, add):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.delete = delete
         self.add = add
@@ -818,16 +808,16 @@ class ReqModifyConfInfo(Request):
                              array_to_string(self.add))
 
 # get-info [94] (10) Recommended
-class ReqGetInfo(Request):
+class ReqGetInfo(OldRequest):
     CALL_NO = Requests.GET_INFO
     def get_request(self):
         return ""
 
 # modify-system-info [95] (10) Recommended
-class ReqModifySystemInfo(Request):
+class ReqModifySystemInfo(OldRequest):
     CALL_NO = Requests.MODIFY_SYSTEM_INFO
     def __init__(self, delete, add):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.delete = delete
         self.add = add
         
@@ -836,16 +826,16 @@ class ReqModifySystemInfo(Request):
                           array_to_string(self.add))
 
 # query-predefined-aux-items [96] (10) Recommended
-class ReqQueryPredefinedAuxItems(Request):
+class ReqQueryPredefinedAuxItems(OldRequest):
     CALL_NO = Requests.QUERY_PREDEFINED_AUX_ITEMS
     def get_request(self):
         return ""
 
 # set-expire [97] (10) Experimental
-class ReqSetExpire(Request):
+class ReqSetExpire(OldRequest):
     CALL_NO = Requests.SET_EXPIRE
     def __init__(self, conf_no, expire):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.expire = expire
         
@@ -853,10 +843,10 @@ class ReqSetExpire(Request):
         return "%d %d" % (self.conf_no, self.expire)
 
 # query-read-texts-10 [98] (10) Obsolete (11) Use query-read-texts (107)
-class ReqQueryReadTexts10(Request):
+class ReqQueryReadTexts10(OldRequest):
     CALL_NO = Requests.QUERY_READ_TEXTS_10
     def __init__(self, person_no, conf_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.conf_no = conf_no
         
@@ -865,10 +855,10 @@ class ReqQueryReadTexts10(Request):
 
 # get-membership-10 [99] (10) Obsolete (11) Use get-membership (108)
 
-class ReqGetMembership10(Request):
+class ReqGetMembership10(OldRequest):
     CALL_NO = Requests.GET_MEMBERSHIP_10
     def __init__(self, person_no, first, no_of_confs, want_read_texts):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.first = first
         self.no_of_confs = no_of_confs
@@ -879,10 +869,10 @@ class ReqGetMembership10(Request):
                                 self.no_of_confs, self.want_read_texts)
 
 # add-member [100] (10) Recommended
-class ReqAddMember(Request):
+class ReqAddMember(OldRequest):
     CALL_NO = Requests.ADD_MEMBER
     def __init__(self, conf_no, person_no, priority, where, membership_type):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.person_no = person_no
         self.priority = priority
@@ -895,10 +885,10 @@ class ReqAddMember(Request):
                                    self.membership_type.to_string())
 
 # get-members [101] (10) Recommended
-class ReqGetMembers(Request):
+class ReqGetMembers(OldRequest):
     CALL_NO = Requests.GET_MEMBERS
     def __init__(self, conf_no, first, no_of_members):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.first = first
         self.no_of_members = no_of_members
@@ -908,10 +898,10 @@ class ReqGetMembers(Request):
         return "%d %d %d" % (self.conf_no, self.first, self.no_of_members)
 
 # set-membership-type [102] (10) Recommended
-class ReqSetMembershipType(Request):
+class ReqSetMembershipType(OldRequest):
     CALL_NO = Requests.SET_MEMBERSHIP_TYPE
     def __init__(self, person_no, conf_no, membership_type):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.conf_no = conf_no
         self.membership_type = membership_type
@@ -920,10 +910,10 @@ class ReqSetMembershipType(Request):
         return "%d %d %s" % (self.person_no, self.conf_no, self.membership_type.to_string())
 
 # local-to-global [103] (10) Recommended
-class ReqLocalToGlobal(Request):
+class ReqLocalToGlobal(OldRequest):
     CALL_NO = Requests.LOCAL_TO_GLOBAL
     def __init__(self, conf_no, first_local_no, no_of_existing_texts):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.first_local_no = first_local_no
         self.no_of_existing_texts = no_of_existing_texts
@@ -933,10 +923,10 @@ class ReqLocalToGlobal(Request):
                               self.no_of_existing_texts))
 
 # map-created-texts [104] (10) Recommended
-class ReqMapCreatedTexts(Request):
+class ReqMapCreatedTexts(OldRequest):
     CALL_NO = Requests.MAP_CREATED_TEXTS
     def __init__(self, author, first_local_no, no_of_existing_texts):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.author = author
         self.first_local_no = first_local_no
         self.no_of_existing_texts = no_of_existing_texts
@@ -945,10 +935,10 @@ class ReqMapCreatedTexts(Request):
         return "%d %d %d" % (self.author, self.first_local_no, self.no_of_existing_texts)
 
 # set-keep-commented [105] (11) Recommended (10) Experimental
-class ReqSetKeepCommented(Request):
+class ReqSetKeepCommented(OldRequest):
     CALL_NO = Requests.SET_KEEP_COMMENTED
     def __init__(self, conf_no, keep_commented):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.keep_commented = keep_commented
         
@@ -957,9 +947,9 @@ class ReqSetKeepCommented(Request):
 
 # set-pers-flags [106] (10) Recommended
 
-class ReqSetPersFlags(Request):
+class ReqSetPersFlags(OldRequest):
     def __init__(self, person_no, flags):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.flags = flags
         
@@ -969,11 +959,11 @@ class ReqSetPersFlags(Request):
 ### --- New in protocol version 11 ---
 
 # query-read-texts [107] (11) Recommended
-class ReqQueryReadTexts11(Request):
+class ReqQueryReadTexts11(OldRequest):
     CALL_NO = Requests.QUERY_READ_TEXTS
     def __init__(self, person_no, conf_no,
                  want_read_ranges, max_ranges):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.conf_no = conf_no
         self.want_read_ranges = want_read_ranges
@@ -992,11 +982,11 @@ class ReqQueryReadTexts11(Request):
 ReqQueryReadTexts = ReqQueryReadTexts11
 
 # get-membership [108] (11) Recommended
-class ReqGetMembership11(Request):
+class ReqGetMembership11(OldRequest):
     CALL_NO = Requests.GET_MEMBERSHIP
     def __init__(self, person_no, first, no_of_confs,
                  want_read_ranges, max_ranges):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.person_no = person_no
         self.first = first
         self.no_of_confs = no_of_confs
@@ -1011,10 +1001,10 @@ class ReqGetMembership11(Request):
 ReqGetMembership = ReqGetMembership11
 
 # mark-as-unread [109] (11) Recommended
-class ReqMarkAsUnread(Request):
+class ReqMarkAsUnread(OldRequest):
     CALL_NO = Requests.MARK_AS_UNREAD
     def __init__(self, conf_no, text_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.text_no = text_no
         
@@ -1022,10 +1012,10 @@ class ReqMarkAsUnread(Request):
         return "%d %d" % (self.conf_no, self.text_no)
 
 # set-read-ranges [110] (11) Recommended
-class ReqSetReadRanges(Request):
+class ReqSetReadRanges(OldRequest):
     CALL_NO = Requests.SET_READ_RANGES
     def __init__(self, conf_no, read_ranges):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.read_ranges = read_ranges
         
@@ -1033,74 +1023,74 @@ class ReqSetReadRanges(Request):
         return "%s %s" % (self.conf_no, array_to_string(self.read_ranges))
 
 # get-stats-description [111] (11) Recommended
-class ReqGetStatsDescription(Request):
+class ReqGetStatsDescription(OldRequest):
     CALL_NO = Requests.GET_STATS_DESCRIPTION
     def get_request(self):
         return ""
 
 # get-stats [112] (11) Recommended
-class ReqGetStats(Request):
+class ReqGetStats(OldRequest):
     CALL_NO = Requests.GET_STATS
     def __init__(self, what):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.what = what
         
     def get_request(self):
         return "%s" % (to_hstring(self.what),)
 
 # get-boottime-info [113] (11) Recommended
-class ReqGetBoottimeInfo(Request):
+class ReqGetBoottimeInfo(OldRequest):
     CALL_NO = Requests.GET_BOOTTIME_INFO
     def get_request(self):
         return ""
 
 # first-unused-conf-no [114] (11) Recommended
-class ReqFirstUnusedConfNo(Request):
+class ReqFirstUnusedConfNo(OldRequest):
     CALL_NO = Requests.FIRST_UNUSED_CONF_NO
     def get_request(self):
         return ""
 
 # first-unused-text-no [115] (11) Recommended
-class ReqFirstUnusedTextNo(Request):
+class ReqFirstUnusedTextNo(OldRequest):
     CALL_NO = Requests.FIRST_UNUSED_TEXT_NO
     def get_request(self):
         return ""
 
 # find-next-conf-no [116] (11) Recommended
-class ReqFindNextConfNo(Request):
+class ReqFindNextConfNo(OldRequest):
     CALL_NO = Requests.FIND_NEXT_CONF_NO
     def __init__(self, conf_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         
     def get_request(self):
         return "%d" % (self.conf_no,)
 
 # find-previous-conf-no [117] (11) Recommended
-class ReqFindPreviousConfNo(Request):
+class ReqFindPreviousConfNo(OldRequest):
     CALL_NO = Requests.FIND_PREVIOUS_CONF_NO
     def __init__(self, conf_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         
     def get_request(self):
         return "%d" % (self.conf_no,)
 
 # get-scheduling [118] (11) Experimental
-class ReqGetScheduling(Request):
+class ReqGetScheduling(OldRequest):
     CALL_NO = Requests.GET_SCHEDULING
     def __init__(self, session_no):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.session_no = session_no
         
     def get_request(self):
         return "%d" % (self.session_no,)
 
 # set-scheduling [119] (11) Experimental
-class ReqSetScheduling(Request):
+class ReqSetScheduling(OldRequest):
     CALL_NO = Requests.SET_SCHEDULING
     def __init__(self, session_no, priority, weight):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.session_no = session_no
         self.prority = priority
         self.weight = weight
@@ -1109,20 +1099,20 @@ class ReqSetScheduling(Request):
         return "%d %d %d" % (self.session_no, self.priority, self.weight)
 
 # set-connection-time-format [120] (11) Recommended
-class ReqSetConnectionTimeFormat(Request):
+class ReqSetConnectionTimeFormat(OldRequest):
     CALL_NO = Requests.SET_CONNECTION_TIME_FORMAT
     def __init__(self, use_utc):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.use_utc = use_utc
         
     def get_request(self):
         return "%d" % (self.use_utc,)
 
 # local-to-global-reverse [121] (11) Recommended
-class ReqLocalToGlobalReverse(Request):
+class ReqLocalToGlobalReverse(OldRequest):
     CALL_NO = Requests.LOCAL_TO_GLOBAL_REVERSE
     def __init__(self, conf_no, local_no_ceiling, no_of_existing_texts):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.conf_no = conf_no
         self.local_no_ceiling = local_no_ceiling
         self.no_of_existing_texts = no_of_existing_texts
@@ -1131,10 +1121,10 @@ class ReqLocalToGlobalReverse(Request):
         return "%d %d %d" % (self.conf_no, self.local_no_ceiling, self.no_of_existing_texts)
 
 # map-created-texts-reverse [122] (11) Recommended
-class ReqMapCreatedTextsReverse(Request):
+class ReqMapCreatedTextsReverse(OldRequest):
     CALL_NO = Requests.MAP_CREATED_TEXTS_REVERSE
     def __init__(self, author, local_no_ceiling, no_of_existing_texts):
-        Request.__init__(self)
+        OldRequest.__init__(self)
         self.author = author
         self.local_no_ceiling = local_no_ceiling
         self.no_of_existing_texts = no_of_existing_texts

@@ -14,7 +14,7 @@ def test_all_requests_has_response_type():
         assert call_no in requests.response_dict
 
 def test_request_to_string_raises():
-    r = requests.Request()
+    r = requests.OldRequest()
     with pytest.raises(Exception):
         r.to_string()
 
