@@ -39,6 +39,7 @@ from .datatypes import (
     LocalTextNo,
     Membership10,
     Membership11,
+    MembershipType,
     PersNo,
     Person,
     PersonalFlags,
@@ -613,44 +614,31 @@ class ReqAcceptAsync(NewRequest):
     ARGS = [ Argument('request_list', ArrayInt32) ]
 
 # query-async [81] (9) Recommended
-class ReqQueryAsync(OldRequest):
+class ReqQueryAsync(NewRequest):
     CALL_NO = Requests.QUERY_ASYNC
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # user-active [82] (9) Recommended
-class ReqUserActive(OldRequest):
+class ReqUserActive(NewRequest):
     CALL_NO = Requests.USER_ACTIVE
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # who-is-on-dynamic [83] (9) Recommended
-class ReqWhoIsOnDynamic(OldRequest):
+class ReqWhoIsOnDynamic(NewRequest):
     CALL_NO = Requests.WHO_IS_ON_DYNAMIC
-    def __init__(self, want_visible=1, want_invisible=0, active_last=0):
-        OldRequest.__init__(self)
-        self.want_visible = want_visible
-        self.want_invisible = want_invisible
-        self.active_last = active_last
-        
-    def get_request(self):
-        return "%d %d %d" % (self.want_visible, self.want_invisible, self.active_last)
+    ARGS = [ Argument('want_visible', Bool),
+             Argument('want_invisible', Bool),
+             Argument('active_last', Int32) ]
 
 # get-static-session-info [84] (9) Recommended
-class ReqGetStaticSessionInfo(OldRequest):
+class ReqGetStaticSessionInfo(NewRequest):
     CALL_NO = Requests.GET_STATIC_SESSION_INFO
-    def __init__(self, session_no):
-        OldRequest.__init__(self)
-        self.session_no = session_no
-        
-    def get_request(self):
-        return "%d" % (self.session_no,)
+    ARGS = [ Argument('session_no', SessionNo) ]
 
 # get-collate-table [85] (10) Recommended
-class ReqGetCollateTable(OldRequest):
+class ReqGetCollateTable(NewRequest):
     CALL_NO = Requests.GET_COLLATE_TABLE
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # create-text [86] (10) Recommended
 class ReqCreateText(NewRequest):
@@ -734,10 +722,9 @@ class ReqModifyConfInfo(OldRequest):
                              array_to_string(self.add))
 
 # get-info [94] (10) Recommended
-class ReqGetInfo(OldRequest):
+class ReqGetInfo(NewRequest):
     CALL_NO = Requests.GET_INFO
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # modify-system-info [95] (10) Recommended
 class ReqModifySystemInfo(OldRequest):
@@ -752,124 +739,73 @@ class ReqModifySystemInfo(OldRequest):
                           array_to_string(self.add))
 
 # query-predefined-aux-items [96] (10) Recommended
-class ReqQueryPredefinedAuxItems(OldRequest):
+class ReqQueryPredefinedAuxItems(NewRequest):
     CALL_NO = Requests.QUERY_PREDEFINED_AUX_ITEMS
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # set-expire [97] (10) Experimental
-class ReqSetExpire(OldRequest):
+class ReqSetExpire(NewRequest):
     CALL_NO = Requests.SET_EXPIRE
-    def __init__(self, conf_no, expire):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.expire = expire
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.expire)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('expire', GarbNice) ]
 
 # query-read-texts-10 [98] (10) Obsolete (11) Use query-read-texts (107)
-class ReqQueryReadTexts10(OldRequest):
+class ReqQueryReadTexts10(NewRequest):
     CALL_NO = Requests.QUERY_READ_TEXTS_10
-    def __init__(self, person_no, conf_no):
-        OldRequest.__init__(self)
-        self.person_no = person_no
-        self.conf_no = conf_no
-        
-    def get_request(self):
-        return "%d %d" % (self.person_no, self.conf_no)
+    ARGS = [ Argument('person', PersNo),
+             Argument('conference', ConfNo) ]
 
 # get-membership-10 [99] (10) Obsolete (11) Use get-membership (108)
 
-class ReqGetMembership10(OldRequest):
+class ReqGetMembership10(NewRequest):
     CALL_NO = Requests.GET_MEMBERSHIP_10
-    def __init__(self, person_no, first, no_of_confs, want_read_texts):
-        OldRequest.__init__(self)
-        self.person_no = person_no
-        self.first = first
-        self.no_of_confs = no_of_confs
-        self.want_read_texts = want_read_texts
-        
-    def get_request(self):
-        return "%d %d %d %d" % (self.person_no, self.first,
-                                self.no_of_confs, self.want_read_texts)
+    ARGS = [ Argument('person', PersNo),
+             Argument('first', Int16),
+             Argument('no_of_confs', Int16),
+             Argument('want_read_texts', Bool) ]
 
 # add-member [100] (10) Recommended
-class ReqAddMember(OldRequest):
+class ReqAddMember(NewRequest):
     CALL_NO = Requests.ADD_MEMBER
-    def __init__(self, conf_no, person_no, priority, where, membership_type):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.person_no = person_no
-        self.priority = priority
-        self.where = where
-        self.membership_type = membership_type
-        
-    def get_request(self):
-        return "%d %d %d %d %s" % (self.conf_no, self.person_no,
-                                   self.priority, self.where,
-                                   self.membership_type.to_string())
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('pers_no', PersNo),
+             Argument('priority', Int8),
+             Argument('where', Int16),
+             Argument('type', MembershipType) ]
 
 # get-members [101] (10) Recommended
-class ReqGetMembers(OldRequest):
+class ReqGetMembers(NewRequest):
     CALL_NO = Requests.GET_MEMBERS
-    def __init__(self, conf_no, first, no_of_members):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.first = first
-        self.no_of_members = no_of_members
-        
-        
-    def get_request(self):
-        return "%d %d %d" % (self.conf_no, self.first, self.no_of_members)
+    ARGS = [ Argument('conf', ConfNo),
+             Argument('first', Int16),
+             Argument('no_of_members', Int16) ]
 
 # set-membership-type [102] (10) Recommended
-class ReqSetMembershipType(OldRequest):
+class ReqSetMembershipType(NewRequest):
     CALL_NO = Requests.SET_MEMBERSHIP_TYPE
-    def __init__(self, person_no, conf_no, membership_type):
-        OldRequest.__init__(self)
-        self.person_no = person_no
-        self.conf_no = conf_no
-        self.membership_type = membership_type
-        
-    def get_request(self):
-        return "%d %d %s" % (self.person_no, self.conf_no, self.membership_type.to_string())
+    ARGS = [ Argument('pers', PersNo),
+             Argument('conf', ConfNo),
+             Argument('type', MembershipType) ]
 
 # local-to-global [103] (10) Recommended
-class ReqLocalToGlobal(OldRequest):
+class ReqLocalToGlobal(NewRequest):
     CALL_NO = Requests.LOCAL_TO_GLOBAL
-    def __init__(self, conf_no, first_local_no, no_of_existing_texts):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.first_local_no = first_local_no
-        self.no_of_existing_texts = no_of_existing_texts
-        
-    def get_request(self):
-        return ("%d %d %d" % (self.conf_no, self.first_local_no, 
-                              self.no_of_existing_texts))
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('first_local_no', LocalTextNo),
+             Argument('no_of_existing_texts', Int32) ]
 
 # map-created-texts [104] (10) Recommended
-class ReqMapCreatedTexts(OldRequest):
+class ReqMapCreatedTexts(NewRequest):
     CALL_NO = Requests.MAP_CREATED_TEXTS
-    def __init__(self, author, first_local_no, no_of_existing_texts):
-        OldRequest.__init__(self)
-        self.author = author
-        self.first_local_no = first_local_no
-        self.no_of_existing_texts = no_of_existing_texts
-        
-    def get_request(self):
-        return "%d %d %d" % (self.author, self.first_local_no, self.no_of_existing_texts)
+    ARGS = [ Argument('author', PersNo),
+             Argument('first_local_no', LocalTextNo),
+             Argument('no_of_existing_texts', Int32) ]
 
 # set-keep-commented [105] (11) Recommended (10) Experimental
-class ReqSetKeepCommented(OldRequest):
+class ReqSetKeepCommented(NewRequest):
     CALL_NO = Requests.SET_KEEP_COMMENTED
-    def __init__(self, conf_no, keep_commented):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.keep_commented = keep_commented
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.keep_commented)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('keep_commented', GarbNice) ]
 
 # set-pers-flags [106] (10) Recommended
 
