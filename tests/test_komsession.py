@@ -143,7 +143,7 @@ def test_set_user_area__creates_new_user_area_for_person_that_has_no_previous_us
     # Check SetUserArea request
     set_ua_requests = c.mock_get_request_calls(Requests.SET_USER_AREA)
     assert len(set_ua_requests) == 1
-    assert set_ua_requests[0].person_no == pers_no
+    assert set_ua_requests[0].pers_no == pers_no
     assert set_ua_requests[0].user_area == new_ua_text_no
 
 
@@ -206,7 +206,7 @@ def test_set_user_area__sets_user_area_for_the_correct_person_and_text_no():
     # Check SetUserArea request
     set_ua_requests = c.mock_get_request_calls(Requests.SET_USER_AREA)
     assert len(set_ua_requests) == 1
-    assert set_ua_requests[0].person_no == pers_no
+    assert set_ua_requests[0].pers_no == pers_no
     assert set_ua_requests[0].user_area == new_ua_text_no
 
 

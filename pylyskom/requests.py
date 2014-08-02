@@ -24,6 +24,7 @@ from .datatypes import (
     ArrayStats,
     ArrayConfNo,
     ArrayConfZInfo,
+    Bool,
     ConfNo,
     Conference,
     CookedMiscInfo,
@@ -470,90 +471,53 @@ class ReqGetUnreadConfs(NewRequest):
     ARGS = [ Argument('pers_no', PersNo) ] 
 
 # send-message [53] (1) Recommended
-class ReqSendMessage(OldRequest):
+class ReqSendMessage(NewRequest):
     CALL_NO = Requests.SEND_MESSAGE
-    def __init__(self, conf_no, message):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.message = message
-        
-    def get_request(self):
-        return "%d %s" % (self.conf_no, to_hstring(self.message))
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('message', String) ]
 
 # get-session-info [54] (1) Obsolete (9) Use who-is-on-dynamic (83)
 
 # disconnect [55] (1) Recommended
-class ReqDisconnect(OldRequest):
+class ReqDisconnect(NewRequest):
     CALL_NO = Requests.DISCONNECT
-    def __init__(self, session_no):
-        OldRequest.__init__(self)
-        self.session_no = session_no
-        
-    def get_request(self):
-        return "%d" % (self.session_no,)
+    ARGS = [ Argument('session_no', SessionNo) ]
 
 # who-am-i [56] (1) Recommended
-class ReqWhoAmI(OldRequest):
+class ReqWhoAmI(NewRequest):
     CALL_NO = Requests.WHO_AM_I
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # set-user-area [57] (2) Recommended
-class ReqSetUserArea(OldRequest):
+class ReqSetUserArea(NewRequest):
     CALL_NO = Requests.SET_USER_AREA
-    def __init__(self, person_no, user_area):
-        OldRequest.__init__(self)
-        self.person_no = person_no
-        self.user_area = user_area
-        
-    def get_request(self):
-        return "%d %d" % (self.person_no, self.user_area)
+    ARGS = [ Argument('pers_no', PersNo),
+             Argument('user_area', TextNo) ]
 
 # get-last-text [58] (3) Recommended
-class ReqGetLastText(OldRequest):
+class ReqGetLastText(NewRequest):
     CALL_NO = Requests.GET_LAST_TEXT
-    def __init__(self, before):
-        OldRequest.__init__(self)
-        self.before = before
-        
-    def get_request(self):
-        return "%s" % (self.before.to_string(),)
+    ARGS = [ Argument('before', Time) ]
 
 # create-anonymous-text-old [59] (3) Obsolete (10)
 #                                    Use create-anonymous-text (87)
 
 # find-next-text-no [60] (3) Recommended
-class ReqFindNextTextNo(OldRequest):
+class ReqFindNextTextNo(NewRequest):
     CALL_NO = Requests.FIND_NEXT_TEXT_NO
-    def __init__(self, start):
-        OldRequest.__init__(self)
-        self.start = start
-        
-    def get_request(self):
-        return "%d" % (self.start,)
+    ARGS = [ Argument('start', TextNo) ]
 
 # find-previous-text-no [61] (3) Recommended
-class ReqFindPreviousTextNo(OldRequest):
+class ReqFindPreviousTextNo(NewRequest):
     CALL_NO = Requests.FIND_PREVIOUS_TEXT_NO
-    def __init__(self, start):
-        OldRequest.__init__(self)
-        self.start = start
-        
-    def get_request(self):
-        return "%d" % (self.start,)
+    ARGS = [ Argument('start', TextNo) ]
 
 # login [62] (4) Recommended
-class ReqLogin(OldRequest):
+class ReqLogin(NewRequest):
     CALL_NO = Requests.LOGIN
-    def __init__(self, person_no, password, invisible=1):
-        OldRequest.__init__(self)
-        self.person_no = person_no
-        self.password = password
-        self.invisible = invisible
-        
-    def get_request(self):
-        return ("%d %s %d" %
-                (self.person_no, to_hstring(self.password), self.invisible))
+    ARGS = [ Argument('person', PersNo),
+             Argument('password', String),
+             Argument('invisible', Bool, default=1) ]
 
 # who-is-on-ident [63] (4) Obsolete (9) Use who-is-on-dynamic (83) and
 #                                           get-static-session-info (84)
@@ -565,74 +529,43 @@ class ReqLogin(OldRequest):
 # lookup-conf [68] (6) Obsolete (7) Use lookup-z-name (76)
 
 # set-client-version [69] (6) Recommended
-class ReqSetClientVersion(OldRequest):
+class ReqSetClientVersion(NewRequest):
     CALL_NO = Requests.SET_CLIENT_VERSION
-    def __init__(self, client_name, client_version):
-        OldRequest.__init__(self)
-        self.client_name = client_name
-        self.client_version = client_version
-        
-    def get_request(self):
-        return ("%s %s" % (to_hstring(self.client_name),
-                           to_hstring(self.client_version)))
+    ARGS = [ Argument('client_name', String),
+             Argument('client_version', String) ]
 
 # get-client-name [70] (6) Recommended
-class ReqGetClientName(OldRequest):
+class ReqGetClientName(NewRequest):
     CALL_NO = Requests.GET_CLIENT_NAME
-    def __init__(self, session_no):
-        OldRequest.__init__(self)
-        self.session_no = session_no
-        
-    def get_request(self):
-        return "%d" % (self.session_no,)
+    ARGS = [ Argument('session_no', SessionNo) ]
 
 # get-client-version [71] (6) Recommended
-class ReqGetClientVersion(OldRequest):
+class ReqGetClientVersion(NewRequest):
     CALL_NO = Requests.GET_CLIENT_VERSION
-    def __init__(self, session_no):
-        OldRequest.__init__(self)
-        self.session_no = session_no
-        
-    def get_request(self):
-        return "%d" % (self.session_no,)
+    ARGS = [ Argument('session_no', SessionNo) ]
 
 # mark-text [72] (4) Recommended
-class ReqMarkText(OldRequest):
+class ReqMarkText(NewRequest):
     CALL_NO = Requests.MARK_TEXT
-    def __init__(self, text_no, mark_type):
-        OldRequest.__init__(self)
-        self.text_no = text_no
-        
-    def get_request(self):
-        return "%d %d" % (self.text_no, self.mark_type)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('mark_type', Int8) ]
 
 # unmark-text [73] (6) Recommended
-class ReqUnmarkText(OldRequest):
+class ReqUnmarkText(NewRequest):
     CALL_NO = Requests.UNMARK_TEXT
-    def __init__(self, text_no):
-        OldRequest.__init__(self)
-        self.text_no = text_no
-        
-    def get_request(self):
-        return "%d" % (self.text_no,)
+    ARGS = [ Argument('text_no', TextNo) ]
 
 # re-z-lookup [74] (7) Recommended
-class ReqReZLookup(OldRequest):
+class ReqReZLookup(NewRequest):
     CALL_NO = Requests.RE_Z_LOOKUP
-    def __init__(self, regexp, want_pers=0, want_confs=0):
-        OldRequest.__init__(self)
-        self.regexp = regexp
-        self.want_pers = want_pers
-        self.want_confs = want_confs
-        
-    def get_request(self):
-        return "%s %d %d" % (to_hstring(self.regexp), self.want_pers, self.want_confs)
+    ARGS = [ Argument('regexp', String),
+             Argument('want_persons', Bool),
+             Argument('want_confs', Bool) ]
 
 # get-version-info [75] (7) Recommended
-class ReqGetVersionInfo(OldRequest):
+class ReqGetVersionInfo(NewRequest):
     CALL_NO = Requests.GET_VERSION_INFO
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # lookup-z-name [76] (7) Recommended
 class ReqLookupZName(OldRequest):
@@ -1099,14 +1032,9 @@ class ReqSetScheduling(OldRequest):
         return "%d %d %d" % (self.session_no, self.priority, self.weight)
 
 # set-connection-time-format [120] (11) Recommended
-class ReqSetConnectionTimeFormat(OldRequest):
+class ReqSetConnectionTimeFormat(NewRequest):
     CALL_NO = Requests.SET_CONNECTION_TIME_FORMAT
-    def __init__(self, use_utc):
-        OldRequest.__init__(self)
-        self.use_utc = use_utc
-        
-    def get_request(self):
-        return "%d" % (self.use_utc,)
+    ARGS = [ Argument('use_utc', Bool) ]
 
 # local-to-global-reverse [121] (11) Recommended
 class ReqLocalToGlobalReverse(OldRequest):

@@ -305,7 +305,7 @@ class CachingClient(object):
         matches = self.request(
             requests.ReqReZLookup(
                 regexp,
-                want_pers=want_pers,
+                want_persons=want_pers,
                 want_confs=want_confs))
         return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
