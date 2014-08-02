@@ -354,7 +354,7 @@ class ConfZInfo(object):
     def parse(cls, buf):
         obj = cls()
         obj.name = String.parse(buf)
-        obj.type = ExtendedConfType.parse(buf)
+        obj.type = ConfType.parse(buf)
         obj.conf_no = ConfNo.parse(buf)
         return obj
 
