@@ -30,12 +30,15 @@ from .datatypes import (
     EmptyResponse,
     GarbNice,
     Info,
+    InfoType,
+    Int8,
     Int16,
     Int32,
     Membership10,
     Membership11,
     PersNo,
     Person,
+    PersonalFlags,
     PrivBits,
     SchedulingInfo,
     SessionNo,
@@ -185,6 +188,10 @@ class Argument(object):
         self.name = name
         self.data_type = data_type
         self.default = default
+
+    def __repr__(self):
+        return "Argument({!r}, {!r}, default={!r})".format(
+            self.name, self.data_type, self.default)
 
 
 class NewRequest(Request):
@@ -363,151 +370,84 @@ class ReqMarkAsRead(NewRequest):
 # create-text-old [28] (1) Obsolete (10) Use create-text (86)
 
 # delete-text [29] (1) Recommended
-class ReqDeleteText(Request):
+class ReqDeleteText(NewRequest):
     CALL_NO = Requests.DELETE_TEXT
-    def __init__(self, text_no):
-        Request.__init__(self)
-        self.text_no = text_no
-        
-    def get_request(self):
-        return "%d" % (self.text_no,)
+    ARGS = [ Argument('text_no', TextNo) ]
 
 # add-recipient [30] (1) Recommended
-class ReqAddRecipient(Request):
+class ReqAddRecipient(NewRequest):
     CALL_NO = Requests.ADD_RECIPIENT
-    def __init__(self, text_no, conf_no, recpt_type=MIR_TO):
-        Request.__init__(self)
-        self.text_no = text_no
-        self.conf_no = conf_no
-        self.recpt_type = recpt_type
-        
-    def get_request(self):
-        return "%d %d %d" % (self.text_no, self.conf_no, self.recpt_type)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('conf_no', ConfNo),
+             Argument('recpt_type', InfoType, default=MIR_TO) ]
 
 # sub-recipient [31] (1) Recommended
-class ReqSubRecipient(Request):
+class ReqSubRecipient(NewRequest):
     CALL_NO = Requests.SUB_RECIPIENT
-    def __init__(self, text_no, conf_no):
-        Request.__init__(self)
-        self.text_no = text_no
-        self.conf_no = conf_no
-        
-    def get_request(self):
-        return "%d %d" % (self.text_no, self.conf_no)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('conf_no', ConfNo) ]
 
 # add-comment [32] (1) Recommended
-class ReqAddComment(Request):
+class ReqAddComment(NewRequest):
     CALL_NO = Requests.ADD_COMMENT
-    def __init__(self, text_no, comment_to):
-        Request.__init__(self)
-        self.text_no = text_no
-        self.comment_to = comment_to
-        
-    def get_request(self):
-        return "%d %d" % (self.text_no, self.comment_to)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('comment_to', TextNo) ]
 
 # sub-comment [33] (1) Recommended
-class ReqSubComment(Request):
+class ReqSubComment(NewRequest):
     CALL_NO = Requests.SUB_COMMENT
-    def __init__(self, text_no, comment_to):
-        Request.__init__(self)
-        self.text_no = text_no
-        self.comment_to = comment_to
-        
-    def get_request(self):
-        return "%d %d" % (self.text_no, self.comment_to)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('comment_to', TextNo) ]
 
 # get-map [34] (1) Obsolete (10) Use local-to-global (103)
-class ReqGetMap(Request):
-    CALL_NO = Requests.GET_MAP
-    def __init__(self, conf_no, first_local_no, no_of_texts):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        self.first_local_no = first_local_no
-        self.no_of_texts = no_of_texts
-        
-    def get_request(self):
-        return "%d %d %d" % (self.conf_no, self.first_local_no, self.no_of_texts)
 
 # get-time [35] (1) Recommended
-class ReqGetTime(Request):
+class ReqGetTime(NewRequest):
     CALL_NO = Requests.GET_TIME
-    def get_request(self):
-        return ""
+    ARGS = []
     
 # get-info-old [36] (1) Obsolete (10) Use get-info (94)
 
 # add-footnote [37] (1) Recommended
-class ReqAddFootnote(Request):
+class ReqAddFootnote(NewRequest):
     CALL_NO = Requests.ADD_FOOTNOTE
-    def __init__(self, text_no, footnote_to):
-        Request.__init__(self)
-        self.text_no = text_no
-        self.footnote_to = footnote_to
-        
-    def get_request(self):
-        return "%d %d" % (self.text_no, self.footnote_to)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('footnote_to', TextNo) ]
 
 # sub-footnote [38] (1) Recommended
-class ReqSubFootnote(Request):
+class ReqSubFootnote(NewRequest):
     CALL_NO = Requests.SUB_FOOTNOTE
-    def __init__(self, text_no, footnote_to):
-        Request.__init__(self)
-        self.text_no = text_no
-        self.footnote_to = footnote_to
-        
-    def get_request(self):
-        return "%d %d" % (self.text_no, self.footnote_to)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('footnote_to', TextNo) ]
 
 # who-is-on-old [39] (1) Obsolete (9) Use get-static-session-info (84) and
 #                                         who-is-on-dynamic (83)
 
 # set-unread [40] (1) Recommended
-class ReqSetUnread(Request):
+class ReqSetUnread(NewRequest):
     CALL_NO = Requests.SET_UNREAD
-    def __init__(self, conf_no, no_of_unread):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        self.no_of_unread = no_of_unread
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.no_of_unread)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('no_of_unread', Int32) ]
 
 # set-motd-of-lyskom [41] (1) Recommended
-class ReqSetMoTDOfLysKOM(Request):
+class ReqSetMoTDOfLysKOM(NewRequest):
     CALL_NO = Requests.SET_MOTD_OF_LYSKOM
-    def __init__(self, text_no):
-        Request.__init__(self)
-        self.text_no = text_no
-        
-    def get_request(self):
-        return "%d" % (self.text_no,)
+    ARGS = [ Argument('text_no', TextNo) ]
 
 # enable [42] (1) Recommended
-class ReqEnable(Request):
+class ReqEnable(NewRequest):
     CALL_NO = Requests.ENABLE
-    def __init__(self, level):
-        Request.__init__(self)
-        self.level = level
-        
-    def get_request(self):
-        return "%d" % (self.level,)
+    ARGS = [ Argument('level', Int8) ]
 
 # sync-kom [43] (1) Recommended
-class ReqSyncKOM(Request):
+class ReqSyncKOM(NewRequest):
     CALL_NO = Requests.SYNC_KOM
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # shutdown-kom [44] (1) Recommended
-class ReqShutdownKOM(Request):
+class ReqShutdownKOM(NewRequest):
     CALL_NO = Requests.SHUTDOWN_KOM
-    def __init__(self, exit_val):
-        Request.__init__(self)
-        self.exit_val = exit_val
-        
-    def get_request(self):
-        return "%d" % (self.exit_val,)
+    ARGS = [ Argument('exit_val', Int8) ]
 
 # broadcast [45] (1) Obsolete (1) Use send-message (53)
 # get-membership-old [46] (1) Obsolete (10) Use get-membership (99)
@@ -515,14 +455,9 @@ class ReqShutdownKOM(Request):
 # get-members-old [48] (1) Obsolete (10) Use get-members (101)
 
 # get-person-stat [49] (1) Recommended
-class ReqGetPersonStat(Request):
+class ReqGetPersonStat(NewRequest):
     CALL_NO = Requests.GET_PERSON_STAT
-    def __init__(self, person_no):
-        Request.__init__(self)
-        self.person_no = person_no
-        
-    def get_request(self):
-        return "%d" % (self.person_no,)
+    ARGS = [ Argument('pers_no', PersNo) ]
 
 # get-conf-stat-old [50] (1) Obsolete (10) Use get-conf-stat (91)
 
@@ -530,14 +465,9 @@ class ReqGetPersonStat(Request):
 #                                      get-static-session-info (84)
 
 # get-unread-confs [52] (1) Recommended
-class ReqGetUnreadConfs(Request):
+class ReqGetUnreadConfs(NewRequest):
     CALL_NO = Requests.GET_UNREAD_CONFS
-    def __init__(self, person_no):
-        Request.__init__(self)
-        self.person_no = person_no
-        
-    def get_request(self):
-        return "%d" % (self.person_no,)
+    ARGS = [ Argument('pers_no', PersNo) ] 
 
 # send-message [53] (1) Recommended
 class ReqSendMessage(Request):
@@ -729,14 +659,12 @@ class ReqSetLastRead(Request):
         return "%d %d" % (self.conf_no, self.last_read)
 
 # get-uconf-stat [78] (8) Recommended
-class ReqGetUconfStat(Request):
+class ReqGetUconfStat(NewRequest):
     CALL_NO = Requests.GET_UCONF_STAT
-    def __init__(self, conf_no):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        
-    def get_request(self):
-        return ("%d" % (self.conf_no,))
+    ARGS = [ Argument('conf_no', ConfNo) ]
+
+    def __repr__(self):
+        return "ReqGetUconfStat(%d)" % self.conf_no
 
 # set-info [79] (9) Recommended
 class ReqSetInfo(Request):
@@ -834,20 +762,12 @@ class ReqCreateConf(Request):
                              array_to_string(self.aux_items))
 
 # create-person [89] (10) Recommended
-class ReqCreatePerson(Request):
+class ReqCreatePerson(NewRequest):
     CALL_NO = Requests.CREATE_PERSON
-    def __init__(self, name, passwd, flags, aux_items=[]):
-        Request.__init__(self)
-        self.name = name
-        self.passwd = passwd
-        self.flags = flags
-        self.aux_items = aux_items
-        
-    def get_request(self):
-        return "%s %s %s %s" % (to_hstring(self.name),
-                                to_hstring(self.passwd),
-                                self.flags.to_string(),
-                                array_to_string(self.aux_items))
+    ARGS = [ Argument('name', String),
+             Argument('passwd', String),
+             Argument('flags', PersonalFlags),
+             Argument('aux_items', ArrayAuxItem) ]
 
 # get-text-stat [90] (10) Recommended
 class ReqGetTextStat(Request):
@@ -1063,6 +983,11 @@ class ReqQueryReadTexts11(Request):
         return ("%d %d %d %d" % (self.person_no, self.conf_no,
                                  self.want_read_ranges,
                                  self.max_ranges))
+
+    def __repr__(self):
+        return "ReqQueryReadTexts11(%d, %d, %d, %d)" % (self.person_no, self.conf_no,
+                                                        self.want_read_ranges,
+                                                        self.max_ranges)
 
 ReqQueryReadTexts = ReqQueryReadTexts11
 

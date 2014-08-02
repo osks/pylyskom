@@ -45,6 +45,7 @@ def read_float(buf):
     return float("".join(digs))
 
 
+# todo: make these two obsolete
 def array_of_int_to_string(array):
     return "%d { %s }" % (len(array),
                          " ".join(list(map(str, array))))

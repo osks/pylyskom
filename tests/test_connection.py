@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import pytest
 
 from .mocks import MockSocket
@@ -6,11 +8,14 @@ from pylyskom.connection import Connection
 from pylyskom.errors import BadInitialResponse, BadRequestId, UndefinedPerson
 from pylyskom.datatypes import (
     CookedMiscInfo,
+    ExtendedConfType,
     Mark,
+    Membership11,
     MembershipType,
     Stats,
     TextStat,
     Time,
+    UConference,
     WhoInfo)
 from pylyskom.async import AsyncMessages
 from pylyskom.requests import (
@@ -21,9 +26,11 @@ from pylyskom.requests import (
     ReqGetText,
     ReqGetTime,
     ReqGetUnreadConfs,
+    ReqGetUconfStat,
     ReqGetVersionInfo,
     ReqQueryAsync,
-    ReqQueryReadTexts10)
+    ReqQueryReadTexts10,
+    ReqQueryReadTexts11)
 
 
 def test_connection_constructor_raises_if_bad_response():
@@ -247,3 +254,39 @@ def test_connection_read_response_can_parse_get_stats():
     assert ref_no == sent_ref_no
     assert resp == [ Stats(20.0, 0.0, 0.0), Stats(16.11, 1.2, 1.2e-02) ]
     assert error is None
+
+def test_connection_try_to_reproduce_error():
+    s = MockSocket([ 'LysKOM\n',
+                     '=1 8 38 33 20 15 4 112 2 135 0 9700 100 0 * 14506 38 33 20 15 4 112 2 135 0 00000000\n', 
+                     '=2 32HAndrokom - Komklient f\xf6r Android 00001000 921 13337\n'])
+    c = Connection(s)
+
+    sent_ref_no = c.send_request(ReqQueryReadTexts11(14506, 9700, 0, 0))
+    ref_no, resp, error = c.read_response()
+    assert ref_no == sent_ref_no
+    assert error is None
+    expected = Membership11(
+        position=8,
+        last_time_read=Time(38, 33, 20, 15, 4, 112, 2, 135, 0),
+        conference=9700,
+        priority=100,
+        added_by=14506,
+        added_at=Time(38, 33, 20, 15, 4, 112, 2, 135, 0),
+        membership_type=[0, 0, 0, 0, 0, 0, 0, 0])
+    #print "resp: ", repr(resp)
+    #print "expected: ", repr(expected)
+    assert resp == expected
+
+    sent_ref_no = c.send_request(ReqGetUconfStat(14391))
+    ref_no, resp, error = c.read_response()
+    assert ref_no == sent_ref_no
+    assert error is None
+    expected = UConference(
+        name="Androkom - Komklient f\xf6r Android",
+        conf_type=ExtendedConfType([0, 0, 0, 0, 1, 0, 0, 0]),
+        highest_local_no=921,
+        nice=13337)
+    #print "resp: ", repr(resp)
+    #print "expected: ", repr(expected)
+    assert resp == expected
+    assert s.recv_data == ""

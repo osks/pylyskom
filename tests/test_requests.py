@@ -146,6 +146,17 @@ def test_ReqMarkAsRead():
     r = requests.ReqMarkAsRead(14506, [17, 4711])
     assert r.to_string() == "27 14506 2 { 17 4711 }\n"
 
+def test_ReqAddRecipient():
+    r = requests.ReqAddRecipient(1, 5)
+    assert r.to_string() == "30 1 5 0\n"
+
+    r = requests.ReqAddRecipient(1, 5, 0)
+    assert r.to_string() == "30 1 5 0\n"
+
+    r = requests.ReqAddRecipient(1, 5, 1)
+    assert r.to_string() == "30 1 5 1\n"
+    
+
 def test_ReqAcceptAsync():
     r = requests.ReqAcceptAsync([])
     assert r.to_string() == "80 0 {  }\n"

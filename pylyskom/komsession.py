@@ -181,8 +181,9 @@ class KomSession(object):
             passwd = passwd.decode('utf-8')
 
         flags = PersonalFlags()
+        aux_items = []
         pers_no = self._client.request(
-            requests.ReqCreatePerson(name.encode('latin1'), passwd.encode('latin1'), flags))
+            requests.ReqCreatePerson(name, passwd, flags, aux_items))
         return KomPerson(pers_no)
 
     @check_connection

@@ -71,7 +71,7 @@ def test_get_user_area__gets_the_user_area_for_the_given_person():
     
     get_person_stat_calls = c.mock_get_request_calls(Requests.GET_PERSON_STAT)
     assert len(get_person_stat_calls) == 2 # first is for login
-    assert get_person_stat_calls[1].person_no == pers_no
+    assert get_person_stat_calls[1].pers_no == pers_no
 
     get_textstat_calls = c.mock_get_request_calls(Requests.GET_TEXT_STAT)
     assert len(get_textstat_calls) == 1
@@ -185,7 +185,7 @@ def test_set_user_area__gets_the_user_area_for_the_given_person():
     
     get_person_stat_calls = c.mock_get_request_calls(Requests.GET_PERSON_STAT)
     assert len(get_person_stat_calls) == 2 # first is for login
-    assert get_person_stat_calls[1].person_no == pers_no
+    assert get_person_stat_calls[1].pers_no == pers_no
 
 
 def test_set_user_area__sets_user_area_for_the_correct_person_and_text_no():

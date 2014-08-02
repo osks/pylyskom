@@ -124,7 +124,8 @@ class Connection(object):
         self._ref_no += 1
         ref_no = self._ref_no
         assert ref_no not in self._outstanding_requests
-        self._send_string("%d %s" % (ref_no, req.to_string()))
+        request_string = "%d %s" % (ref_no, req.to_string())
+        self._send_string(request_string)
         self._outstanding_requests[ref_no] = req
         return ref_no
 
