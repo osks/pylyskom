@@ -587,10 +587,6 @@ class AuxItem(object):
         return "<AuxItem %d>" % self.tag
 
     def to_string(self):
-        print self.tag
-        print self.flags.to_string()
-        print self.inherit_limit
-        print to_hstring(self.data)
         return "%d %s %d %s" % \
                (self.tag,
                 self.flags.to_string(),
