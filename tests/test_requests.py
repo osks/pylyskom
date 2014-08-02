@@ -158,13 +158,18 @@ def test_ReqAddRecipient():
     
 
 def test_ReqAcceptAsync():
-    r = requests.ReqAcceptAsync([])
-    assert r.to_string() == "80 0 {  }\n"
+    r1 = requests.ReqAcceptAsync([])
+    assert r1.to_string() == "80 0 {  }\n"
+    assert repr(r1) == "ReqAcceptAsync(request_list=[])"
+
+    r2 = requests.ReqAcceptAsync([1, 3])
+    assert r2.to_string() == "80 2 { 1 3 }\n"
+    assert repr(r2) == "ReqAcceptAsync(request_list=[1, 3])"
 
 def test_ReqLookupZName_handles_unicode_string():
     name = u'bj\xf6rn'
-    r = requests.ReqLookupZName(name)
-    assert r.to_string() == '76 5Hbj\xf6rn 0 0\n'
+    r = requests.ReqLookupZName(name, 1, 0)
+    assert r.to_string() == '76 5Hbj\xf6rn 1 0\n'
 
 def test_ReqSendMessage_handles_unicode_string():
     msg = u'hej bj\xf6rn'

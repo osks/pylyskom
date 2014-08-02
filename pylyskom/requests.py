@@ -21,6 +21,7 @@ from .datatypes import (
     ArrayMember,
     ArrayMembership11,
     ArrayMembership10,
+    ArrayReadRange,
     ArrayStats,
     ArrayConfNo,
     ArrayConfZInfo,
@@ -35,6 +36,7 @@ from .datatypes import (
     Int8,
     Int16,
     Int32,
+    LocalTextNo,
     Membership10,
     Membership11,
     PersNo,
@@ -243,6 +245,16 @@ class NewRequest(OldRequest):
         end of line.
         """
         return ' '.join(["%d" % (self.CALL_NO, )] + self._serialized_args) + "\n"
+
+
+    def __repr__(self):
+        cls_name = type(self).__name__
+        arg_values = []
+        for i, arg_def in enumerate(self.ARGS):
+            arg_values.append("{}={!r}".format(arg_def.name, self.args[i]))
+        return "{cls_name}({args})".format(
+            cls_name=cls_name,
+            args=", ".join(arg_values))
 
 
 # login-old [0] (1) Obsolete (4) Use login (62)
@@ -568,36 +580,22 @@ class ReqGetVersionInfo(NewRequest):
     ARGS = []
 
 # lookup-z-name [76] (7) Recommended
-class ReqLookupZName(OldRequest):
+class ReqLookupZName(NewRequest):
     CALL_NO = Requests.LOOKUP_Z_NAME
-    def __init__(self, name, want_pers=0, want_confs=0):
-        OldRequest.__init__(self)
-        self.name = name
-        self.want_pers = want_pers
-        self.want_confs = want_confs
-        
-    def get_request(self):
-        return "%s %d %d" % (to_hstring(self.name), self.want_pers,
-                             self.want_confs)
+    ARGS = [ Argument('name', String),
+             Argument('want_pers', Bool),
+             Argument('want_confs', Bool) ]
 
 # set-last-read [77] (8) Recommended
-class ReqSetLastRead(OldRequest):
+class ReqSetLastRead(NewRequest):
     CALL_NO = Requests.SET_LAST_READ
-    def __init__(self, conf_no, last_read):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.last_read = last_read
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.last_read)
+    ARGS = [ Argument('conference', ConfNo),
+             Argument('last_read', LocalTextNo) ]
 
 # get-uconf-stat [78] (8) Recommended
 class ReqGetUconfStat(NewRequest):
     CALL_NO = Requests.GET_UCONF_STAT
     ARGS = [ Argument('conf_no', ConfNo) ]
-
-    def __repr__(self):
-        return "ReqGetUconfStat(%d)" % self.conf_no
 
 # set-info [79] (9) Recommended
 class ReqSetInfo(OldRequest):
@@ -610,14 +608,9 @@ class ReqSetInfo(OldRequest):
         return "%s" % (self.info.to_string(),)
 
 # accept-async [80] (9) Recommended
-class ReqAcceptAsync(OldRequest):
+class ReqAcceptAsync(NewRequest):
     CALL_NO = Requests.ACCEPT_ASYNC
-    def __init__(self, request_list):
-        OldRequest.__init__(self)
-        self.request_list = request_list
-        
-    def get_request(self):
-        return ("%s" % (array_of_int_to_string(self.request_list),))
+    ARGS = [ Argument('request_list', ArrayInt32) ]
 
 # query-async [81] (9) Recommended
 class ReqQueryAsync(OldRequest):
@@ -892,132 +885,77 @@ class ReqSetPersFlags(OldRequest):
 ### --- New in protocol version 11 ---
 
 # query-read-texts [107] (11) Recommended
-class ReqQueryReadTexts11(OldRequest):
+class ReqQueryReadTexts11(NewRequest):
     CALL_NO = Requests.QUERY_READ_TEXTS
-    def __init__(self, person_no, conf_no,
-                 want_read_ranges, max_ranges):
-        OldRequest.__init__(self)
-        self.person_no = person_no
-        self.conf_no = conf_no
-        self.want_read_ranges = want_read_ranges
-        self.max_ranges = max_ranges
-        
-    def get_request(self):
-        return ("%d %d %d %d" % (self.person_no, self.conf_no,
-                                 self.want_read_ranges,
-                                 self.max_ranges))
-
-    def __repr__(self):
-        return "ReqQueryReadTexts11(%d, %d, %d, %d)" % (self.person_no, self.conf_no,
-                                                        self.want_read_ranges,
-                                                        self.max_ranges)
+    ARGS = [ Argument('person', PersNo),
+             Argument('conference', ConfNo),
+             Argument('want_read_ranges', Bool),
+             Argument('max_ranges', Int32) ]
 
 ReqQueryReadTexts = ReqQueryReadTexts11
 
 # get-membership [108] (11) Recommended
-class ReqGetMembership11(OldRequest):
+class ReqGetMembership11(NewRequest):
     CALL_NO = Requests.GET_MEMBERSHIP
-    def __init__(self, person_no, first, no_of_confs,
-                 want_read_ranges, max_ranges):
-        OldRequest.__init__(self)
-        self.person_no = person_no
-        self.first = first
-        self.no_of_confs = no_of_confs
-        self.want_read_ranges = want_read_ranges
-        self.max_ranges = max_ranges
-        
-    def get_request(self):
-        return "%d %d %d %d %d" % (self.person_no,
-                                   self.first, self.no_of_confs,
-                                   self.want_read_ranges, self.max_ranges)
+    ARGS = [ Argument('person', PersNo),
+             Argument('first', Int16),
+             Argument('no_of_confs', Int16),
+             Argument('want_read_ranges', Bool),
+             Argument('max_ranges', Int32) ]
 
 ReqGetMembership = ReqGetMembership11
 
 # mark-as-unread [109] (11) Recommended
-class ReqMarkAsUnread(OldRequest):
+class ReqMarkAsUnread(NewRequest):
     CALL_NO = Requests.MARK_AS_UNREAD
-    def __init__(self, conf_no, text_no):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.text_no = text_no
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.text_no)
+    ARGS = [ Argument('conference', ConfNo),
+             Argument('text', LocalTextNo) ]
 
 # set-read-ranges [110] (11) Recommended
-class ReqSetReadRanges(OldRequest):
+class ReqSetReadRanges(NewRequest):
     CALL_NO = Requests.SET_READ_RANGES
-    def __init__(self, conf_no, read_ranges):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        self.read_ranges = read_ranges
-        
-    def get_request(self):
-        return "%s %s" % (self.conf_no, array_to_string(self.read_ranges))
+    ARGS = [ Argument('conference', ConfNo),
+             Argument('read_ranges', ArrayReadRange) ]
 
 # get-stats-description [111] (11) Recommended
-class ReqGetStatsDescription(OldRequest):
+class ReqGetStatsDescription(NewRequest):
     CALL_NO = Requests.GET_STATS_DESCRIPTION
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # get-stats [112] (11) Recommended
-class ReqGetStats(OldRequest):
+class ReqGetStats(NewRequest):
     CALL_NO = Requests.GET_STATS
-    def __init__(self, what):
-        OldRequest.__init__(self)
-        self.what = what
-        
-    def get_request(self):
-        return "%s" % (to_hstring(self.what),)
+    ARGS = [ Argument('what', String) ]
 
 # get-boottime-info [113] (11) Recommended
-class ReqGetBoottimeInfo(OldRequest):
+class ReqGetBoottimeInfo(NewRequest):
     CALL_NO = Requests.GET_BOOTTIME_INFO
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # first-unused-conf-no [114] (11) Recommended
-class ReqFirstUnusedConfNo(OldRequest):
+class ReqFirstUnusedConfNo(NewRequest):
     CALL_NO = Requests.FIRST_UNUSED_CONF_NO
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # first-unused-text-no [115] (11) Recommended
-class ReqFirstUnusedTextNo(OldRequest):
+class ReqFirstUnusedTextNo(NewRequest):
     CALL_NO = Requests.FIRST_UNUSED_TEXT_NO
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # find-next-conf-no [116] (11) Recommended
-class ReqFindNextConfNo(OldRequest):
+class ReqFindNextConfNo(NewRequest):
     CALL_NO = Requests.FIND_NEXT_CONF_NO
-    def __init__(self, conf_no):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        
-    def get_request(self):
-        return "%d" % (self.conf_no,)
+    ARGS = [ Argument('start', ConfNo) ]
 
 # find-previous-conf-no [117] (11) Recommended
-class ReqFindPreviousConfNo(OldRequest):
+class ReqFindPreviousConfNo(NewRequest):
     CALL_NO = Requests.FIND_PREVIOUS_CONF_NO
-    def __init__(self, conf_no):
-        OldRequest.__init__(self)
-        self.conf_no = conf_no
-        
-    def get_request(self):
-        return "%d" % (self.conf_no,)
+    ARGS = [ Argument('start', ConfNo) ]
 
 # get-scheduling [118] (11) Experimental
-class ReqGetScheduling(OldRequest):
+class ReqGetScheduling(NewRequest):
     CALL_NO = Requests.GET_SCHEDULING
-    def __init__(self, session_no):
-        OldRequest.__init__(self)
-        self.session_no = session_no
-        
-    def get_request(self):
-        return "%d" % (self.session_no,)
+    ARGS = [ Argument('session_no', SessionNo) ]
 
 # set-scheduling [119] (11) Experimental
 class ReqSetScheduling(OldRequest):

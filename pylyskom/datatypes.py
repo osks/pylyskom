@@ -95,8 +95,8 @@ class Int(int):
     def to_string(self):
         return "{:d}".format(self)
 
-        
 class Bool(Int):
+    # todo: inherit from bool instead of int
     pass
 
 class Int8(Int):
@@ -170,10 +170,10 @@ class Array(list):
     def __add__(self, other):
         return self.__class__(list.__add__(self, other))
 
-    def __repr__(self):
-        return "{:s}({:s})".format(
-            self.__class__.__name__,
-            list.__repr__(self))
+    #def __repr__(self):
+    #    return "{:s}({:s})".format(
+    #        self.__class__.__name__,
+    #        list.__repr__(self))
 
     @classmethod
     def parse(cls, buf):

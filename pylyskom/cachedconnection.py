@@ -289,8 +289,8 @@ class CachingClient(object):
             matches = self.request(
                 requests.ReqLookupZName(
                     name,
-                    want_pers = want_pers,
-                    want_confs = want_confs))
+                    want_pers=want_pers,
+                    want_confs=want_confs))
             return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
     def regexp_lookup(self, regexp, want_pers, want_confs,

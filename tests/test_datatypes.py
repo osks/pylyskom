@@ -207,9 +207,9 @@ def test_ArrayInt32_insert_convert_element():
     a.insert(1, 4711)
     assert a.to_string() == "2 { 17 4711 }"
 
-def test_ArrayInt32_repr():
-    a = ArrayInt32([1, 2, 3])
-    assert repr(a) == "ArrayInt32([1, 2, 3])"
+#def test_ArrayInt32_repr():
+#    a = ArrayInt32([1, 2, 3])
+#    assert repr(a) == "ArrayInt32([1, 2, 3])"
 
 def test_ArrayInt32_add():
     a = ArrayInt32([1, 2, 3])
