@@ -19,6 +19,7 @@ from .datatypes import (
     Conference,
     DynamicSessionInfo,
     EmptyResponse,
+    GarbNice,
     Info,
     Int16,
     Int32,
@@ -173,11 +174,11 @@ class Request(object):
         return s + "\n"
 
 
-
 class Argument(object):
-    def __init__(self, name, data_type):
+    def __init__(self, name, data_type, default=None):
         self.name = name
         self.data_type = data_type
+        self.default = default
 
 
 class NewRequest(Request):
@@ -209,9 +210,13 @@ class NewRequest(Request):
                                     "as positional and keyword argument".format(
                             arg_def.name))
             else:
-                if arg_def.name not in kwargs:
-                    raise TypeError("Argument {} is missing".format(arg_def.name))
-                val = kwargs[arg_def.name]
+                if arg_def.name in kwargs:
+                    val = kwargs[arg_def.name]
+                else:
+                    if arg_def.default is None:
+                        raise TypeError("Argument {} is missing".format(arg_def.name))
+                    else:
+                        val = arg_def.default
             
             assert not hasattr(self, arg_def.name), "Invalid argument name"
             arg = arg_def.data_type(val)
@@ -317,40 +322,29 @@ class ReqSetSuperConf(NewRequest):
 class ReqSetConfType(NewRequest):
     CALL_NO = Requests.SET_CONF_TYPE
     ARGS = [ Argument('conf_no', ConfNo),
-             # We use AnyConfType, but that means always sending as ExtendedConfType.
+             # We use AnyConfType, which means always sending as
+             # ExtendedConfType, even if a ConfType is supplied.
              Argument('conf_type', AnyConfType) ]
 
 # set-garb-nice [22] (1) Recommended
-class ReqSetGarbNice(Request):
+class ReqSetGarbNice(NewRequest):
     CALL_NO = Requests.SET_GARB_NICE
-    def __init__(self, conf_no, nice):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        self.nice = nice
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.nice)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('nice', GarbNice) ]
 
 # get-marks [23] (1) Recommended
-class ReqGetMarks(Request):
+class ReqGetMarks(NewRequest):
     CALL_NO = Requests.GET_MARKS
-    def get_request(self):
-        return ""
+    ARGS = []
 
 # mark-text-old [24] (1) Obsolete (4) Use mark-text/unmark-text (72/73)
 
 # get-text [25] (1) Recommended
-class ReqGetText(Request):
+class ReqGetText(NewRequest):
     CALL_NO = Requests.GET_TEXT
-    def __init__(self, text_no, start_char=0, end_char=MAX_TEXT_SIZE):
-        Request.__init__(self)
-        self.text_no = text_no
-        self.start_char = start_char
-        self.end_char = end_char
-
-    def get_request(self):
-        return "%d %d %d" % (self.text_no, self.start_char,
-                             self.end_char)
+    ARGS = [ Argument('text_no', TextNo),
+             Argument('start_char', Int32, default=0),
+             Argument('end_char', Int32, default=MAX_TEXT_SIZE) ]
     
 # get-text-stat-old [26] (1) Obsolete (10) Use get-text-stat (90)
 

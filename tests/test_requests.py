@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from pylyskom.protocol import MAX_TEXT_SIZE
 from pylyskom.datatypes import PrivBits, ConfType, ExtendedConfType
 from pylyskom import requests
 
@@ -118,6 +119,22 @@ def test_ReqSetConfType():
     ext_conf_type = ExtendedConfType()
     r2 = requests.ReqSetConfType(14506, ext_conf_type)
     assert r2.to_string() == "21 14506 00000000\n"
+
+def test_ReqGetText():
+    r = requests.ReqGetText(123, 17, 65535)
+    assert r.to_string() == "25 123 17 65535\n"
+
+def test_ReqGetText_with_defaults():
+    r = requests.ReqGetText(123)
+    assert r.to_string() == "25 123 0 %d\n" % MAX_TEXT_SIZE
+
+def test_ReqGetText_with_default_endchar():
+    r = requests.ReqGetText(123, 0)
+    assert r.to_string() == "25 123 0 %d\n" % MAX_TEXT_SIZE
+
+def test_ReqGetText_with_default_start_char():
+    r = requests.ReqGetText(123, start_char=17)
+    assert r.to_string() == "25 123 17 %d\n" % MAX_TEXT_SIZE
 
 def test_ReqAcceptAsync():
     r = requests.ReqAcceptAsync([])

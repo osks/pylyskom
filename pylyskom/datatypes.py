@@ -95,6 +95,9 @@ class LocalTextNo(Int32):
 class SessionNo(Int32):
     pass
 
+class GarbNice(Int32):
+    pass
+
 class Array(object):
     def __init__(self, element_cls):
         self._element_cls = element_cls
