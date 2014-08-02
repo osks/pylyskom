@@ -224,7 +224,7 @@ def test_connection_read_response_can_parse_query_read_texts_10():
     assert resp.read_texts == [ 135, 136, 137 ]
     assert resp.added_by == 5
     assert resp.added_at == Time(43, 8, 3, 12, 7, 93, 1, 193, 1)
-    assert resp.type == MembershipType(0, 1, 0, 0, 0, 0, 0, 0)
+    assert resp.type == MembershipType([0, 1, 0, 0, 0, 0, 0, 0])
     assert error is None
 
 

@@ -12,6 +12,7 @@ from .protocol import (
 
 from .datatypes import (
     MIR_TO,
+    AnyConfType,
     Array,
     ConfNo,
     ConfZInfo,
@@ -307,26 +308,17 @@ class ReqSetPermittedSubmitters(NewRequest):
              Argument('perm_sub', ConfNo) ]
 
 # set-super-conf [20] (1) Recommended
-class ReqSetSuperConf(Request):
+class ReqSetSuperConf(NewRequest):
     CALL_NO = Requests.SET_SUPER_CONF
-    def __init__(self, conf_no, super_conf):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        self.super_conf = super_conf
-        
-    def get_request(self):
-        return "%d %d" % (self.conf_no, self.super_conf)
+    ARGS = [ Argument('conf_no', ConfNo),
+             Argument('super_conf', ConfNo) ]
 
 # set-conf-type [21] (1) Recommended
-class ReqSetConfType(Request):
+class ReqSetConfType(NewRequest):
     CALL_NO = Requests.SET_CONF_TYPE
-    def __init__(self, conf_no, conf_type):
-        Request.__init__(self)
-        self.conf_no = conf_no
-        self.conf_type = conf_type
-        
-    def get_request(self):
-        return "%d %s" % (self.conf_no, self.conf_type.to_string())
+    ARGS = [ Argument('conf_no', ConfNo),
+             # We use AnyConfType, but that means always sending as ExtendedConfType.
+             Argument('conf_type', AnyConfType) ]
 
 # set-garb-nice [22] (1) Recommended
 class ReqSetGarbNice(Request):

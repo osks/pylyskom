@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from pylyskom.datatypes import PrivBits
+from pylyskom.datatypes import PrivBits, ConfType, ExtendedConfType
 from pylyskom import requests
 
 
@@ -109,6 +109,15 @@ def test_ReqSetPermittedSubmitters():
 def test_ReqSetSuperConf():
     r = requests.ReqSetSuperConf(14506, 6)
     assert r.to_string() == "20 14506 6\n"
+
+def test_ReqSetConfType():
+    conf_type = ConfType([1, 1, 1, 1])
+    r1 = requests.ReqSetConfType(14506, conf_type)
+    assert r1.to_string() == "21 14506 11110000\n"
+
+    ext_conf_type = ExtendedConfType()
+    r2 = requests.ReqSetConfType(14506, ext_conf_type)
+    assert r2.to_string() == "21 14506 00000000\n"
 
 def test_ReqAcceptAsync():
     r = requests.ReqAcceptAsync([])
