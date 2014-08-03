@@ -65,7 +65,7 @@ def test_connection_send_request_sends_request_to_socket():
     s = MockSocket(["LysKOM\n"])
     c = Connection(s)
     c.send_request(ReqAcceptAsync([]))
-    assert s.send_data == "A0H\n1 80 0 {  }\n"
+    assert s.send_data == "A0H\n1 80 0 { }\n"
 
 def test_connection_read_response_raises_bad_request_id_if_there_is_no_outstanding_request():
     s = MockSocket(["LysKOM\n", "=1 25HYawn Nothing is happening\n"])

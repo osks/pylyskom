@@ -45,16 +45,6 @@ def read_float(buf):
     return float("".join(digs))
 
 
-# todo: make these two obsolete
-def array_of_int_to_string(array):
-    return "%d { %s }" % (len(array),
-                         " ".join(list(map(str, array))))
-
-def array_to_string(array):
-    return "%d { %s }" % (len(array), 
-                          " ".join([x.to_string() for x in array]))
-
-
 def to_hstring(s, encoding='latin1'):
     """To hollerith string
     """

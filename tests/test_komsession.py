@@ -6,7 +6,7 @@ from pylyskom import komauxitems
 from pylyskom.requests import Requests
 from pylyskom.komsession import KomSession
 from pylyskom.errors import NoSuchText
-from pylyskom.datatypes import AuxItem, Time
+from pylyskom.datatypes import AuxItemInput, Time
 from mocks import MockConnection, MockTextStat, MockPerson
 
 
@@ -30,7 +30,7 @@ def create_mockconnection():
     # because we use that a lot in the tests below.
     ts = MockTextStat(creation_time=Time())
     ts.aux_items.append(
-        AuxItem(komauxitems.AI_CONTENT_TYPE, data='x-kom/user-area'.encode('ascii')))
+        AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE, data='x-kom/user-area'.encode('ascii')))
     c = MockConnection() # really a mock CachingPersonClient
     c.mock_request(Requests.GET_TEXT_STAT, lambda request: ts)
     return c

@@ -16,7 +16,7 @@ from .connection import Connection
 from .cachedconnection import Client, CachingPersonClient
 
 from .datatypes import (
-    AuxItem,
+    AuxItemInput,
     ConfType,
     CookedMiscInfo,
     MIC_COMMENT,
@@ -402,9 +402,9 @@ class KomSession(object):
         
         # We need to make sure all aux items are encoded.
         creating_software = "%s %s" % (self._client_name, self._client_version)
-        aux_items.append(AuxItem(komauxitems.AI_CREATING_SOFTWARE,
-                                 data=creating_software.encode('utf-8')))
-        aux_items.append(AuxItem(komauxitems.AI_CONTENT_TYPE,
+        aux_items.append(AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
+                                      data=creating_software.encode('utf-8')))
+        aux_items.append(AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE,
                                  data=content_type.encode('utf-8')))
 
         text_no = self._client.request(

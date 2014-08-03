@@ -2,8 +2,10 @@
 import pytest
 
 from pylyskom.protocol import MAX_TEXT_SIZE
-from pylyskom.datatypes import PrivBits, ConfType, ExtendedConfType, LocalTextNo
-from pylyskom import requests
+from pylyskom.datatypes import (
+    AuxItemInput, PrivBits, ConfType, ExtendedConfType, LocalTextNo, InfoOld, CookedMiscInfo,
+    MIRecipient)
+from pylyskom import requests, komauxitems
 
 
 def test_all_requests_has_response_type():
@@ -13,10 +15,9 @@ def test_all_requests_has_response_type():
         call_no = getattr(requests.Requests, k)
         assert call_no in requests.response_dict
 
-def test_request_to_string_raises():
-    r = requests.OldRequest()
-    with pytest.raises(Exception):
-        r.to_string()
+def test_request_constructor():
+    with pytest.raises(TypeError):
+        requests.Request()
 
 def test_ReqLogout():
     r = requests.ReqLogout()
@@ -138,7 +139,7 @@ def test_ReqGetText_with_default_start_char():
 
 def test_ReqMarkAsRead():
     r = requests.ReqMarkAsRead(14506, [])
-    assert r.to_string() == "27 14506 0 {  }\n"
+    assert r.to_string() == "27 14506 0 { }\n"
 
     r = requests.ReqMarkAsRead(14506, [LocalTextNo(17), LocalTextNo(4711)])
     assert r.to_string() == "27 14506 2 { 17 4711 }\n"
@@ -159,7 +160,7 @@ def test_ReqAddRecipient():
 
 def test_ReqAcceptAsync():
     r1 = requests.ReqAcceptAsync([])
-    assert r1.to_string() == "80 0 {  }\n"
+    assert r1.to_string() == "80 0 { }\n"
     assert repr(r1) == "ReqAcceptAsync(request_list=[])"
 
     r2 = requests.ReqAcceptAsync([1, 3])
@@ -186,3 +187,37 @@ def test_ReqSetClientVersion_handles_unicode_string():
     version = u'123.bj\xf6rn'
     r = requests.ReqSetClientVersion(name, version)
     assert r.to_string() == '69 5Hbj\xf6rn 9H123.bj\xf6rn\n'
+
+def test_ReqSetInfo():
+    info_old = InfoOld(version=10901, conf_pres_conf=1, pers_pres_conf=2,
+                       motd_conf=3, kom_news_conf=4, motd_of_lyskom=1080)
+    r = requests.ReqSetInfo(info_old)
+    assert r.to_string() == "79 10901 1 2 3 4 1080\n"
+
+def test_ReqCreateText():
+    misc_info = CookedMiscInfo()
+    misc_info.recipient_list.append(MIRecipient(recpt=14506))
+    aux_items = [ AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
+                               data="test") ]
+    r = requests.ReqCreateText('en text', misc_info, aux_items)
+    assert r.to_string() == "86 7Hen text 1 { 0 14506 } 1 { 15 00000000 0 4Htest }\n"
+
+def test_ReqCreateText_empty():
+    misc_info = CookedMiscInfo()
+    aux_items = []
+    r = requests.ReqCreateText('', misc_info, aux_items)
+    assert r.to_string() == "86 0H 0 { } 0 { }\n"
+
+def test_ReqCreateAnonymousText():
+    misc_info = CookedMiscInfo()
+    misc_info.recipient_list.append(MIRecipient(recpt=14506))
+    aux_items = [ AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
+                               data="test") ]
+    r = requests.ReqCreateAnonymousText('hemligt', misc_info, aux_items)
+    assert r.to_string() == "87 7Hhemligt 1 { 0 14506 } 1 { 15 00000000 0 4Htest }\n"
+
+def test_ReqCreateAnonymousText_empty():
+    misc_info = CookedMiscInfo()
+    aux_items = []
+    r = requests.ReqCreateAnonymousText('hemligt', misc_info, aux_items)
+    assert r.to_string() == "87 7Hhemligt 0 { } 0 { }\n"

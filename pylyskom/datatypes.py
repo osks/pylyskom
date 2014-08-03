@@ -195,7 +195,10 @@ class Array(list):
 
     def to_string(self):
         self._validate_array()
-        return "%d { %s }" % (len(self), " ".join([x.to_string() for x in self]))
+        if len(self) > 0:
+            return "%d { %s }" % (len(self), " ".join([x.to_string() for x in self]))
+        else:
+            return "0 { }"
 
     def _validate_array(self):
         for v in self:
@@ -449,7 +452,7 @@ class ArrayRawMiscInfo(Array):
 
 
 class MIRecipient(object):
-    def __init__(self, type = MIR_TO, recpt = 0):
+    def __init__(self, type=MIR_TO, recpt=0):
         self.type = type # MIR_TO, MIR_CC or MIR_BCC
         self.recpt = recpt   # Always present
         self.loc_no = None   # Always present
@@ -599,27 +602,24 @@ class AuxItemFlags(Bitstring8):
     reserved4 = property(*_create_bitstring_accessors(7))
         
 
-# This class works as Aux-Item on reception, and
-# Aux-Item-Input when being sent.
 class AuxItem(object): 
-    def __init__(self, tag=None, data=""):
-        if isinstance(tag, AuxItem):
-            other = tag
-            self.aux_no = other.aux_no
-            self.tag = other.tag
-            self.creator = other.creator
-            self.created_at = other.created_at
-            self.flags = other.flags
-            self.inherit_limit = other.inherit_limit
-            self.data = other.data
+    def __init__(self, aux_item=None):
+        if aux_item is not None:
+            self.aux_no = aux_item.aux_no
+            self.tag = aux_item.tag
+            self.creator = aux_item.creator
+            self.created_at = aux_item.created_at
+            self.flags = aux_item.flags
+            self.inherit_limit = aux_item.inherit_limit
+            self.data = aux_item.data
         else:
-            self.aux_no = None # not part of Aux-Item-Input
-            self.tag = tag
-            self.creator = None # not part of Aux-Item-Input
-            self.created_at = None # not part of Aux-Item-Input
+            self.aux_no = 0
+            self.tag = 0
+            self.creator = 0
+            self.created_at = Time()
             self.flags = AuxItemFlags()
             self.inherit_limit = 0
-            self.data = data
+            self.data = ""
 
     @classmethod
     def parse(cls, buf):
@@ -636,13 +636,6 @@ class AuxItem(object):
     def __str__(self):
         return "<AuxItem %d>" % self.tag
 
-    def to_string(self):
-        return "%d %s %d %s" % \
-               (self.tag,
-                self.flags.to_string(),
-                self.inherit_limit,
-                to_hstring(self.data))
-
     def __eq__(self, other):
         return (self.aux_no == other.aux_no and
                 self.tag == other.tag and
@@ -655,8 +648,48 @@ class AuxItem(object):
     def __ne__(self, other):
         return not self == other
 
+
+class AuxItemInput(object): 
+    def __init__(self, aux_item=None, tag=0, flags=None, inherit_limit=0, data=None):
+        if aux_item is not None:
+            self.tag = aux_item.tag
+            self.flags = aux_item.flags
+            self.inherit_limit = aux_item.inherit_limit
+            self.data = aux_item.data
+        else:
+            if flags is None:
+                flags = AuxItemFlags()
+            if data is None:
+                data = ""
+            self.tag = tag
+            self.flags = flags
+            self.inherit_limit = inherit_limit
+            self.data = data
+
+    def __str__(self):
+        return "<AuxItemInput %d>" % self.tag
+
+    def to_string(self):
+        return "%d %s %d %s" % \
+               (self.tag,
+                self.flags.to_string(),
+                self.inherit_limit,
+                to_hstring(self.data))
+
+    def __eq__(self, other):
+        return (self.tag == other.tag and
+                self.flags == other.flags and
+                self.inherit_limit == other.inherit_limit and
+                self.data == other.data)
+
+    def __ne__(self, other):
+        return not self == other
+
 class ArrayAuxItem(Array):
     ELEMENT_CLASS = AuxItem
+
+class ArrayAuxItemInput(Array):
+    ELEMENT_CLASS = AuxItemInput
 
 
 # Functions operating on lists of AuxItems
@@ -1074,8 +1107,6 @@ class Mark(object):
 
 # SERVER INFORMATION
 
-# This class works as Info on reception, and
-# Info-Old when being sent.
 class Info(object):
     def __init__(self):
         self.version = None
@@ -1084,7 +1115,7 @@ class Info(object):
         self.motd_conf = None
         self.kom_news_conf = None
         self.motd_of_lyskom = None
-        self.aux_item_list = [] # not part of Info-Old
+        self.aux_item_list = []
 
     @classmethod
     def parse(cls, buf):
@@ -1098,6 +1129,36 @@ class Info(object):
         obj.aux_item_list = ArrayAuxItem.parse(buf)
         return obj
 
+
+class InfoOld(object):
+    def __init__(self, info_old=None, version=0, conf_pres_conf=0, pers_pres_conf=0,
+                 motd_conf=0, kom_news_conf=0, motd_of_lyskom=0):
+        if info_old is None:
+            self.version = version
+            self.conf_pres_conf = conf_pres_conf
+            self.pers_pres_conf = pers_pres_conf
+            self.motd_conf = motd_conf
+            self.kom_news_conf = kom_news_conf
+            self.motd_of_lyskom = motd_of_lyskom
+        else:
+            self.version = info_old.version
+            self.conf_pres_conf = info_old.conf_pres_conf
+            self.pers_pres_conf = info_old.pers_pres_conf
+            self.motd_conf = info_old.motd_conf
+            self.kom_news_conf = info_old.kom_news_conf
+            self.motd_of_lyskom = info_old.motd_of_lyskom
+
+    @classmethod
+    def parse(cls, buf):
+        obj = cls()
+        obj.version = Int32.parse(buf)
+        obj.conf_pres_conf = ConfNo.parse(buf)
+        obj.pers_pres_conf = ConfNo.parse(buf)
+        obj.motd_conf = ConfNo.parse(buf)
+        obj.kom_news_conf = ConfNo.parse(buf)
+        obj.motd_of_lyskom = TextNo.parse(buf)
+        return obj
+
     def to_string(self):
         return "%d %d %d %d %d %d" % (
             self.version,
@@ -1106,6 +1167,7 @@ class Info(object):
             self.motd_conf,
             self.kom_news_conf,
             self.motd_of_lyskom)
+
 
 class VersionInfo(object):
     @classmethod

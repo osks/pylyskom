@@ -185,6 +185,10 @@ def test_ArrayInt32_parse():
         assert isinstance(v, Int32)
     assert a.to_string() == "3 { 17 4711 0 }"
 
+def test_ArrayInt32_empty_array():
+    a = ArrayInt32([])
+    assert a.to_string() == "0 { }"
+
 def test_ArrayInt32_constructor_convert_elements():
     a = ArrayInt32([ 17, 4711, 0 ])
     assert a.to_string() == "3 { 17 4711 0 }"
