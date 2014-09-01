@@ -158,6 +158,10 @@ def test_ReqAddRecipient():
     assert r.to_string() == "30 1 5 1\n"
     
 
+def test_ReqMarkText():
+    r = requests.ReqMarkText(14506, 12345)
+    assert r.to_string() == "72 14506 12345\n"
+
 def test_ReqAcceptAsync():
     r1 = requests.ReqAcceptAsync([])
     assert r1.to_string() == "80 0 { }\n"
