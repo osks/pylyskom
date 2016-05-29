@@ -224,7 +224,7 @@ class KomSession(object):
     def _exact_lookup_match(lookup, matches):
         if len(matches) == 0:
             raise NameNotFound("recipient not found: %s" % lookup)
-        elif len(matches) <> 1:
+        elif len(matches) != 1:
             raise AmbiguousName("ambiguous recipient: %s" % lookup)
         return matches[0][0]
 
