@@ -7,7 +7,7 @@ from pylyskom.requests import Requests
 from pylyskom.komsession import KomSession
 from pylyskom.errors import NoSuchText
 from pylyskom.datatypes import AuxItemInput, Time
-from mocks import MockConnection, MockTextStat, MockPerson
+from .mocks import MockConnection, MockTextStat, MockPerson
 
 
 # TODO for get_user_area:

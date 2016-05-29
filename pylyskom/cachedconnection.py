@@ -7,7 +7,7 @@
 import logging
 
 
-import requests
+from . import requests
 from .async import AsyncMessages, async_dict
 from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
 
