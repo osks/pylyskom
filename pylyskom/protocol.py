@@ -5,6 +5,8 @@
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 
+from __future__ import absolute_import
+import six
 WHITESPACE = " \t\r\n"
 DIGITS = "01234567890"
 FLOAT_CHARS = DIGITS + "eE.-+"
@@ -48,7 +50,7 @@ def read_float(buf):
 def to_hstring(s, encoding='latin1'):
     """To hollerith string
     """
-    assert isinstance(s, basestring)
-    if isinstance(s, unicode):
+    assert isinstance(s, six.string_types)
+    if isinstance(s, six.text_type):
         s = s.encode(encoding)
     return "%dH%s" % (len(s), s)

@@ -4,6 +4,7 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+from __future__ import absolute_import
 import time
 import calendar
 
@@ -16,6 +17,9 @@ from .protocol import (
 
 from .errors import (
     ProtocolError)
+from six.moves import filter
+import six
+from six.moves import range
 
 
 # Constants for Misc-Info (needed in requests below)
@@ -53,7 +57,7 @@ class String(str):
         """
         @param s Encoded string (not unicode)
         """
-        if isinstance(s, unicode):
+        if isinstance(s, six.text_type):
             # For convenience. Latin-1 is the default-encoding in
             # LysKOM
             try:
@@ -75,7 +79,7 @@ class String(str):
         return cls(buf.receive_string(length))
 
     def to_string(self):
-        if isinstance(self, unicode):
+        if isinstance(self, six.text_type):
             raise ValueError("Un-encoded string: {!r}".format(self))
         return "{:d}H{:s}".format(len(self), self)
 

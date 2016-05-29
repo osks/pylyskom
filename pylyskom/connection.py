@@ -4,6 +4,7 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+from __future__ import absolute_import
 import socket
 import errno
 
