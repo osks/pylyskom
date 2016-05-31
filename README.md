@@ -24,6 +24,12 @@ For required Python packages, see requirements.txt. Install them with:
     $ pip install -r requirements.txt
 
 
+Code status
+-----------
+
+[![Build Status](https://travis-ci.org/osks/pylyskom.svg?branch=master)](https://travis-ci.org/osks/pylyskom)
+
+
 Copyright and license
 ---------------------
 
