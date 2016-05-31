@@ -647,11 +647,11 @@ class KomText(object):
             body = utils.decode_text(text, encoding)
         else:
             # If a text has no linefeeds, it only has a body
-            if text.find('\n') == -1:
+            if text.find(b'\n') == -1:
                 subject = "" # Should probably be None instead?
                 rawbody = text
             else:
-                rawsubject, rawbody = text.split('\n', 1)
+                rawsubject, rawbody = text.split(b'\n', 1)
                 # TODO: should we always decode the subject?
                 subject = utils.decode_text(rawsubject, encoding)
         
