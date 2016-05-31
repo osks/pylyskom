@@ -217,9 +217,9 @@ class Request(object):
                         raise TypeError("Argument {} is missing".format(arg_def.name))
                     else:
                         val = arg_def.default
-            
+
             assert not hasattr(self, arg_def.name), "Invalid argument name"
-            
+
             # FIXME. This calls the constructor of the datatype with
             # the value as argument.  this might make sense for
             # converting ints and strings to Int32 and String (and
@@ -230,17 +230,18 @@ class Request(object):
             #
             # TODO: call a classmethod on the types instead of the
             # constructor.
-            arg = arg_def.data_type(val) 
-            
+            arg = arg_def.data_type(val)
+
             setattr(self, arg_def.name, arg)
             self.args.append(arg)
             self._serialized_args.append(arg.to_string())
 
+    # TODO: Rename to "to_bytes"
     def to_string(self):
         """Returns the full serialized request, including CALL_NO and
-        end of line.
+        end of line. To bytes.
         """
-        return ' '.join(["%d" % (self.CALL_NO, )] + self._serialized_args) + "\n"
+        return b' '.join([b"%d" % (self.CALL_NO, )] + self._serialized_args) + b"\n"
 
 
     def __repr__(self):
@@ -414,7 +415,7 @@ class ReqSubComment(Request):
 class ReqGetTime(Request):
     CALL_NO = Requests.GET_TIME
     ARGS = []
-    
+
 # get-info-old [36] (1) Obsolete (10) Use get-info (94)
 
 # add-footnote [37] (1) Recommended

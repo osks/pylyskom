@@ -30,17 +30,17 @@ class ReceiveBuffer(object):
         self._socket = socket
 
         # Receive buffer
-        self._rb = ""    # Buffer for data received from connection
+        self._rb = b""    # Buffer for data received from connection
         self._rb_len = 0 # Length of the buffer
         self._rb_pos = 0 # Position of first unread byte in buffer
 
-    def receive_string(self, len):
+    def receive_string(self, length):
         """Get a string from the receive buffer (receiving more if
         necessary).
         """
-        self._ensure_receive_buffer_size(len)
-        res = self._rb[self._rb_pos:self._rb_pos+len]
-        self._rb_pos = self._rb_pos + len
+        self._ensure_receive_buffer_size(length)
+        res = self._rb[self._rb_pos:self._rb_pos+length]
+        self._rb_pos = self._rb_pos + length
         return res
 
     def receive_char(self):
@@ -49,7 +49,7 @@ class ReceiveBuffer(object):
         """
         # FIXME: Optimize for speed
         self._ensure_receive_buffer_size(1)
-        res = self._rb[self._rb_pos]
+        res = self._rb[self._rb_pos:self._rb_pos+1]
         self._rb_pos = self._rb_pos + 1
         return res
 
@@ -57,7 +57,7 @@ class ReceiveBuffer(object):
         """Ensure that there are at least N bytes in the receive
         buffer."""
         # FIXME: Rewrite for speed and clarity
-        present = self._rb_len - self._rb_pos 
+        present = self._rb_len - self._rb_pos
         while present < size:
             needed = size - present
             wanted = max(needed, 128) # FIXME: Optimize
@@ -68,7 +68,7 @@ class ReceiveBuffer(object):
             self._rb_pos = 0
             self._rb_len = len(self._rb)
             present = self._rb_len
-            
+
 
 class Connection(object):
     def __init__(self, sock, user=None):
@@ -79,17 +79,18 @@ class Connection(object):
         self._socket = sock
         if user is None:
             user = ""
+        assert isinstance(user, str) # Do we want user to be str or bytes?
 
         self._buffer = ReceiveBuffer(self._socket)
         self._ref_no = 0 # Last used ID (i.e. increment before use)
         self._outstanding_requests = {} # Ref-No to Request mapping
 
-        # Send initial string 
-        self._send_string(("A%s\n" % (to_hstring(user),)).encode('latin1'))
+        # Send initial string
+        self._send_string(b"A%s\n" % (to_hstring(user.encode('latin1')),))
 
         # Wait for answer "LysKOM\n"
         resp = self._buffer.receive_string(7) # FIXME: receive line here
-        if resp != "LysKOM\n":
+        if resp != b"LysKOM\n":
             raise BadInitialResponse()
 
     def send_request(self, req):
@@ -125,21 +126,21 @@ class Connection(object):
         self._ref_no += 1
         ref_no = self._ref_no
         assert ref_no not in self._outstanding_requests
-        request_string = "%d %s" % (ref_no, req.to_string())
+        request_string = b"%d %s" % (ref_no, req.to_string())
         self._send_string(request_string)
         self._outstanding_requests[ref_no] = req
         return ref_no
 
     def _parse_response(self):
         ch = read_first_non_ws(self._buffer)
-        if ch == "=":
+        if ch == b"=":
             return self._parse_ok_reply()
-        elif ch == "%":
+        elif ch == b"%":
             return self._parse_error_reply()
-        elif ch == ":":
+        elif ch == b":":
             return self._parse_asynchronous_message()
         else:
-            raise ProtocolError()
+            raise ProtocolError("Got unexpected: %s" % (ch,))
 
     def _parse_ok_reply(self):
         ref_no = read_int(self._buffer)
