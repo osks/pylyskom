@@ -6,7 +6,7 @@ from pylyskom.utils import decode_user_area, encode_user_area, parse_content_typ
 
 
 def test_decode_user_area__handles_empty_string():
-    ua = ""
+    ua = b""
     
     blocks = decode_user_area(ua)
     assert blocks is not None
@@ -14,7 +14,7 @@ def test_decode_user_area__handles_empty_string():
 
 
 def test_decode_user_area__handles_empty_hollerith_string():
-    ua = " 0H"
+    ua = b" 0H"
     
     blocks = decode_user_area(ua)
     assert blocks is not None
@@ -22,37 +22,37 @@ def test_decode_user_area__handles_empty_hollerith_string():
 
 
 def test_decode_user_area__handles_empty_blocks():
-    ua = "17H 6Hcommon 5Helisp 0H 0H"
+    ua = b"17H 6Hcommon 5Helisp 0H 0H"
     
     blocks = decode_user_area(ua)
     assert blocks is not None
     assert len(blocks) == 2
-    assert "common" in blocks
-    assert "elisp" in blocks
-    assert blocks["common"] == ""
-    assert blocks["elisp"] == ""
+    assert b"common" in blocks
+    assert b"elisp" in blocks
+    assert blocks[b"common"] == b""
+    assert blocks[b"elisp"] == b""
 
 
 def test_decode_user_area__handles_beginning_spaces():
-    ua = "  9H 6Hcommon 0H"
+    ua = b"  9H 6Hcommon 0H"
     
     blocks = decode_user_area(ua)
     assert blocks is not None
     assert len(blocks) == 1
-    assert "common" in blocks
-    assert blocks["common"] == ""
+    assert b"common" in blocks
+    assert blocks[b"common"] == b""
 
 
 def test_decode_user_area__example():
-    ua = " 17H 6Hcommon 5Helisp 0H 73H 32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
+    ua = b" 17H 6Hcommon 5Helisp 0H 73H 32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
     
     blocks = decode_user_area(ua)
     assert blocks is not None
     assert len(blocks) == 2
-    assert "common" in blocks
-    assert "elisp" in blocks
-    assert blocks["common"] == ""
-    assert blocks["elisp"] == " 32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
+    assert b"common" in blocks
+    assert b"elisp" in blocks
+    assert blocks[b"common"] == b""
+    assert blocks[b"elisp"] == b" 32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
 
 
 def test_encode_user_area__empty_ua():
@@ -60,51 +60,51 @@ def test_encode_user_area__empty_ua():
     
     ua = encode_user_area(blocks)
     
-    assert ua == "0H"
+    assert ua == b"0H"
 
 
 def test_encode_user_area__one_block_with_empty_value():
-    blocks = { "common": ""}
+    blocks = { b"common": b""}
     
     ua = encode_user_area(blocks)
     
-    assert ua == "9H 6Hcommon 0H"
+    assert ua == b"9H 6Hcommon 0H"
 
 
 def test_encode_user_area__one_block_with_one_empty_hollerith_string():
-    blocks = { "common": "0H"}
+    blocks = { b"common": b"0H"}
     
     ua = encode_user_area(blocks)
     
-    assert ua == "9H 6Hcommon 2H0H"
+    assert ua == b"9H 6Hcommon 2H0H"
 
 
 def test_encode_user_area__blocks_are_put_in_alphabetical_order():
-    blocks = { "common": "c", "jskom": "j", "elisp": "e"}
+    blocks = { b"common": b"c", b"jskom": b"j", b"elisp": b"e"}
     
     ua = encode_user_area(blocks)
     
-    assert ua == "25H 6Hcommon 5Helisp 5Hjskom 1Hc 1He 1Hj"
+    assert ua == b"25H 6Hcommon 5Helisp 5Hjskom 1Hc 1He 1Hj"
 
 
 def test_encode_user_area__block_with_json():
     obj = { 'filtered-authors': [ 17, 4711 ], 'annat': 'Räksmörgås' }
-    blocks = { "jskom": json.dumps(obj) }
+    blocks = { b"jskom": json.dumps(obj, sort_keys=True).encode('utf-8') }
     
     ua = encode_user_area(blocks)
     
-    assert ua == '8H 5Hjskom 70H{"filtered-authors": [17, 4711], "annat": "R\u00e4ksm\u00f6rg\u00e5s"}'
+    assert ua == b'8H 5Hjskom 70H{"annat": "R\u00e4ksm\u00f6rg\u00e5s", "filtered-authors": [17, 4711]}'
 
 
 def test_encode_user_area__example():
     blocks = {
-        "common": "",
-        "elisp": "32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
+        b"common": b"",
+        b"elisp": b"32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
         }
     
     ua = encode_user_area(blocks)
     
-    assert ua == "17H 6Hcommon 5Helisp 0H 72H32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
+    assert ua == b"17H 6Hcommon 5Helisp 0H 72H32Hkom-auto-confirm-new-conferences 3Hnil\n 22Hcreated-texts-are-read 1H0"
 
 
 def test_parse_content_type():

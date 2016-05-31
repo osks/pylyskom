@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from . import mimeparse
+from __future__ import absolute_import
+import six
 
+from . import mimeparse
 from .errors import Error
 from .protocol import WHITESPACE, DIGITS, ORD_0, to_hstring
 
@@ -52,25 +54,26 @@ def mime_type_tuple_to_str(mime_type):
 def parse_hollerith_string(hstring):
     if not hstring:
         return None, hstring
+    assert isinstance(hstring, six.binary_type)
 
     i = 0
-    
+
     # Skip all leading whitespaces
-    c = hstring[i]
+    c = hstring[i:i+1]
     while c in WHITESPACE:
         i += 1
-        c = hstring[i]
+        c = hstring[i:i+1]
 
     # Parse length
     length = 0
     while c in DIGITS:
         length = length * 10 + (ord(c) - ORD_0)
         i += 1
-        c = hstring[i]
-    
-    if c != "H":
+        c = hstring[i:i+1]
+
+    if c != b"H":
         raise Exception("Not a valid hollerith string")
-    
+
     i += 1 # skip "H"
     hend = i + length
     return hstring[i:hend], hstring[hend:]
@@ -86,7 +89,7 @@ def decode_user_area(user_area):
     content.
     """
     h_block_names, h_blocks = parse_hollerith_string(user_area)
-    
+
     def parse_block_names(hstring):
         # Parse block names
         block_names = []
@@ -102,7 +105,7 @@ def decode_user_area(user_area):
             h_block, hstring = parse_hollerith_string(hstring)
             blocks[block_name] = h_block
         return blocks
-    
+
     block_names = parse_block_names(h_block_names)
     blocks = parse_blocks(h_blocks, block_names)
     return blocks
@@ -113,10 +116,10 @@ def encode_user_area(blocks):
     block names and the values are the hollerith string encoded
     blocks. The block names will be sorted alphabetically.
     """
-    h_block_names = ""
-    h_blocks = ""
+    h_block_names = b""
+    h_blocks = b""
     for block_name in sorted(blocks.keys()):
-        h_block_names += " " + to_hollerith_string(block_name)
-        h_blocks += " " + to_hollerith_string(blocks[block_name])
+        h_block_names += b" " + to_hollerith_string(block_name)
+        h_blocks += b" " + to_hollerith_string(blocks[block_name])
 
     return to_hollerith_string(h_block_names) + h_blocks

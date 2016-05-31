@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from mock import Mock
 
 from pylyskom.errors import NoSuchLocalText
@@ -11,8 +13,8 @@ def create_local_to_global_handler(highest_local):
         first = request.first_local_no
         n = request.no_of_existing_texts
         if first > highest_local:
-            print "first is greater than highest local (first: %d, highest_local: %d" % (
-                first, highest_local)
+            print("first is greater than highest local (first: %d, highest_local: %d" % (
+                first, highest_local))
             raise NoSuchLocalText()
         
         mapping = TextMapping()
@@ -21,7 +23,7 @@ def create_local_to_global_handler(highest_local):
         mapping.later_texts_exists = 0 if mapping.range_end > highest_local else 1
         mapping.type_text = "dense"
         mapping.list = [ (i, i) for i in range(mapping.range_begin, mapping.range_end) ]
-        print mapping
+        print(mapping)
         return mapping
     return handle_local_to_global_request
 
@@ -99,7 +101,7 @@ def test_get_unread_texts_from_membership_large():
     
     unread_texts = c.get_unread_texts_from_membership(membership)
     
-    assert unread_texts == range(301, 1000) + range(2001, 2100) + range(3001, highest_local+1)
+    assert unread_texts == list(range(301, 1000)) + list(range(2001, 2100)) + list(range(3001, highest_local+1))
 
 def test_get_unread_texts_from_membership_fetches_the_correct_mappings():
     """This regression test checks that we can handle a gap that is
@@ -130,4 +132,4 @@ def test_get_unread_texts_from_membership_fetches_the_correct_mappings():
     assert unread_texts is not None
     assert len(unread_texts) == len(set(unread_texts))
     assert len(unread_texts) == last_text - 1
-    assert unread_texts == range(1, last_text)
+    assert unread_texts == list(range(1, last_text))

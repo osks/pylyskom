@@ -4,12 +4,15 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+from __future__ import absolute_import
+from __future__ import print_function
 import logging
 
 
-import requests
+from . import requests
 from .async import AsyncMessages, async_dict
 from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
+from six.moves import range
 
 
 logger = logging.getLogger(__name__)
@@ -134,7 +137,7 @@ class CachingClient(object):
         self._add_async_handler(AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient)
         self._add_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient)
         self._add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
-        self.request(requests.ReqAcceptAsync(self._async_handlers.keys()))
+        self.request(requests.ReqAcceptAsync(list(self._async_handlers.keys())))
 
 
     def close(self):
@@ -180,7 +183,7 @@ class CachingClient(object):
         """
         self._add_async_handler(msg_no, handler)
         if not skip_accept_async:
-            self.request(requests.ReqAcceptAsync(self._async_handlers.keys()))
+            self.request(requests.ReqAcceptAsync(list(self._async_handlers.keys())))
 
 
     # Handlers for asynchronous messages (internal use) FIXME: Most of
@@ -449,7 +452,7 @@ class CachingPersonClient(CachingClient):
         # sending accept-async until the last call.
         self._add_async_handler(AsyncMessages.LEAVE_CONF, self._cpah_leave_conf)
         self._add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
-        self.request(requests.ReqAcceptAsync(self._async_handlers.keys()))
+        self.request(requests.ReqAcceptAsync(list(self._async_handlers.keys())))
 
     def login(self, pers_no, password):
         self.request(requests.ReqLogin(pers_no, password, invisible=0))
@@ -620,6 +623,6 @@ class Cache:
         self.dict = dict()
 
     def report(self):
-        print("Cache %s: %d cached, %d uncached" % (self.name,
+        print(("Cache %s: %d cached, %d uncached" % (self.name,
                                                     self.cached,
-                                                    self.uncached))
+                                                    self.uncached)))

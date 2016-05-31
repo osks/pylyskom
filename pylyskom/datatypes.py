@@ -4,6 +4,7 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+from __future__ import absolute_import
 import time
 import calendar
 
@@ -16,6 +17,9 @@ from .protocol import (
 
 from .errors import (
     ProtocolError)
+from six.moves import filter
+import six
+from six.moves import range
 
 
 # Constants for Misc-Info (needed in requests below)
@@ -48,12 +52,12 @@ class EmptyResponse(object):
     def parse(cls, buf):
         return None
 
-class String(str):
+class String(bytes):
     def __new__(cls, s=None):
         """
         @param s Encoded string (not unicode)
         """
-        if isinstance(s, unicode):
+        if isinstance(s, six.text_type):
             # For convenience. Latin-1 is the default-encoding in
             # LysKOM
             try:
@@ -62,22 +66,22 @@ class String(str):
                 raise ValueError("Failed to encode {!r} to latin-1".format(s))
 
         if s is None:
-            return str.__new__(cls)
+            return bytes.__new__(cls)
         else:
-            return str.__new__(cls, s)
+            return bytes.__new__(cls, s)
 
     @classmethod
     def parse(cls, buf):
         # Parse a string (Hollerith notation)
         (length, h) = read_int_and_next(buf)
-        if h != "H":
+        if h != b"H":
             raise ProtocolError()
         return cls(buf.receive_string(length))
 
     def to_string(self):
-        if isinstance(self, unicode):
+        if isinstance(self, six.text_type):
             raise ValueError("Un-encoded string: {!r}".format(self))
-        return "{:d}H{:s}".format(len(self), self)
+        return b"%dH%s" % (len(self), self)
 
 class Float(float):
     @classmethod
@@ -93,7 +97,7 @@ class Int(int):
         return read_int(buf)
 
     def to_string(self):
-        return "{:d}".format(self)
+        return b"%d" % (self,)
 
 class Bool(Int):
     # todo: inherit from bool instead of int
@@ -180,25 +184,25 @@ class Array(list):
         length = read_int(buf)
         obj = cls()
         left = read_first_non_ws(buf)
-        if left == "*":
+        if left == b"*":
             # Empty or special case of unwanted data
             return obj
-        elif left != "{":
+        elif left != b"{":
             raise ProtocolError()
         for i in range(0, length):
             el = cls.ELEMENT_CLASS.parse(buf)
             obj.append(el)
         right = read_first_non_ws(buf)
-        if right != "}":
+        if right != b"}":
             raise ProtocolError()
         return obj
 
     def to_string(self):
         self._validate_array()
         if len(self) > 0:
-            return "%d { %s }" % (len(self), " ".join([x.to_string() for x in self]))
+            return b"%d { %s }" % (len(self), b" ".join([x.to_string() for x in self]))
         else:
-            return "0 { }"
+            return b"0 { }"
 
     def _validate_array(self):
         for v in self:
@@ -243,9 +247,9 @@ class Bitstring(list):
         length = cls.LENGTH
         char = read_first_non_ws(buf)
         for i in range(0, length):
-            if char == "0":
+            if char == b"0":
                 obj[i] = 0
-            elif char == "1":
+            elif char == b"1":
                 obj[i] = 1
             else:
                 raise ProtocolError()
@@ -254,7 +258,7 @@ class Bitstring(list):
 
     def to_string(self):
         self._validate_bitstring()
-        return ("%d"*self.LENGTH) % tuple(self)
+        return (b"%d"*self.LENGTH) % tuple(self)
 
     def _validate_bitstring(self):
         assert len(self) == self.LENGTH
@@ -350,7 +354,7 @@ class Time(object):
                 dst=self.is_dst))
 
     def to_string(self):
-        return "%d %d %d %d %d %d %d %d %d" % (
+        return b"%d %d %d %d %d %d %d %d %d" % (
             self.seconds,
             self.minutes,
             self.hours,
@@ -571,14 +575,14 @@ class CookedMiscInfo(object):
         return obj
 
     def to_string(self):
-        list = []
+        l = []
         for r in self.comment_to_list + \
             self.recipient_list + \
             self.comment_in_list:
-            list = list + r.get_tuples()
-        return "%d { %s}" % (len(list),
-                             "".join(["%d %d " % \
-                                          (x[0], x[1]) for x in list]))
+            l = l + r.get_tuples()
+        return b"%d { %s}" % (len(l),
+                              b"".join([b"%d %d " % \
+                                            (x[0], x[1]) for x in l]))
 
 
     def __eq__(self, other):
@@ -670,11 +674,11 @@ class AuxItemInput(object):
         return "<AuxItemInput %d>" % self.tag
 
     def to_string(self):
-        return "%d %s %d %s" % \
-               (self.tag,
-                self.flags.to_string(),
-                self.inherit_limit,
-                to_hstring(self.data))
+        return b"%d %s %d %s" % \
+            (self.tag,
+             self.flags.to_string(),
+             self.inherit_limit,
+             to_hstring(self.data))
 
     def __eq__(self, other):
         return (self.tag == other.tag and
@@ -939,9 +943,9 @@ class ReadRange(object):
         return "<ReadRange %d-%d>" % (self.first_read, self.last_read)
 
     def to_string(self):
-        return "%d %d" % \
-               (self.first_read,
-                self.last_read)
+        return b"%d %d" % \
+            (self.first_read,
+             self.last_read)
 
 class ArrayReadRange(Array):
     ELEMENT_CLASS = ReadRange
@@ -1160,7 +1164,7 @@ class InfoOld(object):
         return obj
 
     def to_string(self):
-        return "%d %d %d %d %d %d" % (
+        return b"%d %d %d %d %d %d" % (
             self.version,
             self.conf_pres_conf,
             self.pers_pres_conf,

@@ -8,6 +8,6 @@ pyflakes:
 	pyflakes ./tests
 
 test:
-	py.test --maxfail 1 ./tests
+	py.test -v --maxfail 1 ./tests
 
 .PHONY: all auxitems test pyflakes

@@ -4,12 +4,14 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+from __future__ import absolute_import
 import functools
 import json
+import six
 
 import errno
 import socket
-import mimeparse
+from . import mimeparse
 
 from . import komauxitems, utils, requests
 from .connection import Connection
@@ -76,8 +78,13 @@ def check_connection(f):
 # Idea: rename KomSession to KomClient?
 class KomSession(object):
     """ A LysKom session.
-    
-    Should handle either unicode strings or utf-8 encoded strings.
+
+    Should handle either unicode strings or utf-8 encoded strings. (FIXME)
+
+    TODO[Python3]: Only handle (unicode) strings, not bytes, in the
+    external interfaces for things that are real strings. ??? (Or only
+    bytes? Seems inconvient at this level.)
+
     """
     def __init__(self, client_factory=create_client):
         # TODO: We actually require the API of a
@@ -89,15 +96,15 @@ class KomSession(object):
         self._session_no = None
         self._client_name = None
         self._client_version = None
-    
+
     def connect(self, host, port, username, hostname, client_name, client_version):
         assert not self.is_connected() # todo: raise better exception
         # decode if not already unicode (assuming utf-8)
-        if isinstance(client_name, str):
+        if isinstance(client_name, six.binary_type):
             client_name = client_name.decode('utf-8')
-        if isinstance(client_version, str):
+        if isinstance(client_version, six.binary_type):
             client_version = client_version.decode('utf-8')
-        
+
         self._client = self._client_factory(host, port, user=username + "%" + hostname)
 
         # todo: we shouldn't require client name/version. specify in
@@ -132,16 +139,16 @@ class KomSession(object):
         disconnect its other sessions).
         """
         self._client.request(requests.ReqDisconnect(session_no))
-        
+
         # Check if we disconnected our own session or not (you can
         # disconnect another LysKOM session that the logged in user is
         # a supervisor of).
         if session_no == 0 or session_no == self._session_no:
             self.close()
-    
+
     @check_connection
     def login(self, pers_no, password):
-        if isinstance(password, str):
+        if isinstance(password, six.binary_type):
             password = password.decode('utf-8')
         pers_no = int(pers_no)
         self._client.login(pers_no, password)
@@ -201,7 +208,7 @@ class KomSession(object):
     
     @check_connection
     def lookup_name(self, name, want_pers, want_confs):
-        if isinstance(name, str):
+        if isinstance(name, six.binary_type):
             name = name.decode('utf-8')
         return self._client.lookup_name(name, want_pers, want_confs)
 
@@ -224,7 +231,7 @@ class KomSession(object):
     def _exact_lookup_match(lookup, matches):
         if len(matches) == 0:
             raise NameNotFound("recipient not found: %s" % lookup)
-        elif len(matches) <> 1:
+        elif len(matches) != 1:
             raise AmbiguousName("ambiguous recipient: %s" % lookup)
         return matches[0][0]
 
@@ -328,11 +335,11 @@ class KomSession(object):
     @check_connection
     def create_text(self, subject, body, content_type, recipient_list=None, comment_to_list=None):
         # decode if not already unicode (assuming utf-8)
-        if isinstance(subject, str):
+        if isinstance(subject, six.binary_type):
             subject = subject.decode('utf-8')
-        if isinstance(body, str):
+        if isinstance(body, six.binary_type):
             body = body.decode('utf-8')
-        if isinstance(content_type, str):
+        if isinstance(content_type, six.binary_type):
             content_type = content_type.decode('utf-8')
 
         komtext = KomText()
@@ -445,31 +452,33 @@ class KomSession(object):
         for the given person. If there is no user area for the person,
         or if there is no block with the given name, None will be
         returned.
-        
+
         If json_decode is True (default), the stored block will be
         passed to json.loads() before it is returned.
-        
+
         If json_decode is False, then the block will be returned as a
         string.
         """
         person_stat = self._client.request(requests.ReqGetPersonStat(pers_no))
-        
+
         if person_stat.user_area == 0:
             # No user area
             return None
-        
+
+        # TODO: don't use external get_text method here - it should decode the body,
+        # but we don't want to do that.
         text = self.get_text(person_stat.user_area)
         if text.content_type != 'x-kom/user-area':
             raise KomSessionError(
                 "Unknown content type for user area text: %s" % (text.content_type,))
 
-        blocks = utils.decode_user_area(text.body)
+        blocks = utils.decode_user_area(text.body.encode('latin1')) #HACK
         block = blocks.get(block_name, None)
         if block is not None and json_decode:
-            block = json.loads(block)
-        
+            block = json.loads(block.decode('latin1')) #HACK
+
         return block
-    
+
     @check_connection
     def set_user_area_block(self, pers_no, block_name, block, json_encode=True):
         """Set the block with the given block name in the user area
@@ -477,29 +486,31 @@ class KomSession(object):
         new user area for the person. If there already is a block with
         the given name, it will be over-written. The other blocks in
         the user area will copied to the new user area.
-        
+
         If json_encode is True (default), the block will be passed to
         json.dumps() before it is saved.
-        
+
         If json_encode is False, then the block should be a string
         that can be hollerith encoded.
         """
         person_stat = self._client.request(requests.ReqGetPersonStat(pers_no))
-        
+
         if person_stat.user_area == 0:
             # No existing user area, initiate a new dictionary of
             # blocks.
             blocks = dict()
         else:
+            # TODO: don't use external get_text method here - it
+            # should decode the body, but we don't want to do that.
             user_area = self.get_text(person_stat.user_area)
             if user_area.content_type != 'x-kom/user-area':
                 raise KomSessionError(
                     "Unknown content type for user area text: %s" % (user_area.content_type,))
 
-            blocks = utils.decode_user_area(user_area.body)
-        
+            blocks = utils.decode_user_area(user_area.body.encode('latin1')) # HACK
+
         if json_encode:
-            blocks[block_name] = json.dumps(block)
+            blocks[block_name] = json.dumps(block).encode('latin1') # HACK
         else:
             blocks[block_name] = block
 
@@ -636,11 +647,11 @@ class KomText(object):
             body = utils.decode_text(text, encoding)
         else:
             # If a text has no linefeeds, it only has a body
-            if text.find('\n') == -1:
+            if text.find(b'\n') == -1:
                 subject = "" # Should probably be None instead?
                 rawbody = text
             else:
-                rawsubject, rawbody = text.split('\n', 1)
+                rawsubject, rawbody = text.split(b'\n', 1)
                 # TODO: should we always decode the subject?
                 subject = utils.decode_text(rawsubject, encoding)
         

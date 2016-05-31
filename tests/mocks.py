@@ -62,7 +62,7 @@ class MockConnection(object):
         request_no = request.CALL_NO
         if request_no not in self.__request_calls:
             self.__request_calls[request_no] = []
-        
+
         self.__request_calls[request_no].append(request)
 
         if request_no in self.__mocked_requests:
@@ -86,15 +86,18 @@ class MockConnection(object):
 
 class MockSocket():
     def __init__(self, recv_data=None):
-        self.send_data = ""
+        self.send_data = b""
+        self.recv_data = b""
         if recv_data is None:
-            recv_data = ""
-        if isinstance(recv_data, str):
-            self.recv_data = recv_data
-        else:
-            self.recv_data = "".join(recv_data)
+            recv_data = []
+        if isinstance(recv_data, bytes):
+            recv_data = [ recv_data ]
+        for rd in recv_data:
+            assert isinstance(rd, bytes)
+            self.recv_data += rd
 
     def send(self, s):
+        assert isinstance(s, bytes)
         self.send_data += s
         return len(s)
 
@@ -102,6 +105,7 @@ class MockSocket():
         i = min(len(self.recv_data), bufsize)
         r = self.recv_data[:i]
         self.recv_data = self.recv_data[i:]
+        assert isinstance(r, bytes)
         return r
 
     def close(self):

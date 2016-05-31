@@ -5,9 +5,12 @@
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 
-WHITESPACE = " \t\r\n"
-DIGITS = "01234567890"
-FLOAT_CHARS = DIGITS + "eE.-+"
+from __future__ import absolute_import
+import six
+
+WHITESPACE = bytearray(b" \t\r\n")
+DIGITS = bytearray(b"01234567890")
+FLOAT_CHARS = DIGITS + bytearray(b"eE.-+")
 
 ORD_0 = ord("0")
 
@@ -42,13 +45,11 @@ def read_float(buf):
     while c in FLOAT_CHARS:
         digs.append(c)
         c = buf.receive_char()
-    return float("".join(digs))
+    return float(b"".join(digs))
 
 
-def to_hstring(s, encoding='latin1'):
-    """To hollerith string
+def to_hstring(s):
+    """To hollerith byte string
     """
-    assert isinstance(s, basestring)
-    if isinstance(s, unicode):
-        s = s.encode(encoding)
-    return "%dH%s" % (len(s), s)
+    assert isinstance(s, six.binary_type)
+    return b"%dH%s" % (len(s), s)

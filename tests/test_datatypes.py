@@ -9,7 +9,7 @@ from pylyskom.datatypes import ArrayInt32, Int32, String, ConfType, ExtendedConf
 
 
 def test_Array_can_parse_empty_array_with_star_format():
-    s = MockSocket(["0 *"])
+    s = MockSocket([b"0 *"])
     buf = ReceiveBuffer(s)
     res = ArrayInt32.parse(buf)
     assert res == []
@@ -17,22 +17,22 @@ def test_Array_can_parse_empty_array_with_star_format():
 def test_Array_can_parse_empty_array_with_normal_format():
     # This is generally not sent by the server, because empty arrays
     # are sent as "0 *", but I think we should handle it anyway.
-    s = MockSocket("0 { }")
+    s = MockSocket(b"0 { }")
     buf = ReceiveBuffer(s)
     res = ArrayInt32.parse(buf)
     assert res == []
 
 def test_Array_can_parse_array_non_zero_length_with_star_special_case():
-    s = MockSocket("5 *") # length 5 but no array content
+    s = MockSocket(b"5 *") # length 5 but no array content
     buf = ReceiveBuffer(s)
     res = ArrayInt32.parse(buf)
     assert res == []
 
 def test_String_can_parse_hollerith_string():
-    s = MockSocket("7Hfoo bar")
+    s = MockSocket(b"7Hfoo bar")
     buf = ReceiveBuffer(s)
     res = String.parse(buf)
-    assert res == "foo bar"
+    assert res == b"foo bar"
 
 
 def test_ConfType_length():
@@ -53,10 +53,10 @@ def test_ConfType_default_constructor():
 
 def test_ConfType_to_string():
     ct = ConfType()
-    assert ct.to_string() == "0000"
+    assert ct.to_string() == b"0000"
 
     ct = ConfType([1, 1, 1, 1])
-    assert ct.to_string() == "1111"
+    assert ct.to_string() == b"1111"
 
 def test_ExtendedConfType_length():
     ct = ExtendedConfType()
@@ -65,7 +65,7 @@ def test_ExtendedConfType_length():
 
 def test_ExtendedConfType_default_constructor():
     ct = ExtendedConfType()
-    assert ct.to_string() == "00000000"
+    assert ct.to_string() == b"00000000"
 
 def test_ExtendedConfType_rd_prot():
     ct = ExtendedConfType([1, 0, 0, 0, 0, 0, 0, 0])
@@ -158,77 +158,77 @@ def test_ExtendedConfType_reserved3():
 def test_ExtendedConfType_constructor_can_convert_ConfType():
     ct = ConfType([1, 1, 1, 1])
     ect = ExtendedConfType(ct)
-    assert ect.to_string() == "11110000"
+    assert ect.to_string() == b"11110000"
 
 def test_ExtendedConfType_to_string():
     ct1 = ExtendedConfType()
-    assert ct1.to_string() == "00000000"
+    assert ct1.to_string() == b"00000000"
     ct2 = ExtendedConfType([1, 0, 1, 0,
                             1, 0, 1, 0])
-    assert ct2.to_string() == "10101010"
+    assert ct2.to_string() == b"10101010"
     ct3 = ExtendedConfType([1, 1, 1, 1,
                             1, 1, 1, 1])
-    assert ct3.to_string() == "11111111"
+    assert ct3.to_string() == b"11111111"
 
 def test_ExtendedConfType_parse():
     with pytest.raises(ReceiveError):
         # Must have an extra character, so this will fail
-        ect = ExtendedConfType.parse(ReceiveBuffer(MockSocket("00110011")))
+        ect = ExtendedConfType.parse(ReceiveBuffer(MockSocket(b"00110011")))
         
-    ect = ExtendedConfType.parse(ReceiveBuffer(MockSocket("00110011 ")))
-    assert ect.to_string() == "00110011"
+    ect = ExtendedConfType.parse(ReceiveBuffer(MockSocket(b"00110011 ")))
+    assert ect.to_string() == b"00110011"
 
 
 def test_ArrayInt32_parse():
-    a = ArrayInt32.parse(ReceiveBuffer(MockSocket("3 { 17 4711 0 }")))
+    a = ArrayInt32.parse(ReceiveBuffer(MockSocket(b"3 { 17 4711 0 }")))
     for v in a:
         assert isinstance(v, Int32)
-    assert a.to_string() == "3 { 17 4711 0 }"
+    assert a.to_string() == b"3 { 17 4711 0 }"
 
 def test_ArrayInt32_empty_array():
     a = ArrayInt32([])
-    assert a.to_string() == "0 { }"
+    assert a.to_string() == b"0 { }"
 
 def test_ArrayInt32_constructor_convert_elements():
     a = ArrayInt32([ 17, 4711, 0 ])
-    assert a.to_string() == "3 { 17 4711 0 }"
+    assert a.to_string() == b"3 { 17 4711 0 }"
 
 def test_ArrayInt32_setitem_convert_element():
     a = ArrayInt32([0, 0])
     a[0] = 17
     a[1] = 4711
-    assert a.to_string() == "2 { 17 4711 }"
+    assert a.to_string() == b"2 { 17 4711 }"
 
 def test_ArrayInt32_append_convert_element():
     a = ArrayInt32()
     a.append(17)
     a.append(4711)
-    assert a.to_string() == "2 { 17 4711 }"
+    assert a.to_string() == b"2 { 17 4711 }"
 
 def test_ArrayInt32_insert_convert_element():
     a = ArrayInt32()
     a.insert(0, 17)
     a.insert(1, 4711)
-    assert a.to_string() == "2 { 17 4711 }"
+    assert a.to_string() == b"2 { 17 4711 }"
 
 #def test_ArrayInt32_repr():
 #    a = ArrayInt32([1, 2, 3])
-#    assert repr(a) == "ArrayInt32([1, 2, 3])"
+#    assert repr(a) == b"ArrayInt32([1, 2, 3])"
 
 def test_ArrayInt32_add():
     a = ArrayInt32([1, 2, 3])
     b = ArrayInt32([4, 5, 6])
     a = a + b
-    assert a.to_string() == "6 { 1 2 3 4 5 6 }"
+    assert a.to_string() == b"6 { 1 2 3 4 5 6 }"
 
 def test_ArrayInt32_add_convert_element():
     a = ArrayInt32([1, 2, 3])
     b = [4, 5, 6]
     a = a + b
-    assert a.to_string() == "6 { 1 2 3 4 5 6 }"
+    assert a.to_string() == b"6 { 1 2 3 4 5 6 }"
 
 def test_ArrayInt32_extend_convert_element():
     a = ArrayInt32([1, 2, 3])
     b = [4, 5, 6]
     a.extend(b)
-    assert a.to_string() == "6 { 1 2 3 4 5 6 }"
+    assert a.to_string() == b"6 { 1 2 3 4 5 6 }"
