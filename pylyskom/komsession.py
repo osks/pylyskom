@@ -183,21 +183,22 @@ class KomSession(object):
     @check_connection
     def create_person(self, name, passwd):
         # decode if not already unicode (assuming utf-8)
-        if isinstance(name, str):
+        if isinstance(name, six.binary_type):
             name = name.decode('utf-8')
-        if isinstance(passwd, str):
+        if isinstance(passwd, six.binary_type):
             passwd = passwd.decode('utf-8')
 
         flags = PersonalFlags()
         aux_items = []
         pers_no = self._client.request(
             requests.ReqCreatePerson(name, passwd, flags, aux_items))
+        stats.set('komsession.persons.created.sum', 1, agg='sum')
         return KomPerson(pers_no)
 
     @check_connection
     def create_conference(self, name, aux_items=None):
         # decode if not already unicode (assuming utf-8)
-        if isinstance(name, str):
+        if isinstance(name, six.binary_type):
             name = name.decode('utf-8')
 
         conf_type = ConfType()
