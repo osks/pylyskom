@@ -116,7 +116,7 @@ class Connection(object):
             try:
                 self._socket.close()
             except socket.error as e:
-                if e.eno in (107, errno.ENOTCONN):
+                if e.errno in (107, errno.ENOTCONN):
                     # 107: Not connected anymore. Didn't find any errno
                     # name, but the exception says "[Errno 107] Transport
                     # endpoint is not connected".
