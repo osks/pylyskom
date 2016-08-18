@@ -206,8 +206,9 @@ class KomSession(object):
             aux_items = []
         conf_no = self._client.request(
             requests.ReqCreateConf(name.encode('latin1'), conf_type, aux_items))
+        stats.set('komsession.conferences.created.sum', 1, agg='sum')
         return conf_no
-    
+
     @check_connection
     def lookup_name(self, name, want_pers, want_confs):
         if isinstance(name, six.binary_type):
@@ -418,6 +419,7 @@ class KomSession(object):
 
         text_no = self._client.request(
             requests.ReqCreateText(fulltext, misc_info, aux_items))
+        stats.set('komsession.texts.created.sum', 1, agg='sum')
         return text_no
 
     @check_connection

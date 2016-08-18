@@ -1,7 +1,11 @@
 import errno
+import logging
 import socket
 import threading
 import time
+
+
+log = logging.getLogger('pylyskom.stats')
 
 
 class Stats(object):
@@ -94,13 +98,15 @@ class GraphiteTcpConnection(object):
             self.connect()
         data = serialize_graphite_plaintext(metrics)
         try:
-            self._socket.sendall(data.encode('ascii'))
+            self._socket.sendall(data)
         except socket.error as e:
             # TODO: Attempt to reconnect and send again
             if e.errno in (107, errno.ENOTCONN):
                 # 107: Not connected anymore. Didn't find any errno
                 # name, but the exception says "[Errno 107] Transport
                 # endpoint is not connected".
+                self.close()
+            elif e.errno in (32, errno.EPIPE): # Broken pipe
                 self.close()
             else:
                 raise
@@ -110,14 +116,19 @@ def serialize_graphite_plaintext(metrics):
     data = b''
     for m in metrics:
         # <metric path> <metric value> <metric timestamp>
-        data += b'{} {} {}\n'.format(m[0], m[1], m[2])
+        try:
+            data += ("%s %s %d\n" % (m[0], m[1], m[2])).encode('ascii')
+        except UnicodeDecodeError:
+            log.exception("Failed to encode metrics as ascii: %s", m)
+            # skip this metric
+            continue
     return data
 
 
 class StatsSender(threading.Thread):
-    def __init__(self, stats, conn, interval):
+    def __init__(self, statslist, conn, interval):
         threading.Thread.__init__(self)
-        self._stats = stats
+        self._statslist = statslist
         self._conn = conn
         self._alive = threading.Event()
         self._alive.set()
@@ -136,7 +147,7 @@ class StatsSender(threading.Thread):
         threading.Thread.join(self, timeout)
 
     def _step(self, now):
-        dump = self._stats.dump()
+        dump = merge_dicts([ s.dump() for s in self._statslist ])
         metrics = []
         for m in dump:
             metrics.append((m, dump[m], now))
@@ -165,3 +176,10 @@ def run_every(interval, func, should_continue_func):
         after_t = time.time()
         sleep = min(sleep_max, max(0, next_t - after_t))
         time.sleep(sleep)
+
+
+def merge_dicts(dicts):
+    merged = dict()
+    for d in dicts:
+        merged.update(d)
+    return merged
