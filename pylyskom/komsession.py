@@ -16,6 +16,7 @@ from . import mimeparse
 from . import komauxitems, utils, requests
 from .connection import Connection
 from .cachedconnection import Client, CachingPersonClient
+from .stats import stats
 
 from .datatypes import (
     AuxItemInput,

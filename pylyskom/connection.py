@@ -5,8 +5,9 @@
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 from __future__ import absolute_import
-import socket
 import errno
+import socket
+import threading
 
 from .errors import (
     error_dict,
@@ -23,6 +24,7 @@ from .protocol import (
 
 from .requests import response_dict
 from .async import async_dict
+from .stats import stats
 
 
 class ReceiveBuffer(object):
@@ -76,6 +78,7 @@ class Connection(object):
 
         @param user: See Protocol A spec.
         """
+        self._lock = threading.RLock()
         self._socket = sock
         if user is None:
             user = ""
@@ -92,29 +95,37 @@ class Connection(object):
         resp = self._buffer.receive_string(7) # FIXME: receive line here
         if resp != b"LysKOM\n":
             raise BadInitialResponse()
+        stats.set('connection.opened.sum', 1, agg='sum')
 
     def send_request(self, req):
-        return self._send_request(req)
+        with self._lock:
+            ref_no = self._send_request(req)
+            stats.set('connection.requests.sent.sum', 1, agg='sum')
+        return ref_no
 
     def read_response(self):
-        return self._parse_response()
+        with self._lock:
+            ref_no, resp, error = self._parse_response()
+        return ref_no, resp, error
 
     def close(self):
         if self._socket is None:
             return
 
-        try:
-            self._socket.close()
-        except socket.error as e:
-            if e.eno in (107, errno.ENOTCONN):
-                # 107: Not connected anymore. Didn't find any errno
-                # name, but the exception says "[Errno 107] Transport
-                # endpoint is not connected".
-                pass
-            else:
-                raise
-        finally:
-            self._socket = None
+        with self._lock:
+            try:
+                self._socket.close()
+            except socket.error as e:
+                if e.eno in (107, errno.ENOTCONN):
+                    # 107: Not connected anymore. Didn't find any errno
+                    # name, but the exception says "[Errno 107] Transport
+                    # endpoint is not connected".
+                    pass
+                else:
+                    raise
+            finally:
+                self._socket = None
+                stats.set('connection.closed.sum', 1, agg='sum')
 
     def _send_string(self, s):
         """Send a raw string."""
@@ -133,13 +144,18 @@ class Connection(object):
 
     def _parse_response(self):
         ch = read_first_non_ws(self._buffer)
+        stats.set('connection.responses.received.sum', 1, agg='sum')
         if ch == b"=":
+            stats.set('connection.responses.received.ok.sum', 1, agg='sum')
             return self._parse_ok_reply()
         elif ch == b"%":
+            stats.set('connection.responses.received.error.sum', 1, agg='sum')
             return self._parse_error_reply()
         elif ch == b":":
+            stats.set('connection.responses.received.async.sum', 1, agg='sum')
             return self._parse_asynchronous_message()
         else:
+            stats.set('connection.responses.received.protocolerror.sum', 1, agg='sum')
             raise ProtocolError("Got unexpected: %s" % (ch,))
 
     def _parse_ok_reply(self):

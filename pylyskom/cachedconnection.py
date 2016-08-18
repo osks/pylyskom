@@ -8,11 +8,12 @@ from __future__ import absolute_import
 from __future__ import print_function
 import logging
 
+from six.moves import range
 
 from . import requests
 from .async import AsyncMessages, async_dict
 from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
-from six.moves import range
+from .stats import stats
 
 
 logger = logging.getLogger(__name__)
@@ -589,10 +590,10 @@ class CachingPersonClient(CachingClient):
     def report_cache_usage(self):
         CachingClient.report_cache_usage(self)
         self._memberships.report()
-        
+
 
 # Cache class for use internally by CachingClient
-class Cache:
+class Cache(object):
     def __init__(self, fetcher, name = "Unknown"):
         self.dict = {}
         self.fetcher = fetcher
@@ -602,27 +603,33 @@ class Cache:
 
     def __getitem__(self, no):
         #print('%s[%d]' % (self.name, no))
+        stats.set('client.cache.{}.gets.sum'.format(self.name), 1, agg='sum')
         if no in self.dict:
             #print('%s[%d] - cached' % (self.name, no))
             self.cached = self.cached + 1
+            stats.set('client.cache.{}.gets.hits.sum'.format(self.name), 1, agg='sum')
             return self.dict[no]
         else:
             #print('%s[%d] - not cached' % (self.name, no))
             self.uncached = self.uncached + 1
-            self.dict[no] = self.fetcher(no)
+            stats.set('client.cache.{}.gets.misses.sum'.format(self.name), 1, agg='sum')
+            self[no] = self.fetcher(no)
             return self.dict[no]
 
     def __setitem__(self, no, val):
         self.dict[no] = val
+        stats.set('client.cache.{}.sets.sum'.format(self.name), 1, agg='sum')
 
     def invalidate(self, no):
         if no in self.dict:
             del self.dict[no]
-    
+            stats.set('client.cache.{}.invalidations.sum'.format(self.name), 1, agg='sum')
+
     def invalidate_all(self):
         self.dict = dict()
+        stats.set('client.cache.{}.invalidate-alls.sum'.format(self.name), 1, agg='sum')
 
     def report(self):
         print(("Cache %s: %d cached, %d uncached" % (self.name,
-                                                    self.cached,
-                                                    self.uncached)))
+                                                     self.cached,
+                                                     self.uncached)))
