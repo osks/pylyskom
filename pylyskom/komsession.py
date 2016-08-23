@@ -192,7 +192,7 @@ class KomSession(object):
         aux_items = []
         pers_no = self._client.request(
             requests.ReqCreatePerson(name, passwd, flags, aux_items))
-        stats.set('komsession.persons.created.sum', 1, agg='sum')
+        stats.set('komsession.persons.created.last', 1, agg='sum')
         return KomPerson(pers_no)
 
     @check_connection
@@ -206,7 +206,7 @@ class KomSession(object):
             aux_items = []
         conf_no = self._client.request(
             requests.ReqCreateConf(name.encode('latin1'), conf_type, aux_items))
-        stats.set('komsession.conferences.created.sum', 1, agg='sum')
+        stats.set('komsession.conferences.created.last', 1, agg='sum')
         return conf_no
 
     @check_connection
@@ -419,7 +419,7 @@ class KomSession(object):
 
         text_no = self._client.request(
             requests.ReqCreateText(fulltext, misc_info, aux_items))
-        stats.set('komsession.texts.created.sum', 1, agg='sum')
+        stats.set('komsession.texts.created.last', 1, agg='sum')
         return text_no
 
     @check_connection

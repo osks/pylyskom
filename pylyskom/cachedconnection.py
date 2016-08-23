@@ -603,31 +603,31 @@ class Cache(object):
 
     def __getitem__(self, no):
         #print('%s[%d]' % (self.name, no))
-        stats.set('clients.cache.{}.gets.sum'.format(self.name), 1, agg='sum')
+        stats.set('clients.cache.{}.gets.last'.format(self.name), 1, agg='sum')
         if no in self.dict:
             #print('%s[%d] - cached' % (self.name, no))
             self.cached = self.cached + 1
-            stats.set('clients.cache.{}.gets.hits.sum'.format(self.name), 1, agg='sum')
+            stats.set('clients.cache.{}.gets.hits.last'.format(self.name), 1, agg='sum')
             return self.dict[no]
         else:
             #print('%s[%d] - not cached' % (self.name, no))
             self.uncached = self.uncached + 1
-            stats.set('clients.cache.{}.gets.misses.sum'.format(self.name), 1, agg='sum')
+            stats.set('clients.cache.{}.gets.misses.last'.format(self.name), 1, agg='sum')
             self[no] = self.fetcher(no)
             return self.dict[no]
 
     def __setitem__(self, no, val):
         self.dict[no] = val
-        stats.set('clients.cache.{}.sets.sum'.format(self.name), 1, agg='sum')
+        stats.set('clients.cache.{}.sets.last'.format(self.name), 1, agg='sum')
 
     def invalidate(self, no):
         if no in self.dict:
             del self.dict[no]
-            stats.set('clients.cache.{}.invalidations.sum'.format(self.name), 1, agg='sum')
+            stats.set('clients.cache.{}.invalidations.last'.format(self.name), 1, agg='sum')
 
     def invalidate_all(self):
         self.dict = dict()
-        stats.set('clients.cache.{}.invalidate-alls.sum'.format(self.name), 1, agg='sum')
+        stats.set('clients.cache.{}.invalidate-alls.last'.format(self.name), 1, agg='sum')
 
     def report(self):
         print(("Cache %s: %d cached, %d uncached" % (self.name,

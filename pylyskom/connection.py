@@ -95,12 +95,12 @@ class Connection(object):
         resp = self._buffer.receive_string(7) # FIXME: receive line here
         if resp != b"LysKOM\n":
             raise BadInitialResponse()
-        stats.set('connections.opened.sum', 1, agg='sum')
+        stats.set('connections.opened.last', 1, agg='sum')
 
     def send_request(self, req):
         with self._lock:
             ref_no = self._send_request(req)
-            stats.set('connections.requests.sent.sum', 1, agg='sum')
+            stats.set('connections.requests.sent.last', 1, agg='sum')
         return ref_no
 
     def read_response(self):
@@ -125,7 +125,7 @@ class Connection(object):
                     raise
             finally:
                 self._socket = None
-                stats.set('connections.closed.sum', 1, agg='sum')
+                stats.set('connections.closed.last', 1, agg='sum')
 
     def _send_string(self, s):
         """Send a raw string."""
@@ -144,18 +144,18 @@ class Connection(object):
 
     def _parse_response(self):
         ch = read_first_non_ws(self._buffer)
-        stats.set('connections.responses.received.sum', 1, agg='sum')
+        stats.set('connections.responses.received.last', 1, agg='sum')
         if ch == b"=":
-            stats.set('connections.responses.received.ok.sum', 1, agg='sum')
+            stats.set('connections.responses.received.ok.last', 1, agg='sum')
             return self._parse_ok_reply()
         elif ch == b"%":
-            stats.set('connections.responses.received.error.sum', 1, agg='sum')
+            stats.set('connections.responses.received.error.last', 1, agg='sum')
             return self._parse_error_reply()
         elif ch == b":":
-            stats.set('connections.responses.received.async.sum', 1, agg='sum')
+            stats.set('connections.responses.received.async.last', 1, agg='sum')
             return self._parse_asynchronous_message()
         else:
-            stats.set('connections.responses.received.protocolerror.sum', 1, agg='sum')
+            stats.set('connections.responses.received.protocolerror.last', 1, agg='sum')
             raise ProtocolError("Got unexpected: %s" % (ch,))
 
     def _parse_ok_reply(self):
