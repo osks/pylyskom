@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='pylyskom',
-      version='0.1.0',
+      version='0.2-beta',
       description='Python LysKOM library',
       packages=['pylyskom'],
       author='Oskar Skoog',
