@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import base64
+
 from mock import MagicMock
 
 from pylyskom import komauxitems
@@ -83,17 +85,13 @@ def test_get_user_area__gets_the_user_area_for_the_given_person():
 
 
 
-
-
 def test_set_user_area__sets_correct_content_type_on_new_user_area():
     c = create_mockconnection()
     ks = create_komsession(17, c)
     c.mock_request(Requests.GET_PERSON_STAT, lambda request: MockPerson(user_area=0))
     c.mock_request(Requests.CREATE_TEXT, lambda request: 67890)
 
-
     ks.set_user_area_block(42, b'jskom', {})
-
 
     create_text_requests = c.mock_get_request_calls(Requests.CREATE_TEXT)
     assert len(create_text_requests) == 1
@@ -111,10 +109,8 @@ def test_set_user_area__copies_old_user_area_text_if_person_already_has_user_are
     c.mock_request(Requests.GET_TEXT, lambda request: \
                        b'17H 6Hcommon 5Hjskom 6Hfoobar 0H')
 
-
     ks.set_user_area_block(42, b'jskom', { 'filtered-authors': [18, 4711] })
-    
-    
+
     # Check CreateText request
     create_text_requests = c.mock_get_request_calls(Requests.CREATE_TEXT)
     assert len(create_text_requests) == 1
@@ -230,3 +226,45 @@ def test_lookup_name_should_handle_unicode_string():
     ks.lookup_name(name, 1, 0)
 
     mock_client.lookup_name.assert_called_with(name, 1, 0)
+
+
+def test_create_text_with_image_decodes_base64_image():
+    # jskom favicon in png format
+    image_base64 = b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQAAAAA3iMLMAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAAmJLR0QAAd2KE6QAAAAHdElNRQfhBAsGDRcBvcR+AAAAK0lEQVQI12NgAAOmBAamBgYmBwYuBQaWAxAxBk8lhqBtDEmrGIIWgdhgAAB5wgXzrhKn7gAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAxNy0wNC0xMVQwNjoxMzoyMy0wNDowMH+s5AsAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMTctMDQtMTFUMDY6MTM6MjMtMDQ6MDAO8Vy3AAAAAElFTkSuQmCC'
+
+    c = create_mockconnection()
+    ks = create_komsession(17, c)
+    ks.create_text("some subject", image_base64, "image/png", content_encoding="base64")
+
+    create_text_requests = c.mock_get_request_calls(Requests.CREATE_TEXT)
+    assert len(create_text_requests) == 1
+    r = create_text_requests[0]
+    assert r.text == b'some subject\n' + base64.b64decode(image_base64)
+
+
+def test_create_text_with_image_passes_on_content_type_and_params():
+    # jskom favicon in png format
+    image_base64 = b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQAAAAA3iMLMAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAAmJLR0QAAd2KE6QAAAAHdElNRQfhBAsGDRcBvcR+AAAAK0lEQVQI12NgAAOmBAamBgYmBwYuBQaWAxAxBk8lhqBtDEmrGIIWgdhgAAB5wgXzrhKn7gAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAxNy0wNC0xMVQwNjoxMzoyMy0wNDowMH+s5AsAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMTctMDQtMTFUMDY6MTM6MjMtMDQ6MDAO8Vy3AAAAAElFTkSuQmCC'
+
+    c = create_mockconnection()
+    ks = create_komsession(17, c)
+    ks.create_text("some subject", image_base64, "image/png;name=image.12345", content_encoding="base64")
+
+    create_text_requests = c.mock_get_request_calls(Requests.CREATE_TEXT)
+    assert len(create_text_requests) == 1
+    ai_cts = [ ai for ai in create_text_requests[0].aux_items
+               if ai.tag == komauxitems.AI_CONTENT_TYPE ]
+    assert len(ai_cts) == 1
+    assert ai_cts[0].data == b'image/png;name=image.12345'
+
+
+def test_create_text():
+    c = create_mockconnection()
+    ks = create_komsession(17, c)
+
+    ks.create_text("some subject", "some body", "text/plain")
+
+    create_text_requests = c.mock_get_request_calls(Requests.CREATE_TEXT)
+    assert len(create_text_requests) == 1
+    r = create_text_requests[0]
+    assert r.text == b'some subject\nsome body'
