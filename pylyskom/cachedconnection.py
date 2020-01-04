@@ -11,7 +11,7 @@ import logging
 from six.moves import range
 
 from . import requests
-from .async import AsyncMessages, async_dict
+from .asyncmsg import AsyncMessages, async_dict
 from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
 from .stats import stats
 

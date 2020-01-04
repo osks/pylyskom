@@ -23,7 +23,7 @@ from .protocol import (
     read_int)
 
 from .requests import response_dict
-from .async import async_dict
+from .asyncmsg import async_dict
 from .stats import stats
 
 

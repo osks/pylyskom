@@ -17,7 +17,7 @@ from pylyskom.datatypes import (
     Time,
     UConference,
     WhoInfo)
-from pylyskom.async import AsyncMessages
+from pylyskom.asyncmsg import AsyncMessages
 from pylyskom.requests import (
     ReqAcceptAsync,
     ReqGetMarks,
