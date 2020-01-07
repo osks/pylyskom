@@ -18,4 +18,7 @@ test:
 	pytest -vv --maxfail 1 ./tests
 	tox
 
-.PHONY: all auxitems clean dist test pyflakes
+smoketest:
+	pytest -vv --run-smoketests ./tests/smoketests
+
+.PHONY: all auxitems clean dist test smoketest pyflakes

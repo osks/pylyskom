@@ -142,3 +142,4 @@ class BadRequestId(LocalError): pass  # Bad request id encountered
 class ProtocolError(LocalError): pass # E.g. unexpected response
 class UnimplementedAsync(LocalError): pass # Unknown asynchronous message
 class ReceiveError(LocalError): pass # Error reading data from the server
+class NotEnoughDataInBufferError(LocalError): pass # Not enough data in buffer

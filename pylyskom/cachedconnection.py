@@ -41,7 +41,7 @@ class Client(object):
 
     def set_async_handler(self, handler_func):
         """Set the async handler function.
-        
+
         @param handler_func Function that will be called when an async
         message is received. Will receive the async message as
         argument. If handler_func is None, there will be no handling
