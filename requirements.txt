@@ -1,3 +1,4 @@
+attrs>=19.3.0
 mock>=3.0.5
 pyflakes>=2.1.1
 pytest>=5.3.2
