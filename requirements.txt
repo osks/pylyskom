@@ -1,6 +1,6 @@
-mock==2.0.0
-pyflakes==1.5.0
-pytest==3.0.7
-six==1.10.0
+mock>=3.0.5
+pyflakes>=2.1.1
+pytest>=5.3.2
+six>=1.13.0
 trio>=0.13.0
 pytest-trio>=0.5.2
