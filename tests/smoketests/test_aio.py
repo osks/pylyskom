@@ -4,7 +4,7 @@ import trio
 import pytest
 
 from pylyskom import requests
-from pylyskom.aio import AioConnection
+from pylyskom.aio import AioConnection, AioClient
 
 
 pytestmark = pytest.mark.smoketest
@@ -23,7 +23,7 @@ password = "testuser123"
 async def test_aioconnection_connect_close():
     conn = AioConnection(host, port, username)
     await conn.connect()
-    await conn.aclose()
+    await conn.close()
 
 
 async def test_aioconnection_connect_disconnect():
@@ -34,7 +34,7 @@ async def test_aioconnection_connect_disconnect():
     print("got ref_no: ", ref_no)
     resp = await conn.read_response()
     print("resp: ", resp)
-    await conn.aclose()
+    await conn.close()
 
 
 async def test_aioconnection_login_logout():
@@ -46,4 +46,22 @@ async def test_aioconnection_login_logout():
     await conn.read_response()
     await conn.send_request(requests.ReqDisconnect(0))
     await conn.read_response()
-    await conn.aclose()
+    await conn.close()
+
+
+async def test_aioclient_connect_disconnect():
+    conn = AioConnection(host, port, username)
+    await conn.connect()
+    client = AioClient(conn)
+    await client.request(requests.ReqDisconnect(0))
+    await client.close()
+
+
+async def test_aioclient_login_logout():
+    conn = AioConnection(host, port, username)
+    await conn.connect()
+    client = AioClient(conn)
+    await client.request(requests.ReqLogin(pers_no, password, invisible=0))
+    await client.request(requests.ReqLogout())
+    await client.request(requests.ReqDisconnect(0))
+    await client.close()

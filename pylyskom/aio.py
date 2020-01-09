@@ -4,6 +4,7 @@
 
 from __future__ import absolute_import
 import errno
+import logging
 
 import trio
 
@@ -26,13 +27,94 @@ from .asyncmsg import async_dict
 from .stats import stats
 
 
-# The design of this is pretty ugly. The attempt is to get async io
-# with Trio working without having to redesign pylyskom's response
-# parsing right now (and while keeping the blocking io implementation
-# working).
+logger = logging.getLogger(__name__)
 
 
-class AioReceiveBuffer(object):
+# The design of the async implementation is pretty ugly. The attempt
+# is to get async IO with Trio working without having to redesign
+# pylyskom's response parsing right now (and while keeping the
+# blocking io implementation working).
+
+
+async def create_connection(host, port, user):
+    conn = AioConnection(host, port, user)
+    await conn.connect()
+    client = Client(conn)
+    #return CachingPersonClient(client)
+    # TODO: return ...
+
+
+class AioClient:
+    def __init__(self, conn):
+        self._conn = conn
+        self._ok_queue = {}
+        self._error_queue = {}
+        self._async_handler_func = None
+
+    async def close(self):
+        await self._conn.close()
+
+    async def request(self, request):
+        """
+        Send an request and return the response.
+        """
+        logger.debug("sending request: %s" % (request,))
+        ref_no = await self._conn.send_request(request)
+        resp = await self._wait_and_dequeue(ref_no)
+        logger.debug("returning response for ref_no: %s" % (ref_no, ))
+        return resp
+
+    def set_async_handler(self, handler_func):
+        """Set the async handler function.
+
+        @param handler_func Function that will be called when an async
+        message is received. Will receive the async message as
+        argument. If handler_func is None, there will be no handling
+        of async messages.
+        """
+        self._async_handler_func = handler_func
+
+    async def _wait_and_dequeue(self, ref_no):
+        """Wait for a request to be answered, return response or raise
+        error.
+        """
+        logger.debug("waiting for  response ref_no: %s" % (ref_no,))
+        while ref_no not in self._ok_queue and \
+              ref_no not in self._error_queue:
+            await self._read_response()
+
+        if ref_no in self._ok_queue:
+            resp = self._ok_queue[ref_no]
+            logger.debug("got response %s ref_no: %s" % (resp, ref_no))
+            del self._ok_queue[ref_no]
+            return resp
+        elif ref_no in self._error_queue:
+            error = self._error_queue[ref_no]
+            logger.debug("got error %s ref_no: %s" % (error, ref_no))
+            del self._error_queue[ref_no]
+            raise error
+        else:
+            raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
+
+    async def _read_response(self):
+        ref_no, resp, error = await self._conn.read_response()
+        logger.debug("read response for ref_no: %s" % (ref_no,))
+        if ref_no is None:
+            # async message
+            await self._handle_async_message(resp)
+        elif error is not None:
+            # error reply
+            self._error_queue[ref_no] = error
+        else:
+            # ok reply - resp can be None
+            self._ok_queue[ref_no] = resp
+
+    async def _handle_async_message(self, msg):
+        if self._async_handler_func is not None:
+            await self._async_handler_func(msg)
+
+
+class AioReceiveBuffer:
     def __init__(self):
         self._rb = b""    # Buffer for data received from connection
         self._rb_len = 0 # Length of the buffer
@@ -72,15 +154,7 @@ class AioReceiveBuffer(object):
         return self.receive_string(1)
 
 
-async def create_connection(host, port, user):
-    conn = AioConnection(host, port, user)
-    await conn.connect()
-    #client = Client(conn)
-    #return CachingPersonClient(client)
-    # TODO: return ...
-
-
-class AioConnection(object):
+class AioConnection:
     def __init__(self, host, port, user=None):
         """
 
@@ -112,7 +186,7 @@ class AioConnection(object):
             raise BadInitialResponse()
         stats.set('connections.opened.last', 1, agg='sum')
 
-    async def aclose(self):
+    async def close(self):
         if self._tcp_stream is None:
             return
         try:
