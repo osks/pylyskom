@@ -1,13 +1,11 @@
 import socket
 
-import trio
 import pytest
 
 from pylyskom import requests
 from pylyskom.connection import Connection
 from pylyskom.cachedconnection import Client
 from pylyskom.komsession import KomSession
-from pylyskom.aio import AioConnection
 
 
 pytestmark = pytest.mark.smoketest
