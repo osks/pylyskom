@@ -2,7 +2,13 @@
 
 import json
 
-from pylyskom.utils import decode_user_area, encode_user_area, parse_content_type
+from pylyskom.datatypes import ReadRange
+from pylyskom.utils import (
+    decode_user_area,
+    encode_user_area,
+    parse_content_type,
+    read_ranges_to_gaps_and_last
+)
 
 
 def test_decode_user_area__handles_empty_string():
@@ -121,3 +127,32 @@ def test_parse_content_type_from_androkom_image():
     ct = 'image/jpeg; name=https://lh3.googleusercontent.com/0D_7y-M=s0-d'
     parsed = parse_content_type(ct)
     assert parsed == (('image', 'jpeg', dict(name='https://lh3.googleusercontent.com/0D_7y-M=s0-d')), None)
+
+
+def test_read_ranges_to_gaps_and_last_with_empty_list():
+    read_ranges = []
+
+    gaps, last = read_ranges_to_gaps_and_last(read_ranges)
+
+    assert len(gaps) == 0
+    assert last == 1
+
+def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
+    read_ranges = [ ReadRange() ]
+
+    gaps, last = read_ranges_to_gaps_and_last(read_ranges)
+
+    assert len(gaps) == 0
+    assert last == 1
+
+def test_read_ranges_to_gaps_and_last():
+    read_ranges = [ ReadRange(1, 1),
+                    ReadRange(2, 3),
+                    ReadRange(5, 5),
+                    ReadRange(8, 10) ]
+
+    gaps, last = read_ranges_to_gaps_and_last(read_ranges)
+
+    assert last == 11
+    assert len(gaps) == 2
+    assert gaps == [(4, 1), (6, 2)]

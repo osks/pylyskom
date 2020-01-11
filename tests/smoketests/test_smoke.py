@@ -5,7 +5,7 @@ import pytest
 from pylyskom import requests
 from pylyskom.connection import Connection
 from pylyskom.cachedconnection import Client
-from pylyskom.komsession import KomSession
+from pylyskom.komsession import KomSession, KomText
 
 
 pytestmark = pytest.mark.smoketest
@@ -52,3 +52,28 @@ def test_komsession_login_logout():
     ks.login(pers_no, password)
     ks.logout()
     ks.disconnect()
+
+
+def test_komtext_create_new_text():
+    ks = KomSession()
+    ks.connect(host, port, username, hostname, client_name, client_version)
+    ks.login(pers_no, password)
+
+    subject = "Hello"
+    body = "World"
+    content_type = "text/plain"
+    recipient_list = [ { "type": "to", "recpt": { "conf_no": ks.get_person_no() } } ]
+    new_text = KomText.create_new_text(
+        subject, body, content_type,
+        recipient_list=recipient_list)
+
+    text_no = ks.create_text(subject, body, content_type, recipient_list=recipient_list)
+    created_text = ks.get_text(text_no)
+
+    ks.logout()
+    ks.disconnect()
+
+    #print("OSKAR: ", created_text.text_content_type)
+    assert new_text.text == created_text.text
+    assert new_text.text_content_type == created_text.text_content_type
+    assert new_text.content_type == created_text.content_type

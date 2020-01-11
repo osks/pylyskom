@@ -180,7 +180,7 @@ class KomSession(object):
     @check_connection
     def change_conference(self, conf_no):
         self._client.change_conference(conf_no)
-        
+
     @check_connection
     def create_person(self, name, passwd):
         # decode if not already unicode (assuming utf-8)
@@ -351,61 +351,22 @@ class KomSession(object):
             if content_encoding == "base64":
                 body = base64.b64decode(body)
             else:
-               raise ValueError("Invalid content_encoding: %s", content_encoding)
+                raise ValueError("Invalid content_encoding: {}".format(content_encoding))
 
-        # wtf are we doing here?
-        mime_type, _ = utils.parse_content_type(content_type)
-        content_type = utils.mime_type_tuple_to_str(mime_type)
-        mime_type = mimeparse.parse_mime_type(content_type)
+        creating_software = "%s %s" % (self._client_name, self._client_version)
 
-        if mime_type[0] == 'text':
-            # We hard code utf-8 because it is The Correct Encoding. :)
-            mime_type[2]['charset'] = 'utf-8'
-            fulltext = subject + "\n" + body
-            fulltext = fulltext.encode('utf-8')
-        elif mime_type[0] == 'x-kom' and mime_type[1] == 'user-area':
-            # Charset doesn't seem to be specified for user areas, but
-            # in reality they contain Latin 1 text.
-            fulltext = body.encode('latin-1')
-        elif mime_type[0] == 'image':
-            # We handle images in the same way as AndroKOM. That means
-            # that the subject is encoded with latin-1, and the stored
-            # text is latin-1-subject + "\n" + binary-body. Content
-            # type is "image/jpeg; name=image:<???>". Note that there
-            # is no information regarding how subjects are encoded.
-            #
-            # TODO: What do we do if we can't encode the subject with
-            # latin-1?
-            fulltext = subject.encode('latin-1') + b"\n" + body
-        else:
-            raise KomSessionError("Unhandled content type: %s" % (mime_type,))
-
+        komtext = KomText.create_new_text(
+            subject, body, content_type,
+            creating_software=creating_software,
+            recipient_list=recipient_list,
+            comment_to_list=comment_to_list)
 
         misc_info = CookedMiscInfo()
-
-        if recipient_list is not None:
-            for r in recipient_list:
-                misc_info.recipient_list.append(
-                    MIRecipient(type=MIRecipient_str_to_type[r['type']],
-                                recpt=r['recpt']['conf_no']))
-
-        if comment_to_list is not None:
-            for ct in comment_to_list:
-                misc_info.comment_to_list.append(
-                    MICommentTo(type=MICommentTo_str_to_type[ct['type']],
-                                text_no=ct['text_no']))
-
-        aux_items = []
-
-        # We need to make sure all aux items are encoded.
-        creating_software = "%s %s" % (self._client_name, self._client_version)
-        aux_items.append(AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
-                                      data=creating_software.encode('utf-8')))
-        aux_items.append(AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE,
-                                 data=utils.mime_type_tuple_to_str(mime_type).encode('utf-8')))
+        misc_info.recipient_list = komtext.recipient_list
+        misc_info.comment_to_list = komtext.comment_to_list
 
         text_no = self._client.request(
-            requests.ReqCreateText(fulltext, misc_info, aux_items))
+            requests.ReqCreateText(komtext.text, misc_info, komtext.aux_items))
         stats.set('komsession.texts.created.last', 1, agg='sum')
         return text_no
 
@@ -599,6 +560,7 @@ class KomUConference(object):
 class KomText(object):
     def __init__(self, text_no=None, text=None, text_stat=None):
         self.text_no = text_no
+        self.text = text
 
         if text_stat is None:
             self.content_type = None
@@ -612,9 +574,14 @@ class KomText(object):
             self.body = None
             self.aux_items = None
         else:
-            mime_type, encoding = utils.parse_content_type(
-                KomText._get_content_type_from_text_stat(text_stat))
+            # self.text_content_type is for the encoded text
+            self.text_content_type = KomText._get_content_type_from_text_stat(text_stat)
+            mime_type, encoding = utils.parse_content_type(self.text_content_type)
+            # self.content_type is for the decoded text (into subject and body)
+            # and typically does not contain charset encoding since subject and body
+            # have been decoded into Python unicode strings.
             self.content_type = utils.mime_type_tuple_to_str(mime_type)
+            self.subject, self.body = KomText._decode_text(text, mime_type, encoding)
 
             self.creation_time = text_stat.creation_time
             self.author = text_stat.author
@@ -623,7 +590,6 @@ class KomText(object):
             self.comment_to_list = text_stat.misc_info.comment_to_list
             self.comment_in_list = text_stat.misc_info.comment_in_list
             self.aux_items = text_stat.aux_items
-            self.subject, self.body = KomText._decode_text(text, mime_type, encoding)
 
     @staticmethod
     def _decode_text(text, mime_type, encoding):
@@ -667,3 +633,70 @@ class KomText(object):
         except AttributeError:
             contenttype = 'text/plain'
         return contenttype
+
+    @staticmethod
+    def create_new_text(subject, body, content_type, creating_software=None, recipient_list=None, comment_to_list=None):
+        if recipient_list is None:
+            recipient_list = []
+        if comment_to_list is None:
+            comment_to_list = []
+
+        komtext = KomText()
+        komtext.subject = subject
+        komtext.body = body
+        komtext.content_type = content_type
+
+        # wtf are we doing here?
+        mime_type, _ = utils.parse_content_type(content_type)
+        content_type = utils.mime_type_tuple_to_str(mime_type)
+        mime_type = mimeparse.parse_mime_type(content_type)
+
+        if mime_type[0] == 'text':
+            # We hard code utf-8 because it is The Correct Encoding. :)
+            mime_type[2]['charset'] = 'utf-8'
+            fulltext = subject + "\n" + body
+            fulltext = fulltext.encode('utf-8')
+        elif mime_type[0] == 'x-kom' and mime_type[1] == 'user-area':
+            # Charset doesn't seem to be specified for user areas, but
+            # in reality they contain Latin 1 text.
+            fulltext = body.encode('latin-1')
+        elif mime_type[0] == 'image':
+            # We handle images in the same way as AndroKOM. That means
+            # that the subject is encoded with latin-1, and the stored
+            # text is latin-1-subject + "\n" + binary-body. Content
+            # type is "image/jpeg; name=image:<???>". Note that there
+            # is no information regarding how subjects are encoded.
+            #
+            # TODO: What do we do if we can't encode the subject with
+            # latin-1?
+            fulltext = subject.encode('latin-1') + b"\n" + body
+        else:
+            raise KomSessionError("Unhandled content type: %s" % (mime_type,))
+        komtext.text = fulltext
+
+        misc_info_recipient_list = []
+        for r in recipient_list:
+            misc_info_recipient_list.append(
+                MIRecipient(type=MIRecipient_str_to_type[r['type']],
+                            recpt=r['recpt']['conf_no']))
+        komtext.recipient_list = misc_info_recipient_list
+
+        misc_info_comment_to_list = []
+        for ct in comment_to_list:
+            misc_info_comment_to_list.append(
+                MICommentTo(type=MICommentTo_str_to_type[ct['type']],
+                            text_no=ct['text_no']))
+        komtext.comment_to_list = misc_info_comment_to_list
+
+        aux_items = []
+        # We need to make sure all aux items are encoded.
+        if creating_software is not None:
+            aux_items.append(AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
+                                          data=creating_software.encode('utf-8')))
+        final_content_type = utils.mime_type_tuple_to_str(mime_type)
+        aux_items.append(AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE,
+                                      data=final_content_type.encode('utf-8')))
+        komtext.text_content_type = final_content_type
+        komtext.aux_items = aux_items
+        return komtext
+

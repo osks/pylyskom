@@ -46,39 +46,6 @@ def create_connection(request_mapping=None):
     caching_client.request = mock_request
     return caching_client
 
-
-def test_read_ranges_to_gaps_and_last_with_empty_list():
-    c = create_connection()
-    read_ranges = []
-    
-    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
-    
-    assert len(gaps) == 0
-    assert last == 1
-
-def test_read_ranges_to_gaps_and_last_with_one_empty_read_range():
-    c = create_connection()
-    read_ranges = [ ReadRange() ]
-    
-    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
-    
-    assert len(gaps) == 0
-    assert last == 1
-
-def test_read_ranges_to_gaps_and_last():
-    c = create_connection()
-    read_ranges = [ ReadRange(1, 1),
-                    ReadRange(2, 3),
-                    ReadRange(5, 5),
-                    ReadRange(8, 10) ]
-    
-    gaps, last = c.read_ranges_to_gaps_and_last(read_ranges)
-    
-    assert last == 11
-    assert len(gaps) == 2
-    assert gaps == [(4, 1), (6, 2)]
-
-
 def test_get_unread_texts_from_membership_small():
     membership = Membership()
     membership.conference = 1

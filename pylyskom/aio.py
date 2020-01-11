@@ -22,15 +22,12 @@ from .errors import (
     NoSuchLocalText,
     ProtocolError,
     UnimplementedAsync)
-
 from .protocol import (
     to_hstring,
     read_first_non_ws,
     read_int)
-
 from .asyncmsg import AsyncMessages, async_dict
 from .stats import stats
-from . import requests, komauxitems, utils
 from .datatypes import (
     AuxItemInput,
     ConfType,
@@ -54,6 +51,7 @@ from .komsession import (
     MICommentTo_str_to_type,
     MIRecipient_str_to_type,
 )
+from . import requests, komauxitems, utils
 
 
 logger = logging.getLogger(__name__)
@@ -520,7 +518,8 @@ class AioCachingClient:
             return await self.lookup_name(regexp, want_pers, want_confs)
 
         if not case_sensitive:
-            regexp = await self._case_insensitive_regexp(regexp)
+            collate_table = await self.request(requests.ReqGetCollateTable())
+            regexp = utils.case_insensitive_regexp(regexp, collate_table)
 
         matches = await self.request(
             requests.ReqReZLookup(
@@ -529,73 +528,11 @@ class AioCachingClient:
                 want_confs=want_confs))
         return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
-    async def _case_insensitive_regexp(self, regexp):
-        """Make regular expression case insensitive"""
-        result = ""
-        # FIXME: Cache collate_table
-        collate_table = await self.request(requests.ReqGetCollateTable())
-        inside_brackets = 0
-        for c in regexp:
-            if c == "[":
-                inside_brackets = 1
-
-            if inside_brackets:
-                eqv_chars = c
-            else:
-                eqv_chars = self._equivalent_chars(c, collate_table)
-
-            if len(eqv_chars) > 1:
-                result += "[%s]" % eqv_chars
-            else:
-                result += eqv_chars
-
-            if c == "]":
-                inside_brackets = 0
-
-        return result
-
-    def _equivalent_chars(self, c, collate_table):
-        """Find all chars equivalent to c in collate table"""
-        c_ord = ord(c)
-        if c_ord >= len(collate_table):
-            return c
-
-        result = ""
-        norm_char = collate_table[c_ord]
-        next_index = 0
-        while 1:
-            next_index = collate_table.find(norm_char, next_index)
-            if next_index == -1:
-                break
-            result += chr(next_index)
-            next_index += 1
-
-        return result
-
-    def read_ranges_to_gaps_and_last(self, read_ranges):
-        """Return all texts excluded from read_ranges.
-
-        @return: Returns a 2-tuple of a list and the first possibly
-        unread text number after the last read range. The text number
-        could be larger than the highest local number, if we have read
-        everything in the conference. The list contains a 2-tuples for
-        each gap in the read ranges, where each tuple is the first
-        unread text in the gap and the length of the gap.
-        """
-        gaps = []
-        last = 1
-        for read_range in read_ranges:
-            gap = read_range.first_read - last
-            if gap > 0:
-                gaps.append((last, gap))
-            last = read_range.last_read + 1
-        return gaps, last
-
     async def get_unread_texts_from_membership(self, membership):
         unread = []
 
         more_to_fetch = 1
-        gaps, last = self.read_ranges_to_gaps_and_last(membership.read_ranges)
+        gaps, last = utils.read_ranges_to_gaps_and_last(membership.read_ranges)
         for first, gap_len in gaps:
             first_local = first
             while gap_len > 0:
@@ -1129,7 +1066,7 @@ class AioKomSession(object):
 
     @check_connection
     async def create_text(self, subject, body, content_type, content_encoding=None,
-                    recipient_list=None, comment_to_list=None):
+                          recipient_list=None, comment_to_list=None):
         # decode if not already unicode (assuming utf-8)
         if isinstance(subject, six.binary_type):
             subject = subject.decode('utf-8')
@@ -1142,61 +1079,22 @@ class AioKomSession(object):
             if content_encoding == "base64":
                 body = base64.b64decode(body)
             else:
-               raise ValueError("Invalid content_encoding: %s", content_encoding)
+                raise ValueError("Invalid content_encoding: {}".format(content_encoding))
 
-        # wtf are we doing here?
-        mime_type, _ = utils.parse_content_type(content_type)
-        content_type = utils.mime_type_tuple_to_str(mime_type)
-        mime_type = mimeparse.parse_mime_type(content_type)
+        creating_software = "%s %s" % (self._client_name, self._client_version)
 
-        if mime_type[0] == 'text':
-            # We hard code utf-8 because it is The Correct Encoding. :)
-            mime_type[2]['charset'] = 'utf-8'
-            fulltext = subject + "\n" + body
-            fulltext = fulltext.encode('utf-8')
-        elif mime_type[0] == 'x-kom' and mime_type[1] == 'user-area':
-            # Charset doesn't seem to be specified for user areas, but
-            # in reality they contain Latin 1 text.
-            fulltext = body.encode('latin-1')
-        elif mime_type[0] == 'image':
-            # We handle images in the same way as AndroKOM. That means
-            # that the subject is encoded with latin-1, and the stored
-            # text is latin-1-subject + "\n" + binary-body. Content
-            # type is "image/jpeg; name=image:<???>". Note that there
-            # is no information regarding how subjects are encoded.
-            #
-            # TODO: What do we do if we can't encode the subject with
-            # latin-1?
-            fulltext = subject.encode('latin-1') + b"\n" + body
-        else:
-            raise KomSessionError("Unhandled content type: %s" % (mime_type,))
-
+        komtext = KomText.create_new_text(
+            subject, body, content_type,
+            creating_software=creating_software,
+            recipient_list=recipient_list,
+            comment_to_list=comment_to_list)
 
         misc_info = CookedMiscInfo()
-
-        if recipient_list is not None:
-            for r in recipient_list:
-                misc_info.recipient_list.append(
-                    MIRecipient(type=MIRecipient_str_to_type[r['type']],
-                                recpt=r['recpt']['conf_no']))
-
-        if comment_to_list is not None:
-            for ct in comment_to_list:
-                misc_info.comment_to_list.append(
-                    MICommentTo(type=MICommentTo_str_to_type[ct['type']],
-                                text_no=ct['text_no']))
-
-        aux_items = []
-
-        # We need to make sure all aux items are encoded.
-        creating_software = "%s %s" % (self._client_name, self._client_version)
-        aux_items.append(AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
-                                      data=creating_software.encode('utf-8')))
-        aux_items.append(AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE,
-                                 data=utils.mime_type_tuple_to_str(mime_type).encode('utf-8')))
+        misc_info.recipient_list = komtext.recipient_list
+        misc_info.comment_to_list = komtext.comment_to_list
 
         text_no = await self._client.request(
-            requests.ReqCreateText(fulltext, misc_info, aux_items))
+            requests.ReqCreateText(komtext.text, misc_info, komtext.aux_items))
         stats.set('komsession.texts.created.last', 1, agg='sum')
         return text_no
 
