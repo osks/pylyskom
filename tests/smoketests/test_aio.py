@@ -1,8 +1,9 @@
 import socket
 
+import trio
 import pytest
 
-from pylyskom import requests
+from pylyskom import requests, asyncmsg
 from pylyskom.aio import AioConnection, AioClient, AioKomSession
 
 
@@ -31,9 +32,7 @@ async def test_aioconnection_connect_disconnect():
     await conn.connect(host, port, user)
     req = requests.ReqDisconnect(0)
     ref_no = await conn.send_request(req)
-    print("got ref_no: ", ref_no)
     resp = await conn.read_response()
-    print("resp: ", resp)
     await conn.close()
 
 
@@ -65,6 +64,38 @@ async def test_aioclient_login_logout():
     await client.request(requests.ReqLogout())
     await client.request(requests.ReqDisconnect(0))
     await client.close()
+
+
+async def test_aioclient_async_send_message():
+    conn = AioConnection()
+    client = AioClient(conn)
+    await client.connect(host, port, user)
+    await client.request(requests.ReqLogin(pers_no, password, invisible=0))
+
+    received_async_messages = []
+    async def async_handler(msg):
+        #print(f"Received async message: MSG_NO={msg.MSG_NO}: {msg}")
+        received_async_messages.append(msg)
+    client.set_async_handler(async_handler)
+
+    await client.request(requests.ReqSendMessage(0, "test123"))
+    # Test test assumes that the server will send back the AsyncSendMessage fast enough.
+    # Send any request to trigger receiving and handling of async messages
+    await client.request(requests.ReqUserActive())
+
+    await client.request(requests.ReqLogout())
+    await client.request(requests.ReqDisconnect(0))
+    await client.close()
+
+    def has_received_message():
+        received_message = False
+        for msg in received_async_messages:
+            if msg.MSG_NO == asyncmsg.AsyncMessages.SEND_MESSAGE:
+                if msg.recipient == 0 and msg.message == b"test123":
+                    received_message = True
+        return received_message
+
+    assert has_received_message() == True
 
 
 async def test_komsession_login_logout():

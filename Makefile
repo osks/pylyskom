@@ -19,6 +19,6 @@ test:
 	tox
 
 smoketest:
-	pytest -vv --run-smoketests ./tests/smoketests
+	pytest -vv -s --run-smoketests ./tests/smoketests
 
 .PHONY: all auxitems clean dist test smoketest pyflakes
