@@ -102,6 +102,15 @@ class AioReceiveBuffer:
         return self.receive_string(1)
 
 
+# TODO/FIXME/BROKEN: The connection class design is broken right
+# now. Multiple tasks cannot send data at the same time, and that can
+# happen if you get two concurrent HTTP requests to httpkom which both
+# end up using the connection. With this design we need to use a
+# trio.Lock or similar synchronization.
+#
+# An alternative is to redesign this to use some other kind of
+# synchronization between the using task and the tasks that send and
+# read from the socket.
 class AioConnection:
     def __init__(self):
         self._tcp_stream = None
