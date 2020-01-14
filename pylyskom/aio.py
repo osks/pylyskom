@@ -165,7 +165,7 @@ class AioConnection:
         if self._tcp_stream is None:
             return
         log.debug(f"AioConnection: Closing connection...")
-        async with self._send_lock:
+        async with self._send_lock, self._receive_lock:
             try:
                 await self._tcp_stream.aclose()
             finally:
@@ -180,8 +180,14 @@ class AioConnection:
         request_string = b"%d %s" % (ref_no, req.to_string())
         log.debug(f"AioConnection: Sending request ref_no={ref_no}...")
         async with self._send_lock:
+            # Theory: We need to put ref_no in
+            # self._outstanding_requests before sending, because we
+            # might have sent the request and gotten a reply from the
+            # server, and another task might read it (expecting it to
+            # be an outstanding request), before send_all() actaully
+            # returns.
+            self._outstanding_requests[ref_no] = req
             await self._tcp_stream.send_all(request_string)
-        self._outstanding_requests[ref_no] = req
         stats.set('connections.requests.sent.last', 1, agg='sum')
         log.debug(f"AioConnection: Sent request ref_no={ref_no}")
         log.debug(f"AioConnection: len(outstanding_requests): {len(self._outstanding_requests)}")
@@ -190,6 +196,12 @@ class AioConnection:
     async def _receive_some_to_buffer(self):
         data = await self._tcp_stream.receive_some()
         if len(data) == 0:
+            # End of stream
+            # This can happen if we send a disconnect request and the server then
+            # disconnects us.
+            #
+            # We can't close the stream right now because that could
+            # dead-lock on receive_lock.
             raise ReceiveError("End of stream")
         self._buffer.append(data)
 
@@ -197,6 +209,8 @@ class AioConnection:
         log.debug(f"AioConnection: Reading response")
         async with self._receive_lock:
             while True:
+                if not self.is_connected():
+                    raise RuntimeError("Not connected")
                 # Trying to parse a response will consume from the buffer,
                 # and to be able to try again we need to keep all of the
                 # buffer until we can parse a response.
@@ -204,12 +218,13 @@ class AioConnection:
                 try:
                     return self._parse_response()
                 except NotEnoughDataInBufferError:
-                    # Continue reading data from stream
-                    # Restore buffer
-                    self._buffer = buffer_copy
-                    # We couldn't parse a response, receive some more data
-                    # and try again
-                    await self._receive_some_to_buffer()
+                    pass
+                # Continue reading data from stream
+                # Restore buffer
+                self._buffer = buffer_copy
+                # We couldn't parse a response, receive some more data
+                # and try again
+                await self._receive_some_to_buffer()
 
 
     def _parse_response(self):
@@ -260,14 +275,17 @@ class AioConnection:
 
 
 class AioClient:
-    def __init__(self, conn):
+    def __init__(self, conn, *, nursery):
         self._conn = conn
+        self._nursery = nursery
+        self._waiting_events = {}
         self._ok_queue = {}
         self._error_queue = {}
         self._async_handler_func = None
 
     async def connect(self, host, port, user=None):
         await self._conn.connect(host, port, user=user)
+        self._nursery.start_soon(self._response_reader_task)
 
     def is_connected(self):
         return self._conn.is_connected()
@@ -295,24 +313,40 @@ class AioClient:
         """
         self._async_handler_func = handler_func
 
+    async def _response_reader_task(self):
+        log.debug("AioClient: Starting response reader task")
+        while self.is_connected():
+            try:
+                await self._read_response()
+            except ReceiveError:
+                # We want to catch end-of-stream.
+                # If we sent a disconnect request and the server then
+                # disconnects us, read_response can fail before the connection
+                # can be explicitly closed by us.
+                log.debug("AioClient: Got receive error, closing connection")
+                await self.close()
+        log.debug("AioClient: Stopping response reader task, no longer connected")
+
     async def _wait_and_dequeue(self, ref_no):
         """Wait for a request to be answered, return response or raise
         error.
         """
         log.debug("AioClient: Waiting for  response ref_no: %s" % (ref_no,))
-        while ref_no not in self._ok_queue and \
-              ref_no not in self._error_queue:
-            await self._read_response()
-
+        if ref_no not in self._waiting_events:
+            self._waiting_events[ref_no] = trio.Event()
+        await self._waiting_events[ref_no].wait()
+        assert (ref_no in self._ok_queue) or (ref_no in self._error_queue)
         if ref_no in self._ok_queue:
             resp = self._ok_queue[ref_no]
             log.debug("AioClient: Got response %s ref_no: %s" % (resp, ref_no))
             del self._ok_queue[ref_no]
+            del self._waiting_events[ref_no]
             return resp
         elif ref_no in self._error_queue:
             error = self._error_queue[ref_no]
             log.debug("AioClient: Got error %s ref_no: %s" % (error, ref_no))
             del self._error_queue[ref_no]
+            del self._waiting_events[ref_no]
             raise error
         else:
             raise RuntimeError("Got unknown ref-no: %r" % (ref_no,))
@@ -329,9 +363,13 @@ class AioClient:
         else:
             # ok reply - resp can be None
             self._ok_queue[ref_no] = resp
+        if ref_no not in self._waiting_events:
+            self._waiting_events[ref_no] = trio.Event()
+        self._waiting_events[ref_no].set()
 
     async def _handle_async_message(self, msg):
         if self._async_handler_func is not None:
+            log.debug("AioClient: Calling async handler function")
             await self._async_handler_func(msg)
 
 
@@ -818,9 +856,9 @@ class AioCache(object):
                                                      self.uncached)))
 
 
-def create_client():
+def create_client(nursery):
     conn = AioConnection()
-    client = AioClient(conn)
+    client = AioClient(conn, nursery=nursery)
     caching_client = AioCachingPersonClient(client)
     return caching_client
 
@@ -854,11 +892,12 @@ class AioKomSession(object):
     bytes? Seems inconvient at this level.)
 
     """
-    def __init__(self, client_factory=create_client):
+    def __init__(self, *, nursery, client_factory=create_client):
         # TODO: We actually require the API of a
         # CachingPersonClient. We should enhance the Connection
         # class and make CachingPersonClient have the same API as
         # Connection.
+        self._nursery = nursery
         self._client_factory = client_factory
         self._client = None
         self._session_no = None
@@ -873,7 +912,7 @@ class AioKomSession(object):
         if isinstance(client_version, six.binary_type):
             client_version = client_version.decode('utf-8')
 
-        self._client = self._client_factory()
+        self._client = self._client_factory(self._nursery)
         await self._client.connect(host, port, user=username + "%" + hostname)
 
         # todo: we shouldn't require client name/version. specify in
