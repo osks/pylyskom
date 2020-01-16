@@ -1,6 +1,5 @@
 import socket
 
-import trio
 import pytest
 
 from pylyskom import requests, asyncmsg
@@ -8,7 +7,7 @@ from pylyskom.aio import AioConnection, AioClient, AioKomSession
 from pylyskom.komsession import KomText
 
 
-pytestmark = pytest.mark.smoketest
+pytestmark = [pytest.mark.asyncio, pytest.mark.smoketest]
 
 client_name = "pylyskom-smoketest"
 client_version = "1.0"
@@ -49,17 +48,17 @@ async def test_aioconnection_login_logout():
     await conn.close()
 
 
-async def test_aioclient_connect_disconnect(nursery):
+async def test_aioclient_connect_disconnect():
     conn = AioConnection()
-    client = AioClient(conn, nursery=nursery)
+    client = AioClient(conn)
     await client.connect(host, port, user)
     await client.request(requests.ReqDisconnect(0))
     await client.close()
 
 
-async def test_aioclient_login_logout(nursery):
+async def test_aioclient_login_logout():
     conn = AioConnection()
-    client = AioClient(conn, nursery=nursery)
+    client = AioClient(conn)
     await client.connect(host, port, user)
     await client.request(requests.ReqLogin(pers_no, password, invisible=0))
     await client.request(requests.ReqLogout())
@@ -67,9 +66,9 @@ async def test_aioclient_login_logout(nursery):
     await client.close()
 
 
-async def test_aioclient_async_send_message(nursery):
+async def test_aioclient_async_send_message():
     conn = AioConnection()
-    client = AioClient(conn, nursery=nursery)
+    client = AioClient(conn)
     await client.connect(host, port, user)
     await client.request(requests.ReqLogin(pers_no, password, invisible=0))
 
@@ -99,9 +98,9 @@ async def test_aioclient_async_send_message(nursery):
     assert has_received_message() == True
 
 
-async def test_aioclient_async_task(nursery):
+async def test_aioclient_async_task():
     conn = AioConnection()
-    client = AioClient(conn, nursery=nursery)
+    client = AioClient(conn)
     await client.connect(host, port, user)
     await client.request(requests.ReqLogin(pers_no, password, invisible=0))
     await client.request(requests.ReqLogout())
@@ -109,8 +108,8 @@ async def test_aioclient_async_task(nursery):
     await client.close()
 
 
-async def test_komsession_login_logout(nursery):
-    ks = AioKomSession(nursery=nursery)
+async def test_komsession_login_logout():
+    ks = AioKomSession()
     await ks.connect(host, port, username, hostname, client_name, client_version)
     await ks.login(pers_no, password)
     await ks.logout()
@@ -118,10 +117,12 @@ async def test_komsession_login_logout(nursery):
     await ks.close()
 
 
-async def test_komtext_create_new_text(nursery):
-    ks = AioKomSession(nursery=nursery)
+async def test_komtext_create_new_text():
+    ks = AioKomSession()
+    print("OSKAR 1")
     await ks.connect(host, port, username, hostname, client_name, client_version)
     await ks.login(pers_no, password)
+    print("OSKAR 2")
 
     subject = "Hello"
     body = "World"
@@ -131,11 +132,15 @@ async def test_komtext_create_new_text(nursery):
         subject, body, content_type,
         recipient_list=recipient_list)
 
+    print("OSKAR 3")
     text_no = await ks.create_text(subject, body, content_type, recipient_list=recipient_list)
+    print("OSKAR 4")
     created_text = await ks.get_text(text_no)
+    print("OSKAR 5")
 
     await ks.logout()
     await ks.disconnect()
+    print("OSKAR 6")
 
     #print("OSKAR: ", created_text.text_content_type)
     assert new_text.text == created_text.text

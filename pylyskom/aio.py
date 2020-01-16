@@ -2,13 +2,15 @@
 # LysKOM Protocol A version 10/11 client interface for Python
 # (C) 2020 Oskar Skoog. Released under GPL.
 
+import asyncio
 import base64
 import functools
 import json
 import logging
+import socket
 
 import six
-import trio
+#import trio
 
 from . import mimeparse
 
@@ -76,6 +78,9 @@ class AioReceiveBuffer:
         c._rb_pos = self._rb_pos
         return c
 
+    def current(self):
+        return self._rb[self._rb_pos:]
+
     def length(self):
         return self._rb_len
 
@@ -123,9 +128,11 @@ class AioReceiveBuffer:
 #
 class AioConnection:
     def __init__(self):
-        self._send_lock = trio.Lock()
-        self._receive_lock = trio.Lock()
-        self._tcp_stream = None
+        self._send_lock = asyncio.Lock()
+        self._receive_lock = asyncio.Lock()
+        #self._tcp_stream = None
+        self._tcp_stream_writer = None
+        self._tcp_stream_reader = None
         self._buffer = AioReceiveBuffer()
         self._ref_no = 0 # Last used ID (i.e. increment before use)
         self._outstanding_requests = {} # Ref-No to Request mapping
@@ -142,35 +149,43 @@ class AioConnection:
         if self.is_connected():
             raise Exception("AioConnection is already connected")
 
-        log.debug(f"AioConnection: Connecting to {host}:{port}...")
+        log.debug("AioConnection: Connecting to %s:%s...", host, port)
         async with self._send_lock, self._receive_lock:
-            self._tcp_stream = await trio.open_tcp_stream(host, port)
+            #self._tcp_stream = await trio.open_tcp_stream(host, port)
+            self._tcp_stream_reader, self._tcp_stream_writer = await asyncio.open_connection(host, port)
+
             # Send initial string
-            await self._tcp_stream.send_all(b"A%s\n" % (to_hstring(user.encode('latin1')),))
+            #await self._tcp_stream.send_all(b"A%s\n" % (to_hstring(user.encode('latin1')),))
+            self._tcp_stream_writer.write(b"A%s\n" % (to_hstring(user.encode('latin1')),))
+            await self._tcp_stream_writer.drain()
 
             # Wait for answer "LysKOM\n"
             size = 7
             while self._buffer.length() < size:
-                await self._receive_some_to_buffer()
+                await self._receive_some_to_buffer(size)
             resp = self._buffer.receive_string(size)
             if resp != b"LysKOM\n":
                 raise BadInitialResponse()
-        log.debug(f"AioConnection: Connected to {host}:{port}")
+        log.debug("AioConnection: Connected to %s:%s...", host, port)
         stats.set('connections.opened.last', 1, agg='sum')
 
     def is_connected(self):
-        return self._tcp_stream is not None
+        return self._tcp_stream_writer is not None
 
     async def close(self):
-        if self._tcp_stream is None:
+        if self._tcp_stream_writer is None:
             return
         log.debug(f"AioConnection: Closing connection...")
         async with self._send_lock, self._receive_lock:
             try:
-                await self._tcp_stream.aclose()
+                #await self._tcp_stream.aclose()
+                self._tcp_stream_writer.close()
+                await self._tcp_stream_writer.wait_closed()
             finally:
-                self._tcp_stream = None
-                stats.set('connections.closed.last', 1, agg='sum')
+                #self._tcp_stream = None
+                self._tcp_stream_reader = None
+                self._tcp_stream_writer = None
+        stats.set('connections.closed.last', 1, agg='sum')
         log.debug(f"AioConnection: Closed connection")
 
     async def send_request(self, req):
@@ -178,7 +193,7 @@ class AioConnection:
         ref_no = self._ref_no
         assert ref_no not in self._outstanding_requests
         request_string = b"%d %s" % (ref_no, req.to_string())
-        log.debug(f"AioConnection: Sending request ref_no={ref_no}...")
+        log.debug("AioConnection: Sending request ref_no=%s...", ref_no)
         async with self._send_lock:
             # Theory: We need to put ref_no in
             # self._outstanding_requests before sending, because we
@@ -187,14 +202,17 @@ class AioConnection:
             # be an outstanding request), before send_all() actaully
             # returns.
             self._outstanding_requests[ref_no] = req
-            await self._tcp_stream.send_all(request_string)
+            #await self._tcp_stream.send_all(request_string)
+            self._tcp_stream_writer.write(request_string)
+            await self._tcp_stream_writer.drain()
         stats.set('connections.requests.sent.last', 1, agg='sum')
-        log.debug(f"AioConnection: Sent request ref_no={ref_no}")
-        log.debug(f"AioConnection: len(outstanding_requests): {len(self._outstanding_requests)}")
+        log.debug("AioConnection: Sent request ref_no=%s", ref_no)
+        log.debug("AioConnection: len(outstanding_requests): %s", len(self._outstanding_requests))
         return ref_no
 
-    async def _receive_some_to_buffer(self):
-        data = await self._tcp_stream.receive_some()
+    async def _receive_some_to_buffer(self, n=1024):
+        #data = await self._tcp_stream.receive_some()
+        data = await self._tcp_stream_reader.read(n)
         if len(data) == 0:
             # End of stream
             # This can happen if we send a disconnect request and the server then
@@ -241,8 +259,8 @@ class AioConnection:
         else:
             stats.set('connections.responses.received.protocolerror.last', 1, agg='sum')
             raise ProtocolError("Got unexpected: %s" % (ch,))
-        log.debug(f"AioConnection: Parsed response ref_no={ref_no}, resp={resp}, error={error}")
-        log.debug(f"AioConnection: len(outstanding_requests): {len(self._outstanding_requests)}")
+        log.debug("AioConnection: Parsed response ref_no=%s, resp=%s, error=%s", ref_no, resp, error)
+        log.debug("AioConnection: len(outstanding_requests): %s", len(self._outstanding_requests))
         stats.set('connections.responses.received.last', 1, agg='sum')
         return ref_no, resp, error
 
@@ -275,9 +293,9 @@ class AioConnection:
 
 
 class AioClient:
-    def __init__(self, conn, *, nursery):
+    def __init__(self, conn):
         self._conn = conn
-        self._nursery = nursery
+        #self._nursery = nursery
         self._waiting_events = {}
         self._ok_queue = {}
         self._error_queue = {}
@@ -285,22 +303,24 @@ class AioClient:
 
     async def connect(self, host, port, user=None):
         await self._conn.connect(host, port, user=user)
-        self._nursery.start_soon(self._response_reader_task)
+        #self._nursery.start_soon(self._response_reader)
+        self._response_reader_task = asyncio.create_task(self._response_reader())
 
     def is_connected(self):
         return self._conn.is_connected()
 
     async def close(self):
+        self._response_reader_task.cancel()
         await self._conn.close()
 
     async def request(self, request):
         """
         Send an request and return the response.
         """
-        log.debug("AioClient: Sending request: %s" % (request,))
+        log.debug("AioClient: Sending request: %s", request)
         ref_no = await self._conn.send_request(request)
         resp = await self._wait_and_dequeue(ref_no)
-        log.debug("AioClient: Returning response for ref_no: %s" % (ref_no, ))
+        log.debug("AioClient: Returning response for ref_no: %s", ref_no)
         return resp
 
     def set_async_handler(self, handler_func):
@@ -313,7 +333,7 @@ class AioClient:
         """
         self._async_handler_func = handler_func
 
-    async def _response_reader_task(self):
+    async def _response_reader(self):
         log.debug("AioClient: Starting response reader task")
         while self.is_connected():
             try:
@@ -331,20 +351,20 @@ class AioClient:
         """Wait for a request to be answered, return response or raise
         error.
         """
-        log.debug("AioClient: Waiting for  response ref_no: %s" % (ref_no,))
+        log.debug("AioClient: Waiting for  response ref_no: %s", ref_no)
         if ref_no not in self._waiting_events:
-            self._waiting_events[ref_no] = trio.Event()
+            self._waiting_events[ref_no] = asyncio.Event()
         await self._waiting_events[ref_no].wait()
         assert (ref_no in self._ok_queue) or (ref_no in self._error_queue)
         if ref_no in self._ok_queue:
             resp = self._ok_queue[ref_no]
-            log.debug("AioClient: Got response %s ref_no: %s" % (resp, ref_no))
+            log.debug("AioClient: Got response %s ref_no: %s", resp, ref_no)
             del self._ok_queue[ref_no]
             del self._waiting_events[ref_no]
             return resp
         elif ref_no in self._error_queue:
             error = self._error_queue[ref_no]
-            log.debug("AioClient: Got error %s ref_no: %s" % (error, ref_no))
+            log.debug("AioClient: Got error %s ref_no: %s", error, ref_no)
             del self._error_queue[ref_no]
             del self._waiting_events[ref_no]
             raise error
@@ -353,7 +373,7 @@ class AioClient:
 
     async def _read_response(self):
         ref_no, resp, error = await self._conn.read_response()
-        log.debug("AioClient: Read response for ref_no: %s" % (ref_no,))
+        log.debug("AioClient: Read response for ref_no: %s", ref_no)
         if ref_no is None:
             # async message
             await self._handle_async_message(resp)
@@ -364,13 +384,274 @@ class AioClient:
             # ok reply - resp can be None
             self._ok_queue[ref_no] = resp
         if ref_no not in self._waiting_events:
-            self._waiting_events[ref_no] = trio.Event()
+            self._waiting_events[ref_no] = asyncio.Event()
         self._waiting_events[ref_no].set()
 
     async def _handle_async_message(self, msg):
         if self._async_handler_func is not None:
             log.debug("AioClient: Calling async handler function")
             await self._async_handler_func(msg)
+
+
+class AioClient2:
+    def __init__(self):
+        #self._nursery = nursery
+        #self._tcp_stream = None
+        self._tcp_stream_writer = None
+        self._tcp_stream_reader = None
+        self._ref_no = 0 # Last used ID (i.e. increment before use)
+        self._outstanding_requests = {} # Ref-No to Request mapping
+        self._outstanding_requests_events = {}
+        self._buffer = AioReceiveBuffer()
+        self._reply_queue = {} # Ref-No to tuple(ok, error), where error is None if it's a ok reply
+        self._async_handler_func = None
+        self._asyncmsg_queue = asyncio.Queue()
+        self._send_request_queue = asyncio.Queue()
+
+    async def connect(self, host, port, user=None):
+        """
+
+        @param user: See Protocol A spec.
+        """
+        if user is None:
+            user = ""
+        assert isinstance(user, str) # Do we want user to be str or bytes?
+        log.debug("AioConnection: Connecting to %s:%s", host, port)
+        #self._tcp_stream = await trio.open_tcp_stream(host, port)
+        self._tcp_stream_reader, self._tcp_stream_writer = await asyncio.open_connection(host, port)
+
+        # Send initial string
+        #await self._tcp_stream.send_all(b"A%s\n" % (to_hstring(user.encode('latin1')),))
+        self._tcp_stream_writer.write(b"A%s\n" % (to_hstring(user.encode('latin1')),))
+        await self._tcp_stream_writer.drain()
+        await self._receive_initial_response()
+
+        #send_asyncmsg_channel, receive_asyncmsg_channel = trio.open_memory_channel(100)
+
+        #self._nursery.start_soon(self._stream_receiver, send_asyncmsg_channel)
+        self._stream_receiver_task = asyncio.create_task(self._stream_receiver())
+        #self._nursery.start_soon(self._asyncmsg_receiver, receive_asyncmsg_channel)
+        self._asyncmsg_receiver_task = asyncio.create_task(self._asyncmsg_receiver())
+
+        #send_request_channel, receive_request_channel = trio.open_memory_channel(100)
+        #self._send_request_channel = send_request_channel
+        #self._nursery.start_soon(self._stream_sender, receive_request_channel)
+        self._stream_sender_task = asyncio.create_task(self._stream_sender())
+
+        log.debug("AioConnection: Connected to %s:%s", host, port)
+
+    async def _receive_initial_response(self):
+        # Wait for answer "LysKOM\n"
+        size = 7
+        while self._buffer.length() < size:
+            # Receive only exact number of bytes that we expect
+            need = size - self._buffer.length()
+            #data = await self._tcp_stream.receive_some(need)
+            data = await self._tcp_stream_reader.read(need)
+            if len(data) == 0:
+                raise ReceiveError("Unexpected end of stream while waiting for initial response")
+            self._buffer.append(data)
+        resp = self._buffer.receive_string(size)
+        if resp != b"LysKOM\n":
+            raise BadInitialResponse()
+
+    def is_connected(self):
+        #return self._tcp_stream is not None
+        return self._tcp_stream_writer is not None
+
+    async def close(self):
+        #if self._tcp_stream is None:
+        if self._tcp_stream_writer is None:
+            return
+        self._asyncmsg_receiver_task.cancel()
+        self._stream_receiver_task.cancel()
+        self._stream_sender_task.cancel()
+        await asyncio.sleep(0)
+        try:
+            #await self._send_request_channel.aclose()
+            #await self._tcp_stream.aclose()
+            self._tcp_stream_writer.close()
+            await self._tcp_stream_writer.wait_closed()
+        finally:
+            self._send_request_channel = None
+            #self._tcp_stream = None
+            self._tcp_stream_reader = None
+            self._tcp_stream_writer = None
+
+    def set_async_handler(self, handler_func):
+        """Set the async handler function.
+
+        @param handler_func Awaitable function that will be called
+        when an async message is received. Will receive the async
+        message as argument. If handler_func is None, there will be no
+        handling of async messages.
+
+        """
+        self._async_handler_func = handler_func
+
+    async def request(self, request):
+        ref_no = await self._send_request(request)
+        await self._outstanding_requests_events[ref_no].wait()
+        del self._outstanding_requests_events[ref_no]
+        return self._handle_response(ref_no)
+
+    async def _send_request(self, request):
+        self._ref_no += 1
+        ref_no = self._ref_no
+        assert ref_no not in self._outstanding_requests
+        assert ref_no not in self._outstanding_requests_events
+        self._outstanding_requests_events[ref_no] = asyncio.Event()
+        #await self._send_request_channel.send((ref_no, request))
+        await self._send_request_queue.put((ref_no, request))
+        return ref_no
+
+    def _handle_response(self, ref_no):
+        assert ref_no in self._reply_queue
+        (ok_reply, error_reply) = self._reply_queue.pop(ref_no)
+        if error_reply is not None:
+            # error reply
+            raise error_reply
+        else:
+            # ok reply - ok reploy response can be None
+            return ok_reply
+
+    async def _stream_sender(self):#, receive_request_channel):
+        log.debug("Starting stream sender task")
+        try:
+            #async with receive_request_channel:
+            #    async for (ref_no, request) in receive_request_channel:
+            while True:
+                ref_no, request = await self._send_request_queue.get()
+                log.debug("AioClient2: Sending request (ref_no=%s): %s", ref_no, request)
+                try:
+                    self._outstanding_requests[ref_no] = request
+                    request_string = b"%d %s" % (ref_no, request.to_string())
+                    #await self._tcp_stream.send_all(request_string)
+                    self._tcp_stream_writer.write(request_string)
+                    await self._tcp_stream_writer.drain()
+                finally:
+                    self._send_request_queue.task_done()
+        finally:
+            log.debug("Finishedstream sender task")
+
+    async def _asyncmsg_receiver(self):#, receive_asyncmsg_channel):
+        log.debug("Starting asyncmsg receiver task")
+        try:
+            #async with receive_asyncmsg_channel:
+            #    async for msg in receive_asyncmsg_channel:
+            while True:
+                msg = await self._asyncmsg_queue.get()
+                log.debug("AioClient2: Handling async message: %r", msg)
+                try:
+                    await self._handle_async_message(msg)
+                finally:
+                    self._asyncmsg_queue.task_done()
+        finally:
+            log.debug("Finished asyncmsg receiver task")
+
+    async def _handle_async_message(self, msg):
+        if self._async_handler_func is not None:
+            log.debug("AioClient2: Calling async handler function")
+            try:
+                await self._async_handler_func(msg)
+                log.debug("AioClient2: Async handler function returned")
+            except Exception as e:
+                log.exception(f"Async handler function raised exception: {e}")
+
+    async def _stream_receiver(self):
+        log.debug("Starting stream receiver task")
+        try:
+            #async with send_asyncmsg_channel:
+            #    async for data in self._tcp_stream:
+            while True:
+                data = await self._tcp_stream_reader.read(1024)
+                log.debug("AioClient2: Received data: %r", data)
+                if len(data) == 0:
+                    raise ReceiveError("End of stream")
+                self._buffer.append(data)
+                while True:
+                    # Loop try parse until there are no more responses to parse in the buffer
+                    response = self._try_parse_response()
+                    if response is None:
+                        break
+                    await self._receive_response(response)#, send_asyncmsg_channel)
+        finally:
+            log.debug("Finished stream receiver task")
+
+    async def _receive_response(self, response):#, send_asyncmsg_channel):
+        log.debug("AioClient2: Received response: %s", response)
+        ref_no, ok_reply, error_reply, async_msg = response
+        if ref_no is None:
+            # async message
+            #await send_asyncmsg_channel.send(async_msg)
+            await self._asyncmsg_queue.put(async_msg)
+        else:
+            # ok or error reply go on reply queue
+            self._reply_queue[ref_no] = (ok_reply, error_reply)
+            del self._outstanding_requests[ref_no]
+            self._outstanding_requests_events[ref_no].set()
+
+    def _try_parse_response(self):
+        # Trying to parse a response will consume from the buffer, and
+        # to be able to try again we need to keep all of the buffer
+        # until we can parse a response. Therefor we keep a copy and
+        # restore the copy if we fail to parse something from the
+        # buffer.
+        buffer_copy = self._buffer.copy()
+        try:
+            return _parse_response(self._buffer, self._outstanding_requests)
+        except NotEnoughDataInBufferError:
+            pass
+        # Continue reading data from stream
+        # Restore buffer
+        self._buffer = buffer_copy
+        return None
+
+
+def _parse_response(buf, outstanding_requests):
+    ref_no = None
+    ok_reply = None
+    error_reply = None
+    async_msg = None
+    ch = read_first_non_ws(buf)
+    if ch == b"=":
+        ref_no, ok_reply = _parse_ok_reply(buf, outstanding_requests)
+        stats.set('connections.responses.received.ok.last', 1, agg='sum')
+    elif ch == b"%":
+        ref_no, error_reply = _parse_error_reply(buf, outstanding_requests)
+        stats.set('connections.responses.received.error.last', 1, agg='sum')
+    elif ch == b":":
+        async_msg = _parse_asynchronous_message(buf)
+        stats.set('connections.responses.received.async.last', 1, agg='sum')
+    else:
+        stats.set('connections.responses.received.protocolerror.last', 1, agg='sum')
+        raise ProtocolError("Got unexpected: %s" % (ch,))
+    return ref_no, ok_reply, error_reply, async_msg
+
+def _parse_ok_reply(buf, outstanding_requests):
+    ref_no = read_int(buf)
+    if ref_no not in outstanding_requests:
+        raise BadRequestId(ref_no)
+    req = outstanding_requests[ref_no]
+    ok_reply = requests.response_dict[req.CALL_NO].parse(buf)
+    return ref_no, ok_reply
+
+def _parse_error_reply(buf, outstanding_requests):
+    ref_no = read_int(buf)
+    if ref_no not in outstanding_requests:
+        raise BadRequestId(ref_no)
+    error_no = read_int(buf)
+    error_status = read_int(buf)
+    error_reply = error_dict[error_no](error_status)
+    return ref_no, error_reply
+
+def _parse_asynchronous_message(buf):
+    read_int(buf) # read number of arguments (but we don't need it)
+    msg_no = read_int(buf)
+    if msg_no not in async_dict:
+        raise UnimplementedAsync(msg_no)
+    msg = async_dict[msg_no].parse(buf)
+    return msg
 
 
 #
@@ -856,9 +1137,10 @@ class AioCache(object):
                                                      self.uncached)))
 
 
-def create_client(nursery):
-    conn = AioConnection()
-    client = AioClient(conn, nursery=nursery)
+def create_client():
+    #conn = AioConnection()
+    #client = AioClient(conn)
+    client = AioClient2()
     caching_client = AioCachingPersonClient(client)
     return caching_client
 
@@ -870,11 +1152,19 @@ def check_connection(f):
             raise KomSessionNotConnected()
         try:
             return await f(komsession, *args, **kwargs)
-        except (trio.BrokenResourceError, trio.ClosedResourceError) as te:
-            # We got an error that indicates that the connection has
-            # failed, then close and raise.
-            await komsession.close()
-            raise KomSessionNotConnected(te)
+        except socket.error as serr:
+            if serr.errno in (errno.EPIPE, errno.ECONNRESET, errno.ENOTCONN, errno.ETIMEDOUT):
+                # If we got an error that indicates that the
+                # connection has failed, then close and raise.
+                komsession.close()
+                raise KomSessionNotConnected(serr)
+            else:
+                raise KomSessionException(serr)
+        #except (trio.BrokenResourceError, trio.ClosedResourceError) as te:
+        #    # We got an error that indicates that the connection has
+        #    # failed, then close and raise.
+        #    await komsession.close()
+        #    raise KomSessionNotConnected(te)
         except Exception as e:
             raise KomSessionException(e)
 
@@ -892,12 +1182,12 @@ class AioKomSession(object):
     bytes? Seems inconvient at this level.)
 
     """
-    def __init__(self, *, nursery, client_factory=create_client):
+    def __init__(self, *, client_factory=create_client):
         # TODO: We actually require the API of a
         # CachingPersonClient. We should enhance the Connection
         # class and make CachingPersonClient have the same API as
         # Connection.
-        self._nursery = nursery
+        #self._nursery = nursery
         self._client_factory = client_factory
         self._client = None
         self._session_no = None
@@ -912,7 +1202,7 @@ class AioKomSession(object):
         if isinstance(client_version, six.binary_type):
             client_version = client_version.decode('utf-8')
 
-        self._client = self._client_factory(self._nursery)
+        self._client = self._client_factory()#self._nursery)
         await self._client.connect(host, port, user=username + "%" + hostname)
 
         # todo: we shouldn't require client name/version. specify in
@@ -927,7 +1217,9 @@ class AioKomSession(object):
         await self._client.request(requests.ReqSetConnectionTimeFormat(use_utc=1))
 
     def is_connected(self):
-        return self._client is not None
+        if self._client is None:
+            return False
+        return self._client.is_connected()
 
     async def close(self):
         """Immediately close the connection, without sending a Disconnect request.
