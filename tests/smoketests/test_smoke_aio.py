@@ -119,10 +119,8 @@ async def test_komsession_login_logout():
 
 async def test_komtext_create_new_text():
     ks = AioKomSession()
-    print("OSKAR 1")
     await ks.connect(host, port, username, hostname, client_name, client_version)
     await ks.login(pers_no, password)
-    print("OSKAR 2")
 
     subject = "Hello"
     body = "World"
@@ -132,17 +130,12 @@ async def test_komtext_create_new_text():
         subject, body, content_type,
         recipient_list=recipient_list)
 
-    print("OSKAR 3")
     text_no = await ks.create_text(subject, body, content_type, recipient_list=recipient_list)
-    print("OSKAR 4")
     created_text = await ks.get_text(text_no)
-    print("OSKAR 5")
 
     await ks.logout()
     await ks.disconnect()
-    print("OSKAR 6")
 
-    #print("OSKAR: ", created_text.text_content_type)
     assert new_text.text == created_text.text
     assert new_text.text_content_type == created_text.text_content_type
     assert new_text.content_type == created_text.content_type
