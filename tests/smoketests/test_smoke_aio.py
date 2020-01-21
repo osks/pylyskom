@@ -31,8 +31,8 @@ async def test_aioconnection_connect_disconnect():
     conn = AioConnection()
     await conn.connect(host, port, user)
     req = requests.ReqDisconnect(0)
-    ref_no = await conn.send_request(req)
-    resp = await conn.read_response()
+    await conn.send_request(req)
+    await conn.read_response()
     await conn.close()
 
 

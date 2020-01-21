@@ -4,14 +4,13 @@
 
 import asyncio
 import base64
+import errno
 import functools
 import json
 import logging
 import socket
 
 import six
-
-from . import mimeparse
 
 from .errors import (
     error_dict,
@@ -30,11 +29,8 @@ from .protocol import (
 from .asyncmsg import AsyncMessages, async_dict
 from .stats import stats
 from .datatypes import (
-    AuxItemInput,
     ConfType,
     CookedMiscInfo,
-    MICommentTo,
-    MIRecipient,
     MembershipType,
     PersonalFlags)
 from .komsession import (
@@ -49,10 +45,8 @@ from .komsession import (
     KomMembership,
     KomMembershipUnread,
     KomPerson,
-    MICommentTo_str_to_type,
-    MIRecipient_str_to_type,
 )
-from . import requests, komauxitems, utils
+from . import requests, utils
 
 
 log = logging.getLogger(__name__)
