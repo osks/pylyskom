@@ -342,6 +342,27 @@ class AioClient:
             # ok reply - ok_reply can be None
             return ok_reply
 
+
+    async def _run_response_receiver(self):
+        log.debug("Starting response receiver task")
+        try:
+            while True:
+                response = await self._conn.read_response()
+                log.debug("AioClient: Received response: %s", response)
+                await self._receive_response(response)
+        finally:
+            log.debug("Finished stream receiver task")
+
+    async def _receive_response(self, response):
+        ref_no, ok_reply, error_reply, async_msg = response
+        if ref_no is None:
+            # async message
+            await self._asyncmsg_queue.put(async_msg)
+        else:
+            # ok or error reply go on reply queue
+            self._reply_queue[ref_no] = (ok_reply, error_reply)
+            self._outstanding_requests_events[ref_no].set()
+
     async def _run_asyncmsg_receiver(self):
         log.debug("Starting asyncmsg receiver task")
         try:
@@ -363,26 +384,6 @@ class AioClient:
                 #log.debug("AioClient: Async handler function returned for msg: %s", msg)
             except Exception as e:
                 log.exception(f"Async handler function raised exception for msg={msg}: {e}")
-
-    async def _run_response_receiver(self):
-        log.debug("Starting response receiver task")
-        try:
-            while True:
-                response = await self._conn.read_response()
-                log.debug("AioClient: Received response: %s", response)
-                await self._receive_response(response)
-        finally:
-            log.debug("Finished stream receiver task")
-
-    async def _receive_response(self, response):
-        ref_no, ok_reply, error_reply, async_msg = response
-        if ref_no is None:
-            # async message
-            await self._asyncmsg_queue.put(async_msg)
-        else:
-            # ok or error reply go on reply queue
-            self._reply_queue[ref_no] = (ok_reply, error_reply)
-            self._outstanding_requests_events[ref_no].set()
 
 
 #
