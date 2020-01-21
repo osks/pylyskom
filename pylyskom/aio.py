@@ -360,9 +360,9 @@ class AioClient:
             log.debug("AioClient: Calling async handler function for msg: %s", msg)
             try:
                 await self._async_handler_func(msg)
-                log.debug("AioClient: Async handler function returned")
+                #log.debug("AioClient: Async handler function returned for msg: %s", msg)
             except Exception as e:
-                log.exception(f"Async handler function raised exception: {e}")
+                log.exception(f"Async handler function raised exception for msg={msg}: {e}")
 
     async def _run_response_receiver(self):
         log.debug("Starting response receiver task")
