@@ -9,5 +9,6 @@ pyflakes:
 
 test:
 	pytest -vv --maxfail 1 ./tests
+	tox
 
 .PHONY: all auxitems test pyflakes
