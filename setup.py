@@ -21,5 +21,7 @@ setuptools.setup(
         'Operating System :: OS Independent',
     ],
     #python_requires='>=2.7, >=3.7',
-    install_requires=[]
+    install_requires=[
+        'six',
+    ]
 )

@@ -1,8 +1,18 @@
-
 pylyskom
 ========
 
-pylyskom is a Python library for talking with LysKOM servers.
+pylyskom is a Python library for communicating with LysKOM servers
+over LysKOM Protocol A.
+
+The source code for pylyskom can be found at:
+https://github.com/osks/pylyskom
+
+LysKOM Protocol A specification can be found here:
+https://www.lysator.liu.se/lyskom/protocol/
+
+
+Background
+----------
 
 pylyskom was originally based on python-lyskom. The following files
 originates from python-lyskom: kom.py, komauxitems.py, aux-items.txt
@@ -11,17 +21,6 @@ httpkom's use of kom.py. Httpkom also built some wrappers (komsession)
 around the kom.py code, to make it easier to use. Pylyskom was created
 as an attempt to break out komsession and the modifications to kom.py
 from httpkom.
-
-The source code for pylyskom can be found at:
-https://github.com/osks/pylyskom
-
-
-Dependencies
-------------
-
-For required Python packages, see requirements.txt. Install them with:
-
-    $ pip install -r requirements.txt
 
 
 Code status
@@ -37,7 +36,7 @@ Copyright (C) 2012-2020 Oskar Skoog
 
 Copyright (C) 2008 Henrik Rindlöw
 
-Copyright (C) 1999-2003 Kent Engström, Peter Liljenberg, 
+Copyright (C) 1999-2003 Kent Engström, Peter Liljenberg,
                         Peter Åstrand, Erik Forsberg,
                         Ragnar Ouchterlony.
 
