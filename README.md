@@ -7,6 +7,9 @@ over LysKOM Protocol A.
 The source code for pylyskom can be found at:
 https://github.com/osks/pylyskom
 
+Packages are published in PyPI:
+https://pypi.org/project/pylyskom/
+
 LysKOM Protocol A specification can be found here:
 https://www.lysator.liu.se/lyskom/protocol/
 
