@@ -33,7 +33,7 @@ Code status
 Copyright and license
 ---------------------
 
-Copyright (C) 2012-2014 Oskar Skoog
+Copyright (C) 2012-2020 Oskar Skoog
 
 Copyright (C) 2008 Henrik Rindlöw
 
