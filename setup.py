@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='pylyskom',
-    version='0.2b0',
+    version='0.2',
     description='Python LysKOM library',
     long_description=long_description,
     long_description_content_type="text/markdown",
