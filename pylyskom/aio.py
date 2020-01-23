@@ -108,6 +108,9 @@ class AioConnection:
     def __init__(self):
         self._tcp_stream_writer = None
         self._tcp_stream_reader = None
+        self._reset_vars()
+
+    def _reset_vars(self):
         self._ref_no = 0 # Last used ID (i.e. increment before use)
         self._outstanding_requests = {} # Ref-No to Request mapping
         self._buffer = AioReceiveBuffer()
@@ -122,6 +125,7 @@ class AioConnection:
         assert isinstance(user, str) # Do we want user to be str or bytes?
         log.debug("AioConnection: Connecting to %s:%s", host, port)
         self._tcp_stream_reader, self._tcp_stream_writer = await asyncio.open_connection(host, port)
+        self._reset_vars()
 
         # Send initial string
         await self._send_initial_string(user)
@@ -147,14 +151,16 @@ class AioConnection:
         return self._tcp_stream_writer is not None
 
     async def close(self):
-        if self._tcp_stream_writer is None:
-            return
         try:
-            self._tcp_stream_writer.close()
-            await self._tcp_stream_writer.wait_closed()
+            if self._tcp_stream_writer is not None:
+                self._tcp_stream_writer.close()
+                await self._tcp_stream_writer.wait_closed()
         finally:
             self._tcp_stream_reader = None
             self._tcp_stream_writer = None
+            self._buffer = None
+            self._outstanding_requests = None
+            self._buffer = None
 
     async def send_request(self, request):
         log.debug("AioConnection: Sending request: %s", request)
@@ -259,25 +265,26 @@ class AioClient:
     def __init__(self, conn):
         self._conn = conn
         self._async_handler_func = None
-
         self._send_lock = asyncio.Lock()
+        self._reset_vars()
+
+    def _reset_vars(self):
+        # Dict with ref-no to tuple(ok, error), where error is None if it's a ok reply (ok reply can be None)
+        self._reply_queue = {}
+        self._outstanding_requests_events = {} # Ref-No to Event mapping
+        self._asyncmsg_queue = asyncio.Queue()
+        self._send_request_queue = asyncio.Queue()
         self._response_receiver_task = None
         self._asyncmsg_receiver_task = None
 
-        self._outstanding_requests = {} # Ref-No to Request mapping
-        self._outstanding_requests_events = {}
-        self._buffer = AioReceiveBuffer()
-
-        # Ref-No to tuple(ok, error), where error is None if it's a ok reply (ok reply can be None)
-        self._reply_queue = {}
-
-        self._asyncmsg_queue = asyncio.Queue()
-        self._send_request_queue = asyncio.Queue()
-
     async def connect(self, host, port, user=None):
+        assert not self.is_connected()
         log.debug("AioClient: Connecting to %s:%s", host, port)
         await self._conn.connect(host, port, user=user)
         log.debug("AioClient: Connected to %s:%s", host, port)
+        self._reset_vars()
+
+        # Start tasks
         self._response_receiver_task = asyncio.create_task(self._run_response_receiver())
         self._asyncmsg_receiver_task = asyncio.create_task(self._run_asyncmsg_receiver())
 
@@ -287,17 +294,20 @@ class AioClient:
         return self._conn.is_connected()
 
     async def close(self):
-        if self._conn is None:
-            return
-        self._response_receiver_task.cancel()
-        self._asyncmsg_receiver_task.cancel()
-        await asyncio.sleep(0)
         try:
-            await self._conn.close()
+            if self._response_receiver_task is not None:
+                self._response_receiver_task.cancel()
+            if self._asyncmsg_receiver_task is not None:
+                self._asyncmsg_receiver_task.cancel()
+            await asyncio.sleep(0)
+            if self._conn is not None:
+                await self._conn.close()
         finally:
             self._conn = None
             self._response_receiver_task = None
             self._asyncmsg_receiver_task = None
+            self._asyncmsg_queue = None
+            self._send_request_queue = None
 
     def set_async_handler(self, handler_func):
         """Set the async handler function.
@@ -340,12 +350,12 @@ class AioClient:
     async def _run_response_receiver(self):
         log.debug("Starting response receiver task")
         try:
-            while True:
+            while self.is_connected():
                 response = await self._conn.read_response()
                 log.debug("AioClient: Received response: %s", response)
                 await self._receive_response(response)
         finally:
-            log.debug("Finished stream receiver task")
+            log.debug("Exited stream receiver task")
 
     async def _receive_response(self, response):
         ref_no, ok_reply, error_reply, async_msg = response
@@ -360,7 +370,7 @@ class AioClient:
     async def _run_asyncmsg_receiver(self):
         log.debug("Starting asyncmsg receiver task")
         try:
-            while True:
+            while self.is_connected():
                 msg = await self._asyncmsg_queue.get()
                 log.debug("AioClient: Handling async message: %r", msg)
                 try:
@@ -368,7 +378,7 @@ class AioClient:
                 finally:
                     self._asyncmsg_queue.task_done()
         finally:
-            log.debug("Finished asyncmsg receiver task")
+            log.debug("Exited asyncmsg receiver task")
 
     async def _handle_async_message(self, msg):
         if self._async_handler_func is not None:
