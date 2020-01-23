@@ -881,7 +881,7 @@ def check_connection(f):
             if serr.errno in (errno.EPIPE, errno.ECONNRESET, errno.ENOTCONN, errno.ETIMEDOUT):
                 # If we got an error that indicates that the
                 # connection has failed, then close and raise.
-                komsession.close()
+                await komsession.close()
                 raise KomSessionNotConnected(serr)
             else:
                 raise KomSessionException(serr)
