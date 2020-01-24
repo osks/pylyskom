@@ -1,11 +1,13 @@
 import setuptools
 
+from pylyskom.version import __version__
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name='pylyskom',
-    version='0.2',
+    version=__version__,
     description='Python LysKOM library',
     long_description=long_description,
     long_description_content_type="text/markdown",
