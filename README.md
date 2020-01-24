@@ -35,15 +35,17 @@ from httpkom.
 
 On master:
 
-1. Increment version number and remove `+dev` suffix (in `pylyskom/version.py`).
+1. Increment version number and remove `+dev` suffix
+   (in `pylyskom/version.py`).
 2. Run tests locally with `make test`.
 3. Commit, push.
 4. Check CI build/test results. Also test manually by using jskom.
 5. Tag with `v<version>` (example: `v0.1`) and push the tag.
 6. Build PyPI dist: `make dist`
 7. Push to Test PyPI: `twine upload --repository testpypi dist/*` and check
-   that the release looks correct on https://test.pypi.org/project/pylyskom/ .
-8. Push to PyPI: `twine upload dist/*`
+   https://test.pypi.org/project/pylyskom/ .
+8. Push to PyPI: `twine upload dist/*` and check
+   https://pypi.org/project/pylyskom/ .
 9. Add `+dev` suffix to version number, commit and push.
 
 
