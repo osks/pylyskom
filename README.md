@@ -1,5 +1,4 @@
-pylyskom
-========
+# pylyskom
 
 pylyskom is a Python library for communicating with LysKOM servers
 over LysKOM Protocol A.
@@ -14,8 +13,7 @@ LysKOM Protocol A specification can be found here:
 https://www.lysator.liu.se/lyskom/protocol/
 
 
-Background
-----------
+## Background
 
 pylyskom was originally based on python-lyskom. The following files
 originates from python-lyskom: kom.py, komauxitems.py, aux-items.txt
@@ -26,14 +24,49 @@ as an attempt to break out komsession and the modifications to kom.py
 from httpkom.
 
 
-Code status
------------
+## Code status
 
 [![Build Status](https://travis-ci.org/osks/pylyskom.svg?branch=master)](https://travis-ci.org/osks/pylyskom)
 
 
-Copyright and license
----------------------
+## Development
+
+### Preparing a release
+
+On master:
+
+1. Increment version number and remove `+dev` suffix (in `pylyskom/version.py`).
+2. Run tests locally with `make test`.
+3. Commit, push.
+4. Check CI build/test results. Also test manually by using jskom.
+5. Tag with `v<version>` (example: `v0.1`) and push the tag.
+6. Build PyPI dist: `make dist`
+7. Push to Test PyPI: `twine upload --repository testpypi dist/*` and check
+   that the release looks correct on https://test.pypi.org/project/pylyskom/ .
+8. Push to PyPI: `twine upload dist/*`
+9. Add `+dev` suffix to version number, commit and push.
+
+
+### Tools:
+
+Twine is used for pushing the built dist to PyPI. The examples in the
+release process depends on a `.pypirc` file with config for the pypi
+and testpypi repositories.
+
+Example of `.pypirc`:
+```
+[pypi]
+username = __token__
+password = pypi-...
+
+[testpypi]
+repository = https://test.pypi.org/legacy/
+username = __token__
+password = pypi-...
+```
+
+
+## Copyright and license
 
 Copyright (C) 2012-2020 Oskar Skoog
 
