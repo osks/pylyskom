@@ -91,7 +91,6 @@ Example of ``.pypirc``::
     password = pypi-...
 
 
-
 Copyright and license
 ---------------------
 

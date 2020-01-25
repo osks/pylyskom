@@ -3,6 +3,9 @@ all: auxitems test pyflakes
 auxitems:
 	python make_komauxitems
 
+clean:
+	rm -rf dist
+
 dist:
 	rm -rf dist
 	python3 setup.py sdist
@@ -15,4 +18,4 @@ test:
 	pytest -vv --maxfail 1 ./tests
 	tox
 
-.PHONY: all auxitems test pyflakes
+.PHONY: all auxitems clean dist test pyflakes
