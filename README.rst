@@ -99,9 +99,8 @@ Copyright (C) 2012-2020 Oskar Skoog
 
 Copyright (C) 2008 Henrik Rindlöw
 
-Copyright (C) 1999-2003 Kent Engström, Peter Liljenberg,
-                        Peter Åstrand, Erik Forsberg,
-                        Ragnar Ouchterlony.
+Copyright (C) 1999-2003 Kent Engström, Peter Liljenberg, Peter Åstrand,
+Erik Forsberg, Ragnar Ouchterlony.
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
