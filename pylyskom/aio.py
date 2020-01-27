@@ -895,8 +895,6 @@ def check_connection(f):
                 raise KomSessionNotConnected(serr)
             else:
                 raise KomSessionException(serr)
-        except Exception as e:
-            raise KomSessionException(e)
 
     return decorated
 
