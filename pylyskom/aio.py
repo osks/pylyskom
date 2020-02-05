@@ -321,19 +321,16 @@ class AioClient:
         self._async_handler_func = handler_func
 
     async def request(self, request):
-        ref_no = await self._send_request(request)
+        async with self._send_lock:
+            ref_no = await self._conn.send_request(request)
+            log.debug("AioClient: Sent request (ref_no=%s): %s", ref_no, request)
+            assert ref_no not in self._outstanding_requests_events
+            self._outstanding_requests_events[ref_no] = asyncio.Event()
+
         log.debug("AioClient: Waiting for reply to ref_no=%s", ref_no)
         await self._outstanding_requests_events[ref_no].wait()
         del self._outstanding_requests_events[ref_no]
         return self._handle_reply(ref_no)
-
-    async def _send_request(self, request):
-        async with self._send_lock:
-            ref_no = await self._conn.send_request(request)
-        log.debug("AioClient: Sent request (ref_no=%s): %s", ref_no, request)
-        assert ref_no not in self._outstanding_requests_events
-        self._outstanding_requests_events[ref_no] = asyncio.Event()
-        return ref_no
 
     def _handle_reply(self, ref_no):
         assert ref_no in self._reply_queue
@@ -345,7 +342,6 @@ class AioClient:
         else:
             # ok reply - ok_reply can be None
             return ok_reply
-
 
     async def _run_response_receiver(self):
         log.debug("Starting response receiver task")
@@ -365,6 +361,7 @@ class AioClient:
         else:
             # ok or error reply go on reply queue
             self._reply_queue[ref_no] = (ok_reply, error_reply)
+            assert ref_no in self._outstanding_requests_events
             self._outstanding_requests_events[ref_no].set()
 
     async def _run_asyncmsg_receiver(self):
