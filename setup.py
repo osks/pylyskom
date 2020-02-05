@@ -23,7 +23,7 @@ setuptools.setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Operating System :: OS Independent',
     ],
-    #python_requires='>=2.7, >=3.5',
+    python_requires='>=3.6',
     install_requires=[
         'six',
     ]

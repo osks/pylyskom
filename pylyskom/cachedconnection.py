@@ -10,7 +10,7 @@ import logging
 
 from six.moves import range
 
-from . import requests
+from . import requests, utils
 from .asyncmsg import AsyncMessages, async_dict
 from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
 from .stats import stats
@@ -41,7 +41,7 @@ class Client(object):
 
     def set_async_handler(self, handler_func):
         """Set the async handler function.
-        
+
         @param handler_func Function that will be called when an async
         message is received. Will receive the async message as
         argument. If handler_func is None, there will be no handling
@@ -302,9 +302,10 @@ class CachingClient(object):
         """Lookup name using regular expression"""
         if regexp.startswith("#"):
             return self.lookup_name(regexp, want_pers, want_confs)
-        
+
         if not case_sensitive:
-            regexp = self._case_insensitive_regexp(regexp)
+            collate_table = self.request(requests.ReqGetCollateTable())
+            regexp = utils.case_insensitive_regexp(regexp, collate_table)
 
         matches = self.request(
             requests.ReqReZLookup(
@@ -313,73 +314,11 @@ class CachingClient(object):
                 want_confs=want_confs))
         return [(x.conf_no, x.name.decode('latin1')) for x in matches]
 
-    def _case_insensitive_regexp(self, regexp):
-        """Make regular expression case insensitive"""
-        result = ""
-        # FIXME: Cache collate_table
-        collate_table = self.request(requests.ReqGetCollateTable())
-        inside_brackets = 0
-        for c in regexp:
-            if c == "[":
-                inside_brackets = 1
-
-            if inside_brackets:
-                eqv_chars = c
-            else:
-                eqv_chars = self._equivalent_chars(c, collate_table)
-                
-            if len(eqv_chars) > 1:
-                result += "[%s]" % eqv_chars
-            else:
-                result += eqv_chars
-
-            if c == "]":
-                inside_brackets = 0
-
-        return result
-
-    def _equivalent_chars(self, c, collate_table):
-        """Find all chars equivalent to c in collate table"""
-        c_ord = ord(c)
-        if c_ord >= len(collate_table):
-            return c
-
-        result = ""
-        norm_char = collate_table[c_ord]
-        next_index = 0
-        while 1:
-            next_index = collate_table.find(norm_char, next_index)
-            if next_index == -1:
-                break
-            result += chr(next_index)
-            next_index += 1
-
-        return result
-
-    def read_ranges_to_gaps_and_last(self, read_ranges):
-        """Return all texts excluded from read_ranges.
-        
-        @return: Returns a 2-tuple of a list and the first possibly
-        unread text number after the last read range. The text number
-        could be larger than the highest local number, if we have read
-        everything in the conference. The list contains a 2-tuples for
-        each gap in the read ranges, where each tuple is the first
-        unread text in the gap and the length of the gap.
-        """
-        gaps = []
-        last = 1
-        for read_range in read_ranges:
-            gap = read_range.first_read - last
-            if gap > 0:
-                gaps.append((last, gap))
-            last = read_range.last_read + 1
-        return gaps, last
-
     def get_unread_texts_from_membership(self, membership):
         unread = []
-        
+
         more_to_fetch = 1
-        gaps, last = self.read_ranges_to_gaps_and_last(membership.read_ranges)
+        gaps, last = utils.read_ranges_to_gaps_and_last(membership.read_ranges)
         for first, gap_len in gaps:
             first_local = first
             while gap_len > 0:
@@ -396,7 +335,7 @@ class CachingClient(object):
                     more_to_fetch = mapping.later_texts_exists
                 except NoSuchLocalText:
                     more_to_fetch = 0
-        
+
         # If there are more than 255 after the last read range, we
         # need to continue mapping (the last, if any, previous call
         # will have set later_texts_exists to 1 if so).
@@ -411,7 +350,7 @@ class CachingClient(object):
             except NoSuchLocalText:
                 # No unread texts
                 more_to_fetch = 0
-        
+
         # Remove text that don't exist anymore (text_no == 0)
         return [ text_no for text_no in unread if text_no != 0]
 
