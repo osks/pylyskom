@@ -4,6 +4,13 @@
 
 ### Added
 
+- Nothing yet.
+
+
+## 0.3 (2020-02-06)
+
+### Added
+
 - Asyncio support
 
 
