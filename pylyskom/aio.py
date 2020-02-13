@@ -29,10 +29,12 @@ from .protocol import (
 from .asyncmsg import AsyncMessages, async_dict
 from .stats import stats
 from .datatypes import (
+    AuxItem,
     ConfType,
     CookedMiscInfo,
     MembershipType,
-    PersonalFlags)
+    PersonalFlags,
+    TextStat)
 from .komsession import (
     AmbiguousName,
     NameNotFound,
@@ -45,6 +47,7 @@ from .komsession import (
     KomMembership,
     KomMembershipUnread,
     KomPerson,
+    KomAuxItem,
 )
 from . import requests, utils
 
@@ -706,7 +709,7 @@ class AioCachingPersonClient(AioCachingClient):
         self._memberships_by_position = dict()
         self._memberships.invalidate_all()
 
-    def get_person_no(self):
+    def get_current_person_no(self):
         return self._pers_no
 
     def is_logged_in(self):
@@ -888,6 +891,7 @@ def check_connection(f):
             if serr.errno in (errno.EPIPE, errno.ECONNRESET, errno.ENOTCONN, errno.ETIMEDOUT):
                 # If we got an error that indicates that the
                 # connection has failed, then close and raise.
+                log.debug("AioKomSession raised socket error, closing")
                 await komsession.close()
                 raise KomSessionNotConnected(serr)
             else:
@@ -977,15 +981,14 @@ class AioKomSession(object):
             password = password.decode('utf-8')
         pers_no = int(pers_no)
         await self._client.login(pers_no, password)
-        person_stat = await self._client.request(requests.ReqGetPersonStat(pers_no))
-        return KomPerson(pers_no, person_stat)
+        return await self._get_person(pers_no)
 
     @check_connection
     async def logout(self):
         await self._client.logout()
 
-    def get_person_no(self):
-        return self._client.get_person_no()
+    def get_current_person_no(self):
+        return self._client.get_current_person_no()
 
     @check_connection
     async def who_am_i(self):
@@ -1015,7 +1018,15 @@ class AioKomSession(object):
         pers_no = await self._client.request(
             requests.ReqCreatePerson(name, passwd, flags, aux_items))
         stats.set('komsession.persons.created.last', 1, agg='sum')
-        return KomPerson(pers_no)
+        return await self._get_person(pers_no)
+
+    async def _get_person(self, pers_no):
+        username = await self._client.conf_name(pers_no)
+        return KomPerson(pers_no, username)
+
+    @check_connection
+    async def get_person(self, pers_no):
+        return await self._get_person(pers_no)
 
     @check_connection
     async def create_conference(self, name, aux_items=None):
@@ -1076,7 +1087,9 @@ class AioKomSession(object):
     @check_connection
     async def get_membership(self, pers_no, conf_no):
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
-        return KomMembership(pers_no, membership)
+        added_by = await self._get_person(membership.added_by)
+        conference = await self._get_uconference(conf_no)
+        return KomMembership(pers_no, added_by, conference, membership)
 
     @check_connection
     async def get_membership_unread(self, pers_no, conf_no):
@@ -1113,7 +1126,11 @@ class AioKomSession(object):
             for membership in ms_list:
                 if (not passive) and membership.type.passive:
                     continue
-                memberships.append(KomMembership(pers_no, membership))
+                memberships.append(KomMembership(
+                    pers_no,
+                    await self._get_person(membership.added_by),
+                    await self._get_uconference(membership.conference),
+                    membership))
 
         return memberships, has_more
 
@@ -1128,19 +1145,35 @@ class AioKomSession(object):
     async def get_conf_name(self, conf_no):
         return await self._client.conf_name(conf_no)
 
+    async def _create_komauxitem(self, aux_item: AuxItem):
+        creator = await self._get_person(aux_item.creator)
+        return KomAuxItem(aux_item, creator)
+
+    async def _create_komtext(self, text_no, text, text_stat: TextStat):
+        aux_items = [ await self._create_komauxitem(ai) for ai in text_stat.aux_items ]
+        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items)
+
+    async def _get_uconference(self, conf_no):
+        return KomUConference(conf_no, await self._client.uconferences.get(conf_no))
+
+    async def _get_conference(self, conf_no):
+        conf = await self._client.conferences.get(conf_no)
+        aux_items = [ await self._create_komauxitem(aux_item) for aux_item in conf.aux_items ]
+        return KomConference(conf_no, conf, aux_items)
+
     @check_connection
     async def get_conference(self, conf_no, micro=True):
         conf_no = int(conf_no)
         if micro:
-            return KomUConference(conf_no, await self._client.uconferences.get(conf_no))
+            return await self._get_uconference(conf_no)
         else:
-            return KomConference(conf_no, await self._client.conferences.get(conf_no))
+            return await self._get_conference(conf_no)
 
     @check_connection
     async def get_text(self, text_no):
         text_stat = await self.get_text_stat(text_no)
         text = await self._client.request(requests.ReqGetText(text_no))
-        return KomText(text_no=text_no, text=text, text_stat=text_stat)
+        return await self._create_komtext(text_no=text_no, text=text, text_stat=text_stat)
 
     # TODO: offset/start number, so we can paginate. we probably need
     # to return the local text number for that.
@@ -1152,7 +1185,7 @@ class AioKomSession(object):
         #local_no_ceiling = 0 # means the higest numbered texts (i.e. the last)
         text_mapping = await self._client.request(
             requests.ReqLocalToGlobalReverse(conf_no, 0, no_of_texts))
-        texts = [ KomText(text_no=m[1], text=None, text_stat=await self.get_text_stat(m[1]))
+        texts = [ await self._create_komtext(text_no=m[1], text=None, text_stat=await self._client.textstats.get(m[1]))
                   for m in text_mapping.list if m[1] != 0 ]
         texts.reverse()
         return texts

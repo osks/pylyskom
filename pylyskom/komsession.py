@@ -5,6 +5,7 @@
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 from __future__ import absolute_import
+from typing import List
 import base64
 import functools
 import json
@@ -32,6 +33,8 @@ from .datatypes import (
     MIRecipient,
     MembershipType,
     PersonalFlags,
+    AuxItem,
+    TextStat,
     first_aux_items_with_tag)
 
 class KomSessionException(Exception): pass
@@ -154,15 +157,13 @@ class KomSession(object):
             password = password.decode('utf-8')
         pers_no = int(pers_no)
         self._client.login(pers_no, password)
-        person_stat = self._client.request(requests.ReqGetPersonStat(pers_no))
-        return KomPerson(pers_no, person_stat)
+        return self._get_person(pers_no)
 
     @check_connection
     def logout(self):
         self._client.logout()
 
-    @check_connection
-    def get_person_no(self):
+    def get_current_person_no(self):
         return self._client.get_person_no()
 
     @check_connection
@@ -194,7 +195,15 @@ class KomSession(object):
         pers_no = self._client.request(
             requests.ReqCreatePerson(name, passwd, flags, aux_items))
         stats.set('komsession.persons.created.last', 1, agg='sum')
-        return KomPerson(pers_no)
+        return self._get_person(pers_no)
+
+    def _get_person(self, pers_no):
+        username = self._client.conf_name(pers_no)
+        return KomPerson(pers_no, username)
+
+    @check_connection
+    def get_person(self, pers_no):
+        return self._get_person(pers_no)
 
     @check_connection
     def create_conference(self, name, aux_items=None):
@@ -242,12 +251,12 @@ class KomSession(object):
     @check_connection
     def get_text_stat(self, text_no):
         return self._client.textstats[text_no]
-    
+
     @check_connection
     def add_membership(self, pers_no, conf_no, priority, where):
         mtype = MembershipType()
         self._client.request(requests.ReqAddMember(conf_no, pers_no, priority, where, mtype))
-    
+
     @check_connection
     def delete_membership(self, pers_no, conf_no):
         self._client.request(requests.ReqSubMember(conf_no, pers_no))
@@ -255,7 +264,9 @@ class KomSession(object):
     @check_connection
     def get_membership(self, pers_no, conf_no):
         membership = self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
-        return KomMembership(pers_no, membership)
+        added_by = self._get_person(membership.added_by)
+        conference = KomUConference(conf_no, self._client.uconferences[conf_no])
+        return KomMembership(pers_no, added_by, conference, membership)
 
     @check_connection
     def get_membership_unread(self, pers_no, conf_no):
@@ -292,8 +303,12 @@ class KomSession(object):
             for membership in ms_list:
                 if (not passive) and membership.type.passive:
                     continue
-                memberships.append(KomMembership(pers_no, membership))
-        
+                memberships.append(KomMembership(
+                    pers_no,
+                    self._get_person(membership.added_by),
+                    self._get_uconference(membership.conference),
+                    membership))
+
         return memberships, has_more
 
     @check_connection
@@ -302,24 +317,40 @@ class KomSession(object):
         memberships = [ self.get_membership_unread(pers_no, conf_no)
                         for conf_no in conf_nos ]
         return [ m for m in memberships if m.no_of_unread > 0 ]
-    
+
     @check_connection
     def get_conf_name(self, conf_no):
         return self._client.conf_name(conf_no)
-    
+
+    def _create_komauxitem(self, aux_item: AuxItem):
+        creator = self._get_person(aux_item.creator)
+        return KomAuxItem(aux_item, creator)
+
+    def _create_komtext(self, text_no, text, text_stat: TextStat):
+        aux_items = [ self._create_komauxitem(ai) for ai in text_stat.aux_items ]
+        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items)
+
+    def _get_uconference(self, conf_no):
+        return KomUConference(conf_no, self._client.uconferences[conf_no])
+
+    def _get_conference(self, conf_no):
+        conf = self._client.conferences[conf_no]
+        aux_items = [ self._create_komauxitem(aux_item) for aux_item in conf.aux_items ]
+        return KomConference(conf_no, conf, aux_items)
+
     @check_connection
     def get_conference(self, conf_no, micro=True):
         conf_no = int(conf_no)
         if micro:
-            return KomUConference(conf_no, self._client.uconferences[conf_no])
+            return self._get_uconference(conf_no)
         else:
-            return KomConference(conf_no, self._client.conferences[conf_no])
+            return self._get_conference(conf_no)
 
     @check_connection
     def get_text(self, text_no):
         text_stat = self.get_text_stat(text_no)
         text = self._client.request(requests.ReqGetText(text_no))
-        return KomText(text_no=text_no, text=text, text_stat=text_stat)
+        return self._create_komtext(text_no=text_no, text=text, text_stat=text_stat)
 
     # TODO: offset/start number, so we can paginate. we probably need
     # to return the local text number for that.
@@ -331,7 +362,7 @@ class KomSession(object):
         #local_no_ceiling = 0 # means the higest numbered texts (i.e. the last)
         text_mapping = self._client.request(
             requests.ReqLocalToGlobalReverse(conf_no, 0, no_of_texts))
-        texts = [ KomText(text_no=m[1], text=None, text_stat=self.get_text_stat(m[1]))
+        texts = [ self._create_komtext(text_no=m[1], text=None, text_stat=self._client.textstats[m[1]])
                   for m in text_mapping.list if m[1] != 0 ]
         texts.reverse()
         return texts
@@ -474,56 +505,38 @@ class KomSession(object):
         # TODO: Should it remove the old user area?
 
 
-class KomPerson(object):
-    def __init__(self, pers_no, person_stat=None):
+class KomPerson:
+    def __init__(self, pers_no, username):
         self.pers_no = pers_no
-
-        if person_stat is None:
-            #self.username = None
-            #self.privileges = None
-            #self.flags = None
-            #self.last_login = None
-            self.user_area = None
-            #self.total_time_present = None
-            #self.sessions = None
-            #self.created_lines = None
-            #self.created_bytes = None
-            #self.read_texts = None
-            #self.no_of_text_fetches = None
-            #self.user_area = None
-            #self.created_persons = None
-            #self.created_confs = None
-            #self.first_created_local_no = None
-            #self.no_of_created_texts = None
-            #self.no_of_marks = None
-            #self.no_of_cons = None
-        else:
-            self.user_area = person_stat.user_area
+        self.username = username
 
 
-class KomMembership(object):
-    def __init__(self, pers_no, membership):
-        self.pers_no = pers_no
-        self.position = membership.position
-        self.last_time_read = membership.last_time_read
-        self.conference = membership.conference
-        self.priority = membership.priority
-        self.added_by = membership.added_by
-        self.added_at = membership.added_at
-        self.type = membership.type
-
-
-class KomMembershipUnread(object):
-    def __init__(self, pers_no, conf_no, no_of_unread, unread_texts):
+class KomMembershipUnread:
+    def __init__(self, pers_no, conf_no, no_of_unread, unread_texts: List[int]):
         self.pers_no = pers_no
         self.conf_no = conf_no
         self.no_of_unread = no_of_unread
         self.unread_texts = unread_texts
 
 
-class KomConference(object):
-    def __init__(self, conf_no=None, conf=None):
+class KomAuxItem:
+    def __init__(self, aux_item: AuxItem, creator: KomPerson):
+        self.aux_no = aux_item.aux_no
+        self.tag = aux_item.tag
+        self.created_at = aux_item.created_at
+        self.flags = aux_item.flags
+        self.inherit_limit = aux_item.inherit_limit
+        self.data = aux_item.data
+        self.creator = creator
+
+
+class KomConference:
+    def __init__(self, conf_no=None, conf=None, aux_items: List[KomAuxItem] = None):
         self.conf_no = conf_no
+        if aux_items is None:
+            self.aux_items = []
+        else:
+            self.aux_items = aux_items
 
         if conf is not None:
             self.name = conf.name.decode('latin1')
@@ -542,10 +555,9 @@ class KomConference(object):
             self.first_local_no = conf.first_local_no
             self.no_of_texts = conf.no_of_texts
             self.expire = conf.expire
-            self.aux_items = conf.aux_items
 
 
-class KomUConference(object):
+class KomUConference:
     """U stands for micro"""
     def __init__(self, conf_no=None, uconf=None):
         self.conf_no = conf_no
@@ -557,10 +569,24 @@ class KomUConference(object):
             self.nice = uconf.nice
 
 
-class KomText(object):
-    def __init__(self, text_no=None, text=None, text_stat=None):
+class KomMembership:
+    def __init__(self, pers_no, added_by: KomPerson, conference: KomUConference, membership):
+        self.pers_no = pers_no
+        self.added_by = added_by
+        self.conference = conference
+
+        self.position = membership.position
+        self.last_time_read = membership.last_time_read
+        self.priority = membership.priority
+        self.added_at = membership.added_at
+        self.type = membership.type
+
+
+class KomText:
+    def __init__(self, text_no=None, text=None, text_stat=None, aux_items: List[KomAuxItem] = None):
         self.text_no = text_no
         self.text = text
+        self.aux_items = aux_items
 
         if text_stat is None:
             self.content_type = None
@@ -572,7 +598,6 @@ class KomText(object):
             self.comment_in_list = None
             self.subject = None
             self.body = None
-            self.aux_items = None
         else:
             # self.text_content_type is for the encoded text
             self.text_content_type = KomText._get_content_type_from_text_stat(text_stat)
@@ -589,7 +614,6 @@ class KomText(object):
             self.recipient_list = text_stat.misc_info.recipient_list
             self.comment_to_list = text_stat.misc_info.comment_to_list
             self.comment_in_list = text_stat.misc_info.comment_in_list
-            self.aux_items = text_stat.aux_items
 
     @staticmethod
     def _decode_text(text, mime_type, encoding):
