@@ -8,7 +8,7 @@ from pylyskom import komauxitems
 from pylyskom.requests import Requests
 from pylyskom.komsession import KomSession
 from pylyskom.errors import NoSuchText
-from pylyskom.datatypes import AuxItemInput, Time
+from pylyskom.datatypes import AuxItem, Time
 from .mocks import MockConnection, MockTextStat, MockPerson
 
 
@@ -31,8 +31,11 @@ def create_mockconnection():
     # Create a MockConnection that response to a GetTextStat call,
     # because we use that a lot in the tests below.
     ts = MockTextStat(creation_time=Time())
-    ts.aux_items.append(
-        AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE, data=b'x-kom/user-area'))
+    ai = AuxItem()
+    ai.creator = 0
+    ai.tag = komauxitems.AI_CONTENT_TYPE
+    ai.data = b'x-kom/user-area'
+    ts.aux_items.append(ai)
     c = MockConnection() # really a mock CachingPersonClient
     c.mock_request(Requests.GET_TEXT_STAT, lambda request: ts)
     return c
@@ -70,10 +73,6 @@ def test_get_user_area__gets_the_user_area_for_the_given_person():
     
     
     assert block == b"hej"
-    
-    get_person_stat_calls = c.mock_get_request_calls(Requests.GET_PERSON_STAT)
-    assert len(get_person_stat_calls) == 2 # first is for login
-    assert get_person_stat_calls[1].pers_no == pers_no
 
     get_textstat_calls = c.mock_get_request_calls(Requests.GET_TEXT_STAT)
     assert len(get_textstat_calls) == 1
@@ -177,11 +176,8 @@ def test_set_user_area__gets_the_user_area_for_the_given_person():
 
 
     ks.set_user_area_block(pers_no, b'jskom', {})
-    
-    
-    get_person_stat_calls = c.mock_get_request_calls(Requests.GET_PERSON_STAT)
-    assert len(get_person_stat_calls) == 2 # first is for login
-    assert get_person_stat_calls[1].pers_no == pers_no
+
+    # TODO: Add test/assert
 
 
 def test_set_user_area__sets_user_area_for_the_correct_person_and_text_no():

@@ -82,6 +82,9 @@ class MockConnection(object):
         else:
             return self.__request_calls.get(request_no, [])
 
+    def conf_name(self, conf_no, default="", include_no=0):
+        # FIXME: This is not how it works, but we don't use the result right now.
+        return ""
 
 
 class MockSocket():
