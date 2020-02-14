@@ -353,8 +353,10 @@ class AioClient:
                 response = await self._conn.read_response()
                 log.debug("AioClient: Received response: %s", response)
                 await self._receive_response(response)
+        except Exception as e:
+            log.error(f"AioClient: Response receiver task exception: {e}")
         finally:
-            log.debug("Exited stream receiver task")
+            log.debug("AioClient: Exiting response receiver task")
 
     async def _receive_response(self, response):
         ref_no, ok_reply, error_reply, async_msg = response
@@ -377,8 +379,10 @@ class AioClient:
                     await self._handle_async_message(msg)
                 finally:
                     self._asyncmsg_queue.task_done()
+        except Exception as e:
+            log.error(f"AioClient: Asyncmsg receiver task exception: {e}")
         finally:
-            log.debug("Exited asyncmsg receiver task")
+            log.debug("AioClient: Exiting asyncmsg receiver task")
 
     async def _handle_async_message(self, msg):
         if self._async_handler_func is not None:
