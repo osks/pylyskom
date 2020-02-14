@@ -1,4 +1,4 @@
-all: auxitems test pyflakes
+all: auxitems pyflakes mypy test
 
 auxitems:
 	python make_komauxitems
@@ -14,11 +14,14 @@ pyflakes:
 	pyflakes ./pylyskom
 	pyflakes ./tests
 
-test:
+mypy:
+	mypy ./pylyskom
+
+test: pyflakes mypy
 	pytest -vv --maxfail 1 ./tests
 	tox
 
 smoketest:
 	pytest -vv -s --run-smoketests ./tests/smoketests
 
-.PHONY: all auxitems clean dist test smoketest pyflakes
+.PHONY: all auxitems clean dist test smoketest pyflakes mypy

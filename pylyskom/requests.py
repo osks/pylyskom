@@ -4,6 +4,8 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+from typing import Optional, List
+
 from .protocol import MAX_TEXT_SIZE
 
 from .datatypes import (
@@ -177,8 +179,8 @@ class Argument(object):
 
 
 class Request(object):
-    CALL_NO = None # Override - Integer protocol request call number.
-    ARGS = None # Override - List of Argument(s).
+    CALL_NO: Optional[int] = None # Override - Integer protocol request call number.
+    ARGS: Optional[List[Argument]] = None # Override - List of Argument(s).
 
     def __init__(self, *args, **kwargs):
         """
@@ -259,7 +261,7 @@ class Request(object):
 # logout [1] (1) Recommended
 class ReqLogout(Request):
     CALL_NO = Requests.LOGOUT
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # change-conference [2] (1) Recommended
 class ReqChangeConference(Request):
@@ -358,7 +360,7 @@ class ReqSetGarbNice(Request):
 # get-marks [23] (1) Recommended
 class ReqGetMarks(Request):
     CALL_NO = Requests.GET_MARKS
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # mark-text-old [24] (1) Obsolete (4) Use mark-text/unmark-text (72/73)
 
@@ -414,7 +416,7 @@ class ReqSubComment(Request):
 # get-time [35] (1) Recommended
 class ReqGetTime(Request):
     CALL_NO = Requests.GET_TIME
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # get-info-old [36] (1) Obsolete (10) Use get-info (94)
 
@@ -452,7 +454,7 @@ class ReqEnable(Request):
 # sync-kom [43] (1) Recommended
 class ReqSyncKOM(Request):
     CALL_NO = Requests.SYNC_KOM
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # shutdown-kom [44] (1) Recommended
 class ReqShutdownKOM(Request):
@@ -495,7 +497,7 @@ class ReqDisconnect(Request):
 # who-am-i [56] (1) Recommended
 class ReqWhoAmI(Request):
     CALL_NO = Requests.WHO_AM_I
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # set-user-area [57] (2) Recommended
 class ReqSetUserArea(Request):
@@ -574,7 +576,7 @@ class ReqReZLookup(Request):
 # get-version-info [75] (7) Recommended
 class ReqGetVersionInfo(Request):
     CALL_NO = Requests.GET_VERSION_INFO
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # lookup-z-name [76] (7) Recommended
 class ReqLookupZName(Request):
@@ -607,12 +609,12 @@ class ReqAcceptAsync(Request):
 # query-async [81] (9) Recommended
 class ReqQueryAsync(Request):
     CALL_NO = Requests.QUERY_ASYNC
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # user-active [82] (9) Recommended
 class ReqUserActive(Request):
     CALL_NO = Requests.USER_ACTIVE
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # who-is-on-dynamic [83] (9) Recommended
 class ReqWhoIsOnDynamic(Request):
@@ -629,7 +631,7 @@ class ReqGetStaticSessionInfo(Request):
 # get-collate-table [85] (10) Recommended
 class ReqGetCollateTable(Request):
     CALL_NO = Requests.GET_COLLATE_TABLE
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # create-text [86] (10) Recommended
 class ReqCreateText(Request):
@@ -687,7 +689,7 @@ class ReqModifyConfInfo(Request):
 # get-info [94] (10) Recommended
 class ReqGetInfo(Request):
     CALL_NO = Requests.GET_INFO
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # modify-system-info [95] (10) Recommended
 class ReqModifySystemInfo(Request):
@@ -698,7 +700,7 @@ class ReqModifySystemInfo(Request):
 # query-predefined-aux-items [96] (10) Recommended
 class ReqQueryPredefinedAuxItems(Request):
     CALL_NO = Requests.QUERY_PREDEFINED_AUX_ITEMS
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # set-expire [97] (10) Experimental
 class ReqSetExpire(Request):
@@ -809,7 +811,7 @@ class ReqSetReadRanges(Request):
 # get-stats-description [111] (11) Recommended
 class ReqGetStatsDescription(Request):
     CALL_NO = Requests.GET_STATS_DESCRIPTION
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # get-stats [112] (11) Recommended
 class ReqGetStats(Request):
@@ -819,17 +821,17 @@ class ReqGetStats(Request):
 # get-boottime-info [113] (11) Recommended
 class ReqGetBoottimeInfo(Request):
     CALL_NO = Requests.GET_BOOTTIME_INFO
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # first-unused-conf-no [114] (11) Recommended
 class ReqFirstUnusedConfNo(Request):
     CALL_NO = Requests.FIRST_UNUSED_CONF_NO
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # first-unused-text-no [115] (11) Recommended
 class ReqFirstUnusedTextNo(Request):
     CALL_NO = Requests.FIRST_UNUSED_TEXT_NO
-    ARGS = []
+    ARGS: List[Argument] = []
 
 # find-next-conf-no [116] (11) Recommended
 class ReqFindNextConfNo(Request):

@@ -4,9 +4,9 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
-from __future__ import absolute_import
 import time
 import calendar
+from typing import Optional
 
 from .protocol import (
     to_hstring,
@@ -142,7 +142,7 @@ class InfoType(Int32):
 class Array(list):
     """Sub-class this to use it.
     """
-    ELEMENT_CLASS = None # Must be set in subclass
+    ELEMENT_CLASS: Optional[object] = None # Must be set in subclass
 
     def __init__(self, iterable=None):
         if self.ELEMENT_CLASS is None:
@@ -226,7 +226,7 @@ class ArrayString(Array):
 class Bitstring(list):
     """Some type of base class. Not meant to be used directly as datatype.
     """
-    LENGTH = None # Must be set in subclass
+    LENGTH: Optional[int] = None # Must be set in subclass
 
     def __init__(self, iterable=None):
         length = self.LENGTH

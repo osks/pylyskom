@@ -7,6 +7,8 @@ dist
 build
 eggs
 .tox
+.mypy_cache
+.cache
 
 # Installer logs
 pip-log.txt

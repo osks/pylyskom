@@ -4,6 +4,8 @@
 # (C) 2008 Henrik Rindlöw. Released under GPL.
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
+from typing import Optional
+
 from .datatypes import (
     ArrayAuxItem,
     String,
@@ -16,7 +18,7 @@ from .datatypes import (
     WhoInfo)
 
 
-class AsyncMessages(object):
+class AsyncMessages:
     """Enum like object which give names to the async message numbers
     in the protocol.
     """
@@ -45,8 +47,8 @@ class AsyncMessages(object):
 # subclasses of AsyncMessage.
 #
 
-class AsyncMessage(object):
-    MSG_NO = None
+class AsyncMessage:
+    MSG_NO: Optional[int] = None
 
     def to_json(self):
         """Serializes the message to a dictionary that can be
