@@ -968,8 +968,13 @@ class AioKomSession(object):
 
     @check_connection
     async def disconnect(self, session_no=0):
-        """Session number 0 means this session (a logged in user can
-        disconnect its other sessions).
+        """Send a disconnect request.
+
+        Session number 0 (the default) means the current session (a
+        logged in user can disconnect its other sessions).
+
+        If session_no=0, the KomSession will also be closed.
+
         """
         await self._client.request(requests.ReqDisconnect(session_no))
 
@@ -1093,7 +1098,7 @@ class AioKomSession(object):
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
         added_by = await self._get_person(membership.added_by)
         conference = await self._get_uconference(conf_no)
-        return KomMembership(pers_no, added_by, conference, membership)
+        return KomMembership(pers_no, added_by=added_by, conference=conference, membership=membership)
 
     @check_connection
     async def get_membership_unread(self, pers_no, conf_no):
@@ -1132,9 +1137,9 @@ class AioKomSession(object):
                     continue
                 memberships.append(KomMembership(
                     pers_no,
-                    await self._get_person(membership.added_by),
-                    await self._get_uconference(membership.conference),
-                    membership))
+                    added_by=await self._get_person(membership.added_by),
+                    conference=await self._get_uconference(membership.conference),
+                    membership=membership))
 
         return memberships, has_more
 
@@ -1149,21 +1154,42 @@ class AioKomSession(object):
     async def get_conf_name(self, conf_no):
         return await self._client.conf_name(conf_no)
 
-    async def _create_komauxitem(self, aux_item: AuxItem):
+    async def _get_komauxitem(self, aux_item: AuxItem):
         creator = await self._get_person(aux_item.creator)
         return KomAuxItem(aux_item, creator)
 
-    async def _create_komtext(self, text_no, text, text_stat: TextStat):
-        aux_items = [ await self._create_komauxitem(ai) for ai in text_stat.aux_items ]
-        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items)
+    async def _get_komtext(self, text_no, text, text_stat: TextStat):
+        author = await self._get_person(text_stat.author)
+        aux_items = [ await self._get_komauxitem(ai) for ai in text_stat.aux_items ]
+        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
 
     async def _get_uconference(self, conf_no):
-        return KomUConference(conf_no, await self._client.uconferences.get(conf_no))
+        if conf_no == 0:
+            raise Exception("OSKAR - conf-zero")
+        return KomUConference(conf_no, uconf=await self._client.uconferences.get(conf_no))
 
     async def _get_conference(self, conf_no):
         conf = await self._client.conferences.get(conf_no)
-        aux_items = [ await self._create_komauxitem(aux_item) for aux_item in conf.aux_items ]
-        return KomConference(conf_no, conf, aux_items)
+        aux_items = [ await self._get_komauxitem(aux_item) for aux_item in conf.aux_items ]
+
+        super_conf = None
+        # super_conf can be 0, but invalid to get conf-stat for it.
+        if conf.super_conf != 0:
+            super_conf = await self._get_uconference(conf.super_conf)
+
+        permitted_submitters = None
+        # if permitted_submitters is 0, anyone can submit articles
+        if conf.permitted_submitters != 0:
+            permitted_submitters = await self._get_uconference(conf.permitted_submitters)
+
+        return KomConference(
+            conf_no,
+            conf=conf,
+            creator=await self._get_person(conf.creator),
+            supervisor=await self._get_uconference(conf.supervisor),
+            permitted_submitters=permitted_submitters,
+            super_conf=super_conf,
+            aux_items=aux_items)
 
     @check_connection
     async def get_conference(self, conf_no, micro=True):
@@ -1174,10 +1200,10 @@ class AioKomSession(object):
             return await self._get_conference(conf_no)
 
     @check_connection
-    async def get_text(self, text_no):
+    async def get_text(self, text_no) -> KomText:
         text_stat = await self.get_text_stat(text_no)
         text = await self._client.request(requests.ReqGetText(text_no))
-        return await self._create_komtext(text_no=text_no, text=text, text_stat=text_stat)
+        return await self._get_komtext(text_no=text_no, text=text, text_stat=text_stat)
 
     # TODO: offset/start number, so we can paginate. we probably need
     # to return the local text number for that.
@@ -1189,7 +1215,7 @@ class AioKomSession(object):
         #local_no_ceiling = 0 # means the higest numbered texts (i.e. the last)
         text_mapping = await self._client.request(
             requests.ReqLocalToGlobalReverse(conf_no, 0, no_of_texts))
-        texts = [ await self._create_komtext(text_no=m[1], text=None, text_stat=await self._client.textstats.get(m[1]))
+        texts = [ await self._get_komtext(text_no=m[1], text=None, text_stat=await self._client.textstats.get(m[1]))
                   for m in text_mapping.list if m[1] != 0 ]
         texts.reverse()
         return texts

@@ -783,6 +783,40 @@ class AnyConfType(ExtendedConfType):
 
 
 class Conference(object):
+    def __init__(self, name=None, conf_type=None, creation_time=None,
+                 last_written=None, creator=0, presentation=0, supervisor=0,
+                 permitted_submitters=0, super_conf=0, msg_of_day=0, nice=0,
+                 keep_commented=0, no_of_members=0, first_local_no=0,
+                 no_of_texts=0, expire=0, aux_items=None):
+        if name is None:
+            name = ""
+        if conf_type is None:
+            conf_type = ExtendedConfType()
+        if creation_time is None:
+            creation_time = Time()
+        if last_written is None:
+            last_written = Time()
+        if aux_items is None:
+            aux_items = []
+
+        self.name = name
+        self.type = conf_type
+        self.creation_time = creation_time
+        self.last_written = last_written
+        self.creator = creator
+        self.presentation = presentation
+        self.supervisor = supervisor
+        self.permitted_submitters = permitted_submitters
+        self.super_conf = super_conf
+        self.msg_of_day = msg_of_day
+        self.keep_commented = keep_commented
+        self.nice = nice
+        self.no_of_members = no_of_members
+        self.first_local_no = first_local_no
+        self.no_of_texts = no_of_texts
+        self.expire = expire
+        self.aux_items = aux_items
+
     @classmethod
     def parse(cls, buf):
         obj = cls()
@@ -807,7 +841,7 @@ class Conference(object):
 
     def __str__(self):
         return "<Conference %s>" % self.name
-    
+
 class UConference(object):
     def __init__(self, name=None, conf_type=None, highest_local_no=0, nice=0):
         if name is None:

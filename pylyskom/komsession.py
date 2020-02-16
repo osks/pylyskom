@@ -5,7 +5,7 @@
 # (C) 2012-2014 Oskar Skoog. Released under GPL.
 
 from __future__ import absolute_import
-from typing import List
+from typing import List, Optional
 import base64
 import functools
 import json
@@ -35,6 +35,9 @@ from .datatypes import (
     PersonalFlags,
     AuxItem,
     TextStat,
+    UConference,
+    Conference,
+    Membership,
     first_aux_items_with_tag)
 
 class KomSessionException(Exception): pass
@@ -51,6 +54,230 @@ MIRecipient_str_to_type = { 'to': MIR_TO,
         
 MICommentTo_str_to_type = { 'comment': MIC_COMMENT,
                             'footnote': MIC_FOOTNOTE }
+
+
+
+
+class KomPerson:
+    def __init__(self, pers_no, username: str):
+        self.pers_no = pers_no
+        self.username = username
+
+
+class KomMembershipUnread:
+    def __init__(self, pers_no, conf_no, no_of_unread, unread_texts: List[int]):
+        self.pers_no = pers_no
+        self.conf_no = conf_no
+        self.no_of_unread = no_of_unread
+        self.unread_texts = unread_texts
+
+
+class KomAuxItem:
+    def __init__(self, aux_item: AuxItem, creator: KomPerson):
+        self.aux_no = aux_item.aux_no
+        self.tag = aux_item.tag
+        self.created_at = aux_item.created_at
+        self.flags = aux_item.flags
+        self.inherit_limit = aux_item.inherit_limit
+        self.data = aux_item.data
+        self.creator = creator
+
+
+# U stands for micro (as in the Protocol A spec)
+class KomUConference:
+    def __init__(self, conf_no, *,
+                 uconf: UConference):
+        self.conf_no = conf_no
+
+        self.name = uconf.name.decode('latin1')
+        self.type = uconf.type
+        self.highest_local_no = uconf.highest_local_no
+        self.nice = uconf.nice
+
+
+class KomConference:
+    def __init__(self, conf_no, *,
+                 conf: Conference,
+                 creator: KomPerson,
+                 supervisor: KomUConference,
+                 permitted_submitters: Optional[KomUConference],
+                 super_conf: Optional[KomUConference],
+                 aux_items: List[KomAuxItem]):
+        self.conf_no = conf_no
+        self.creator = creator
+        self.supervisor = supervisor
+        self.permitted_submitters = permitted_submitters
+        self.super_conf = super_conf
+        self.aux_items = aux_items
+
+        self.name = conf.name.decode('latin1')
+        self.type = conf.type
+        self.creation_time = conf.creation_time
+        self.last_written = conf.last_written
+        self.presentation = conf.presentation
+        self.msg_of_day = conf.msg_of_day
+        self.nice = conf.nice
+        self.keep_commented = conf.keep_commented
+        self.no_of_members = conf.no_of_members
+        self.first_local_no = conf.first_local_no
+        self.no_of_texts = conf.no_of_texts
+        self.expire = conf.expire
+
+
+class KomMembership:
+    def __init__(self, pers_no, *, membership: Membership, added_by: KomPerson, conference: KomUConference):
+        self.pers_no = pers_no
+        self.added_by = added_by
+        self.conference = conference
+
+        self.position = membership.position
+        self.last_time_read = membership.last_time_read
+        self.priority = membership.priority
+        self.added_at = membership.added_at
+        self.type = membership.type
+
+
+class KomText:
+    def __init__(self, text_no=None, text: str = None, *,
+                 text_stat: TextStat = None, aux_items: List[KomAuxItem] = None, author: KomPerson = None):
+        self.text_no = text_no
+        self.text = text
+        self.aux_items = aux_items
+        self.author = author
+
+        if text_stat is None:
+            self.content_type = None
+            self.creation_time = None
+            self.no_of_marks = 0
+            self.recipient_list = None
+            self.comment_to_list = None
+            self.comment_in_list = None
+            self.subject = None
+            self.body = None
+        else:
+            # self.text_content_type is for the encoded text
+            self.text_content_type = KomText._get_content_type_from_text_stat(text_stat)
+            mime_type, encoding = utils.parse_content_type(self.text_content_type)
+            # self.content_type is for the decoded text (into subject and body)
+            # and typically does not contain charset encoding since subject and body
+            # have been decoded into Python unicode strings.
+            self.content_type = utils.mime_type_tuple_to_str(mime_type)
+            self.subject, self.body = KomText._decode_text(text, mime_type, encoding)
+
+            self.creation_time = text_stat.creation_time
+            self.no_of_marks = text_stat.no_of_marks
+            self.recipient_list = text_stat.misc_info.recipient_list
+            self.comment_to_list = text_stat.misc_info.comment_to_list
+            self.comment_in_list = text_stat.misc_info.comment_in_list
+
+    @staticmethod
+    def _decode_text(text, mime_type, encoding):
+        if text is None:
+            return None, None
+
+        subject = None
+        body = None
+
+        # text_stat is required for this
+        if mime_type[0] == "x-kom" and mime_type[1] == "user-area":
+            body = utils.decode_text(text, encoding)
+        else:
+            # If a text has no linefeeds, it only has a body
+            if text.find(b'\n') == -1:
+                subject = "" # Should probably be None instead?
+                rawbody = text
+            else:
+                rawsubject, rawbody = text.split(b'\n', 1)
+                # TODO: should we always decode the subject?
+                subject = utils.decode_text(rawsubject, encoding)
+
+            if mime_type[0] == 'text':
+                # Only decode body if media type is text, and not
+                # an image, for example.  Also, if the subject is
+                # empty, everything becomes the subject, which
+                # will get decoded.  Figure out how to handle all
+                # this. Assume empty subject means everything in
+                # body?
+                body = utils.decode_text(rawbody, encoding)
+            else:
+                body = rawbody
+
+        return subject, body
+
+    @staticmethod
+    def _get_content_type_from_text_stat(text_stat):
+        try:
+            contenttype = first_aux_items_with_tag(
+                text_stat.aux_items, komauxitems.AI_CONTENT_TYPE).data.decode('latin1')
+        except AttributeError:
+            contenttype = 'text/plain'
+        return contenttype
+
+    @staticmethod
+    def create_new_text(subject, body, content_type, creating_software=None, recipient_list=None, comment_to_list=None):
+        if recipient_list is None:
+            recipient_list = []
+        if comment_to_list is None:
+            comment_to_list = []
+
+        komtext = KomText()
+        komtext.subject = subject
+        komtext.body = body
+        komtext.content_type = content_type
+
+        # wtf are we doing here?
+        mime_type, _ = utils.parse_content_type(content_type)
+        content_type = utils.mime_type_tuple_to_str(mime_type)
+        mime_type = mimeparse.parse_mime_type(content_type)
+
+        if mime_type[0] == 'text':
+            # We hard code utf-8 because it is The Correct Encoding. :)
+            mime_type[2]['charset'] = 'utf-8'
+            fulltext = subject + "\n" + body
+            fulltext = fulltext.encode('utf-8')
+        elif mime_type[0] == 'x-kom' and mime_type[1] == 'user-area':
+            # Charset doesn't seem to be specified for user areas, but
+            # in reality they contain Latin 1 text.
+            fulltext = body.encode('latin-1')
+        elif mime_type[0] == 'image':
+            # We handle images in the same way as AndroKOM. That means
+            # that the subject is encoded with latin-1, and the stored
+            # text is latin-1-subject + "\n" + binary-body. Content
+            # type is "image/jpeg; name=image:<???>". Note that there
+            # is no information regarding how subjects are encoded.
+            #
+            # TODO: What do we do if we can't encode the subject with
+            # latin-1?
+            fulltext = subject.encode('latin-1') + b"\n" + body
+        else:
+            raise KomSessionError("Unhandled content type: %s" % (mime_type,))
+        komtext.text = fulltext
+
+        misc_info_recipient_list = []
+        for r in recipient_list:
+            misc_info_recipient_list.append(
+                MIRecipient(type=MIRecipient_str_to_type[r['type']],
+                            recpt=r['recpt']['conf_no']))
+        komtext.recipient_list = misc_info_recipient_list
+
+        misc_info_comment_to_list = []
+        for ct in comment_to_list:
+            misc_info_comment_to_list.append(
+                MICommentTo(type=MICommentTo_str_to_type[ct['type']],
+                            text_no=ct['text_no']))
+        komtext.comment_to_list = misc_info_comment_to_list
+
+        aux_items = []
+        # We need to make sure all aux items are encoded.
+        if creating_software is not None:
+            aux_items.append(AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
+                                          data=creating_software.encode('utf-8')))
+        final_content_type = utils.mime_type_tuple_to_str(mime_type)
+        aux_items.append(AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE,
+                                      data=final_content_type.encode('utf-8')))
+        komtext.text_content_type = final_content_type
+        komtext.aux_items = aux_items
+        return komtext
 
 
 def create_client(host, port, user):
@@ -122,10 +349,10 @@ class KomSession(object):
 
         self._session_no = self.who_am_i()
         self._client.request(requests.ReqSetConnectionTimeFormat(use_utc=1))
-    
+
     def is_connected(self):
         return self._client is not None
-    
+
     def close(self):
         """Immediately close the connection, without sending a Disconnect request.
         """
@@ -140,8 +367,13 @@ class KomSession(object):
 
     @check_connection
     def disconnect(self, session_no=0):
-        """Session number 0 means this session (a logged in user can
-        disconnect its other sessions).
+        """Send a disconnect request.
+
+        Session number 0 (the default) means the current session (a
+        logged in user can disconnect its other sessions).
+
+        If session_no=0, the KomSession will also be closed.
+
         """
         self._client.request(requests.ReqDisconnect(session_no))
 
@@ -265,8 +497,8 @@ class KomSession(object):
     def get_membership(self, pers_no, conf_no):
         membership = self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
         added_by = self._get_person(membership.added_by)
-        conference = KomUConference(conf_no, self._client.uconferences[conf_no])
-        return KomMembership(pers_no, added_by, conference, membership)
+        conference = KomUConference(conf_no, uconf=self._client.uconferences[conf_no])
+        return KomMembership(pers_no, added_by=added_by, conference=conference, membership=membership)
 
     @check_connection
     def get_membership_unread(self, pers_no, conf_no):
@@ -291,23 +523,23 @@ class KomSession(object):
         else:
             ms_list = self._client.get_memberships(pers_no, first, no_of_confs,
                                                  want_read_ranges=False)
-            
+
             # We need to check if there are more memberships to get
             # before we filter out the passive memberships.
             if len(ms_list) < no_of_confs:
                 has_more = False
             else:
                 has_more = True
-            
+
             memberships = []
             for membership in ms_list:
                 if (not passive) and membership.type.passive:
                     continue
                 memberships.append(KomMembership(
                     pers_no,
-                    self._get_person(membership.added_by),
-                    self._get_uconference(membership.conference),
-                    membership))
+                    added_by=self._get_person(membership.added_by),
+                    conference=self._get_uconference(membership.conference),
+                    membership=membership))
 
         return memberships, has_more
 
@@ -322,21 +554,40 @@ class KomSession(object):
     def get_conf_name(self, conf_no):
         return self._client.conf_name(conf_no)
 
-    def _create_komauxitem(self, aux_item: AuxItem):
+    def _get_komauxitem(self, aux_item: AuxItem):
         creator = self._get_person(aux_item.creator)
         return KomAuxItem(aux_item, creator)
 
-    def _create_komtext(self, text_no, text, text_stat: TextStat):
-        aux_items = [ self._create_komauxitem(ai) for ai in text_stat.aux_items ]
-        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items)
+    def _get_komtext(self, text_no, text, text_stat: TextStat):
+        author = self._get_person(text_stat.author)
+        aux_items = [ self._get_komauxitem(ai) for ai in text_stat.aux_items ]
+        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
 
     def _get_uconference(self, conf_no):
-        return KomUConference(conf_no, self._client.uconferences[conf_no])
+        return KomUConference(conf_no, uconf=self._client.uconferences[conf_no])
 
     def _get_conference(self, conf_no):
         conf = self._client.conferences[conf_no]
-        aux_items = [ self._create_komauxitem(aux_item) for aux_item in conf.aux_items ]
-        return KomConference(conf_no, conf, aux_items)
+        aux_items = [ self._get_komauxitem(aux_item) for aux_item in conf.aux_items ]
+
+        super_conf = None
+        if conf.super_conf != 0:
+            # super_conf can be 0, but invalid to get conf-stat for it.
+            super_conf = self._get_uconference(conf.super_conf)
+
+        permitted_submitters = None
+        # if permitted_submitters is 0, anyone can submit articles
+        if conf.permitted_submitters != 0:
+            permitted_submitters = self._get_uconference(conf.permitted_submitters)
+
+        return KomConference(
+            conf_no,
+            conf=conf,
+            creator=self._get_person(conf.creator),
+            supervisor=self._get_uconference(conf.supervisor),
+            permitted_submitters=permitted_submitters,
+            super_conf=super_conf,
+            aux_items=aux_items)
 
     @check_connection
     def get_conference(self, conf_no, micro=True):
@@ -347,22 +598,22 @@ class KomSession(object):
             return self._get_conference(conf_no)
 
     @check_connection
-    def get_text(self, text_no):
+    def get_text(self, text_no) -> KomText:
         text_stat = self.get_text_stat(text_no)
         text = self._client.request(requests.ReqGetText(text_no))
-        return self._create_komtext(text_no=text_no, text=text, text_stat=text_stat)
+        return self._get_komtext(text_no=text_no, text=text, text_stat=text_stat)
 
     # TODO: offset/start number, so we can paginate. we probably need
     # to return the local text number for that.
     @check_connection
-    def get_last_texts(self, conf_no, no_of_texts, offset=0, full_text=False):
+    def get_last_texts(self, conf_no, no_of_texts, offset=0, full_text=False) -> List[KomText]:
         """Get the {no_of_texts} last texts in conference {conf_no},
         starting from {offset}.
         """
         #local_no_ceiling = 0 # means the higest numbered texts (i.e. the last)
         text_mapping = self._client.request(
             requests.ReqLocalToGlobalReverse(conf_no, 0, no_of_texts))
-        texts = [ self._create_komtext(text_no=m[1], text=None, text_stat=self._client.textstats[m[1]])
+        texts = [ self._get_komtext(text_no=m[1], text=None, text_stat=self._client.textstats[m[1]])
                   for m in text_mapping.list if m[1] != 0 ]
         texts.reverse()
         return texts
@@ -503,224 +754,3 @@ class KomSession(object):
             content_type='x-kom/user-area')
         self._client.request(requests.ReqSetUserArea(pers_no, new_user_area_text_no))
         # TODO: Should it remove the old user area?
-
-
-class KomPerson:
-    def __init__(self, pers_no, username):
-        self.pers_no = pers_no
-        self.username = username
-
-
-class KomMembershipUnread:
-    def __init__(self, pers_no, conf_no, no_of_unread, unread_texts: List[int]):
-        self.pers_no = pers_no
-        self.conf_no = conf_no
-        self.no_of_unread = no_of_unread
-        self.unread_texts = unread_texts
-
-
-class KomAuxItem:
-    def __init__(self, aux_item: AuxItem, creator: KomPerson):
-        self.aux_no = aux_item.aux_no
-        self.tag = aux_item.tag
-        self.created_at = aux_item.created_at
-        self.flags = aux_item.flags
-        self.inherit_limit = aux_item.inherit_limit
-        self.data = aux_item.data
-        self.creator = creator
-
-
-class KomConference:
-    def __init__(self, conf_no=None, conf=None, aux_items: List[KomAuxItem] = None):
-        self.conf_no = conf_no
-        if aux_items is None:
-            self.aux_items = []
-        else:
-            self.aux_items = aux_items
-
-        if conf is not None:
-            self.name = conf.name.decode('latin1')
-            self.type = conf.type
-            self.creation_time = conf.creation_time
-            self.last_written = conf.last_written
-            self.creator = conf.creator
-            self.presentation = conf.presentation
-            self.supervisor = conf.supervisor
-            self.permitted_submitters = conf.permitted_submitters
-            self.super_conf = conf.super_conf
-            self.msg_of_day = conf.msg_of_day
-            self.nice = conf.nice
-            self.keep_commented = conf.keep_commented
-            self.no_of_members = conf.no_of_members
-            self.first_local_no = conf.first_local_no
-            self.no_of_texts = conf.no_of_texts
-            self.expire = conf.expire
-
-
-class KomUConference:
-    """U stands for micro"""
-    def __init__(self, conf_no=None, uconf=None):
-        self.conf_no = conf_no
-
-        if uconf is not None:
-            self.name = uconf.name.decode('latin1')
-            self.type = uconf.type
-            self.highest_local_no = uconf.highest_local_no
-            self.nice = uconf.nice
-
-
-class KomMembership:
-    def __init__(self, pers_no, added_by: KomPerson, conference: KomUConference, membership):
-        self.pers_no = pers_no
-        self.added_by = added_by
-        self.conference = conference
-
-        self.position = membership.position
-        self.last_time_read = membership.last_time_read
-        self.priority = membership.priority
-        self.added_at = membership.added_at
-        self.type = membership.type
-
-
-class KomText:
-    def __init__(self, text_no=None, text=None, text_stat=None, aux_items: List[KomAuxItem] = None):
-        self.text_no = text_no
-        self.text = text
-        self.aux_items = aux_items
-
-        if text_stat is None:
-            self.content_type = None
-            self.creation_time = None
-            self.author = None
-            self.no_of_marks = 0
-            self.recipient_list = None
-            self.comment_to_list = None
-            self.comment_in_list = None
-            self.subject = None
-            self.body = None
-        else:
-            # self.text_content_type is for the encoded text
-            self.text_content_type = KomText._get_content_type_from_text_stat(text_stat)
-            mime_type, encoding = utils.parse_content_type(self.text_content_type)
-            # self.content_type is for the decoded text (into subject and body)
-            # and typically does not contain charset encoding since subject and body
-            # have been decoded into Python unicode strings.
-            self.content_type = utils.mime_type_tuple_to_str(mime_type)
-            self.subject, self.body = KomText._decode_text(text, mime_type, encoding)
-
-            self.creation_time = text_stat.creation_time
-            self.author = text_stat.author
-            self.no_of_marks = text_stat.no_of_marks
-            self.recipient_list = text_stat.misc_info.recipient_list
-            self.comment_to_list = text_stat.misc_info.comment_to_list
-            self.comment_in_list = text_stat.misc_info.comment_in_list
-
-    @staticmethod
-    def _decode_text(text, mime_type, encoding):
-        if text is None:
-            return None, None
-
-        subject = None
-        body = None
-
-        # text_stat is required for this
-        if mime_type[0] == "x-kom" and mime_type[1] == "user-area":
-            body = utils.decode_text(text, encoding)
-        else:
-            # If a text has no linefeeds, it only has a body
-            if text.find(b'\n') == -1:
-                subject = "" # Should probably be None instead?
-                rawbody = text
-            else:
-                rawsubject, rawbody = text.split(b'\n', 1)
-                # TODO: should we always decode the subject?
-                subject = utils.decode_text(rawsubject, encoding)
-
-            if mime_type[0] == 'text':
-                # Only decode body if media type is text, and not
-                # an image, for example.  Also, if the subject is
-                # empty, everything becomes the subject, which
-                # will get decoded.  Figure out how to handle all
-                # this. Assume empty subject means everything in
-                # body?
-                body = utils.decode_text(rawbody, encoding)
-            else:
-                body = rawbody
-
-        return subject, body
-
-    @staticmethod
-    def _get_content_type_from_text_stat(text_stat):
-        try:
-            contenttype = first_aux_items_with_tag(
-                text_stat.aux_items, komauxitems.AI_CONTENT_TYPE).data.decode('latin1')
-        except AttributeError:
-            contenttype = 'text/plain'
-        return contenttype
-
-    @staticmethod
-    def create_new_text(subject, body, content_type, creating_software=None, recipient_list=None, comment_to_list=None):
-        if recipient_list is None:
-            recipient_list = []
-        if comment_to_list is None:
-            comment_to_list = []
-
-        komtext = KomText()
-        komtext.subject = subject
-        komtext.body = body
-        komtext.content_type = content_type
-
-        # wtf are we doing here?
-        mime_type, _ = utils.parse_content_type(content_type)
-        content_type = utils.mime_type_tuple_to_str(mime_type)
-        mime_type = mimeparse.parse_mime_type(content_type)
-
-        if mime_type[0] == 'text':
-            # We hard code utf-8 because it is The Correct Encoding. :)
-            mime_type[2]['charset'] = 'utf-8'
-            fulltext = subject + "\n" + body
-            fulltext = fulltext.encode('utf-8')
-        elif mime_type[0] == 'x-kom' and mime_type[1] == 'user-area':
-            # Charset doesn't seem to be specified for user areas, but
-            # in reality they contain Latin 1 text.
-            fulltext = body.encode('latin-1')
-        elif mime_type[0] == 'image':
-            # We handle images in the same way as AndroKOM. That means
-            # that the subject is encoded with latin-1, and the stored
-            # text is latin-1-subject + "\n" + binary-body. Content
-            # type is "image/jpeg; name=image:<???>". Note that there
-            # is no information regarding how subjects are encoded.
-            #
-            # TODO: What do we do if we can't encode the subject with
-            # latin-1?
-            fulltext = subject.encode('latin-1') + b"\n" + body
-        else:
-            raise KomSessionError("Unhandled content type: %s" % (mime_type,))
-        komtext.text = fulltext
-
-        misc_info_recipient_list = []
-        for r in recipient_list:
-            misc_info_recipient_list.append(
-                MIRecipient(type=MIRecipient_str_to_type[r['type']],
-                            recpt=r['recpt']['conf_no']))
-        komtext.recipient_list = misc_info_recipient_list
-
-        misc_info_comment_to_list = []
-        for ct in comment_to_list:
-            misc_info_comment_to_list.append(
-                MICommentTo(type=MICommentTo_str_to_type[ct['type']],
-                            text_no=ct['text_no']))
-        komtext.comment_to_list = misc_info_comment_to_list
-
-        aux_items = []
-        # We need to make sure all aux items are encoded.
-        if creating_software is not None:
-            aux_items.append(AuxItemInput(tag=komauxitems.AI_CREATING_SOFTWARE,
-                                          data=creating_software.encode('utf-8')))
-        final_content_type = utils.mime_type_tuple_to_str(mime_type)
-        aux_items.append(AuxItemInput(tag=komauxitems.AI_CONTENT_TYPE,
-                                      data=final_content_type.encode('utf-8')))
-        komtext.text_content_type = final_content_type
-        komtext.aux_items = aux_items
-        return komtext
-
