@@ -52,7 +52,7 @@ from .komsession import (
 from . import requests, utils
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("pylyskom.aio")
 
 
 # The design of the async implementation is pretty ugly. The attempt
@@ -347,7 +347,7 @@ class AioClient:
             return ok_reply
 
     async def _run_response_receiver(self):
-        log.debug("Starting response receiver task")
+        log.debug("AioClient: Starting response receiver task")
         try:
             while self.is_connected():
                 response = await self._conn.read_response()
@@ -370,7 +370,7 @@ class AioClient:
             self._outstanding_requests_events[ref_no].set()
 
     async def _run_asyncmsg_receiver(self):
-        log.debug("Starting asyncmsg receiver task")
+        log.debug("AioClient: Starting asyncmsg receiver task")
         try:
             while self.is_connected():
                 msg = await self._asyncmsg_queue.get()

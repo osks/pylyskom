@@ -16,7 +16,7 @@ from .errors import NotMember, NoSuchLocalText, UnimplementedAsync
 from .stats import stats
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("pylyskom.cachedconnection")
 
 
 class Client(object):
