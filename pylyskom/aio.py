@@ -996,6 +996,7 @@ class AioKomSession(object):
     async def logout(self):
         await self._client.logout()
 
+    @check_connection
     def get_current_person_no(self):
         return self._client.get_current_person_no()
 
@@ -1007,6 +1008,7 @@ class AioKomSession(object):
     async def user_is_active(self):
         await self._client.request(requests.ReqUserActive())
 
+    @check_connection
     def is_logged_in(self):
         return self._client.is_logged_in()
 
@@ -1029,6 +1031,7 @@ class AioKomSession(object):
         stats.set('komsession.persons.created.last', 1, agg='sum')
         return await self._get_person(pers_no)
 
+    @check_connection
     async def _get_person(self, pers_no):
         username = await self._client.conf_name(pers_no)
         return KomPerson(pers_no, username)
@@ -1163,11 +1166,13 @@ class AioKomSession(object):
         aux_items = [ await self._get_komauxitem(ai) for ai in text_stat.aux_items ]
         return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
 
+    @check_connection
     async def _get_uconference(self, conf_no):
         if conf_no == 0:
             raise Exception("OSKAR - conf-zero")
         return KomUConference(conf_no, uconf=await self._client.uconferences.get(conf_no))
 
+    @check_connection
     async def _get_conference(self, conf_no):
         conf = await self._client.conferences.get(conf_no)
         aux_items = [ await self._get_komauxitem(aux_item) for aux_item in conf.aux_items ]
