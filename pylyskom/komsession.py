@@ -589,6 +589,51 @@ class KomSession(object):
             super_conf=super_conf,
             aux_items=aux_items)
 
+
+    # TODO: get_conference() can fail with the following message (in
+    # browser) if any of the related (like created-by) conferences is
+    # secret or deleted:
+    #
+    #   Failed to get conference.
+    #   {"error_code":9,"error_msg":"UndefinedConference","error_status":"547","error_type":"protocol-a"}
+    #
+    # The error above is from reading "Butiker erfarenhetsutbyte" (möte 604).
+    # The get-uconf-stat that fails is for the "created by" and "supermeeting" (möte 547), which
+    # has been deleted.
+    #
+    # get_conference() call will request generate get-uconf-stat calls
+    # for all related meetings and it's one of those that fails. We
+    # should handle that such meetings might be secret or deleted,
+    # without failing the get_conference() call.
+    #
+    # This is how the meeting looks like in the elisp client:
+    #
+    #   Status för möte Butiker erfarenhetsutbyte (604)
+    #
+    #   Skapat av person                       547 (Person 547 (finns inte).)
+    #   Skapad:                   1991-08-29 10:41
+    #   Antal medlemmar:                       419
+    #   Hemliga medlemmar:                       Hemliga medlemmar är inte tillåtna
+    #   Anonyma inlägg:                          Anonyma inlägg är inte tillåtna
+    #   Livslängd på inlägg:                    77 dagar
+    #   Minsta livslängd för kommenterade inlägg: 0 dagar
+    #   Lägsta existerande lokala nummer:       29
+    #   Högsta existerande lokala nummer:    38690
+    #   Tid för senaste inlägg:         idag 08:57 (står det i din cache)
+    #   Lapp på dörren i text nummer:            0
+    #   Supermöte:                             547 (Möte 547 (finns inte).)
+    #   Tillåtna författare:                     0 (Alla)
+    #   Organisatör:                          3343 (Magnus Bark (en rutten själ i en halvrund kropp))
+    #   Presentation:                     10785008
+    #   FAQ i inlägg:                      8359413 "Något om internationella postorderköp" [*]
+    #   FAQ i inlägg:                      8326719 "Skribofont" [*]
+    #   FAQ i inlägg:                     10176893 "sida typ bugsoft" [*]
+    #   FAQ i inlägg:                     10179028 "Hämta ut paket MED avi minst en dag tidigare" [*]
+    #
+    #
+    # See also:
+    # https://www.lysator.liu.se/lyskom/protocol/11.1/protocol-a.html#get-uconf-stat
+    #
     @check_connection
     def get_conference(self, conf_no, micro=True):
         conf_no = int(conf_no)
