@@ -166,7 +166,7 @@ class AioConnection:
             self._buffer = None
 
     async def send_request(self, request):
-        log.debug("AioConnection: Sending request: %s", request)
+        #log.debug("AioConnection: Sending request: %s", request)
         self._ref_no += 1
         ref_no = self._ref_no
         assert ref_no not in self._outstanding_requests
@@ -177,9 +177,9 @@ class AioConnection:
         return ref_no
 
     async def read_response(self):
-        log.debug("AioConnection: Reading response")
+        #log.debug("AioConnection: Reading response")
         response = await self._read_response()
-        log.debug("AioConnection: Received response: %s", response)
+        #log.debug("AioConnection: Received response: %s", response)
         # A response is a 4-tuple: (ref_no, ok_reply, error_reply, async_msg)
         return response
 
@@ -192,7 +192,7 @@ class AioConnection:
             response = self._try_parse_response()
             if response is None:
                 data = await self._tcp_stream_reader.read(1024)
-                log.debug("AioConnection: Received data: %r", data)
+                #log.debug("AioConnection: Received data: %r", data)
                 if len(data) == 0:
                     raise ReceiveError("End of stream")
                 self._buffer.append(data)
