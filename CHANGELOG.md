@@ -7,6 +7,13 @@
 - Nothing yet.
 
 
+## 0.4 (???)
+
+### Fixed
+
+- Minor fixes
+
+
 ## 0.3 (2020-02-06)
 
 ### Added
