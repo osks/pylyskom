@@ -2,9 +2,12 @@
 
 ## Unreleased
 
-### Added
 
-- Nothing yet.
+## 0.5 (2020-07-03)
+
+### Fixed
+
+- Made get_current_person_no and is_logged_in in AioKomsession async methods.
 
 
 ## 0.4 (2020-07-01)
