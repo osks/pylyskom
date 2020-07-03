@@ -884,7 +884,7 @@ def create_client():
     return caching_client
 
 
-def check_connection(f):
+def async_check_connection(f):
     @functools.wraps(f)
     async def decorated(komsession, *args, **kwargs):
         if not komsession.is_connected():
@@ -966,7 +966,7 @@ class AioKomSession(object):
             self._client_version = None
             self._session_no = None
 
-    @check_connection
+    @async_check_connection
     async def disconnect(self, session_no=0):
         """Send a disconnect request.
 
@@ -984,7 +984,7 @@ class AioKomSession(object):
         if session_no == 0 or session_no == self._session_no:
             await self.close()
 
-    @check_connection
+    @async_check_connection
     async def login(self, pers_no, password):
         if isinstance(password, six.binary_type):
             password = password.decode('utf-8')
@@ -992,31 +992,31 @@ class AioKomSession(object):
         await self._client.login(pers_no, password)
         return await self._get_person(pers_no)
 
-    @check_connection
+    @async_check_connection
     async def logout(self):
         await self._client.logout()
 
-    @check_connection
-    def get_current_person_no(self):
+    @async_check_connection
+    async def get_current_person_no(self):
         return self._client.get_current_person_no()
 
-    @check_connection
+    @async_check_connection
     async def who_am_i(self):
         return await self._client.request(requests.ReqWhoAmI())
 
-    @check_connection
+    @async_check_connection
     async def user_is_active(self):
         await self._client.request(requests.ReqUserActive())
 
-    @check_connection
-    def is_logged_in(self):
+    @async_check_connection
+    async def is_logged_in(self):
         return self._client.is_logged_in()
 
-    @check_connection
+    @async_check_connection
     async def change_conference(self, conf_no):
         await self._client.change_conference(conf_no)
 
-    @check_connection
+    @async_check_connection
     async def create_person(self, name, passwd):
         # decode if not already unicode (assuming utf-8)
         if isinstance(name, six.binary_type):
@@ -1031,16 +1031,16 @@ class AioKomSession(object):
         stats.set('komsession.persons.created.last', 1, agg='sum')
         return await self._get_person(pers_no)
 
-    @check_connection
+    @async_check_connection
     async def _get_person(self, pers_no):
         username = await self._client.conf_name(pers_no)
         return KomPerson(pers_no, username)
 
-    @check_connection
+    @async_check_connection
     async def get_person(self, pers_no):
         return await self._get_person(pers_no)
 
-    @check_connection
+    @async_check_connection
     async def create_conference(self, name, aux_items=None):
         # decode if not already unicode (assuming utf-8)
         if isinstance(name, six.binary_type):
@@ -1054,7 +1054,7 @@ class AioKomSession(object):
         stats.set('komsession.conferences.created.last', 1, agg='sum')
         return conf_no
 
-    @check_connection
+    @async_check_connection
     async def lookup_name(self, name, want_pers, want_confs):
         if isinstance(name, six.binary_type):
             name = name.decode('utf-8')
@@ -1064,7 +1064,7 @@ class AioKomSession(object):
         matches = await self.lookup_name(name, want_pers, want_confs)
         return self._exact_lookup_match(name, matches)
 
-    @check_connection
+    @async_check_connection
     async def re_lookup_name(self, regexp, want_pers, want_confs):
         # The LysKOM server is always case sensitive, and it's kom.py
         # that tries to create a case-insensitive regexp. Doesn't seem
@@ -1083,33 +1083,33 @@ class AioKomSession(object):
             raise AmbiguousName("ambiguous recipient: %s" % lookup)
         return matches[0][0]
 
-    @check_connection
+    @async_check_connection
     async def get_text_stat(self, text_no):
         return await self._client.textstats.get(text_no)
 
-    @check_connection
+    @async_check_connection
     async def add_membership(self, pers_no, conf_no, priority, where):
         mtype = MembershipType()
         await self._client.request(requests.ReqAddMember(conf_no, pers_no, priority, where, mtype))
 
-    @check_connection
+    @async_check_connection
     async def delete_membership(self, pers_no, conf_no):
         await self._client.request(requests.ReqSubMember(conf_no, pers_no))
 
-    @check_connection
+    @async_check_connection
     async def get_membership(self, pers_no, conf_no):
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
         added_by = await self._get_person(membership.added_by)
         conference = await self._get_uconference(conf_no)
         return KomMembership(pers_no, added_by=added_by, conference=conference, membership=membership)
 
-    @check_connection
+    @async_check_connection
     async def get_membership_unread(self, pers_no, conf_no):
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=True)
         unread_texts = await self._client.get_unread_texts_from_membership(membership)
         return KomMembershipUnread(pers_no, conf_no, len(unread_texts), unread_texts)
 
-    @check_connection
+    @async_check_connection
     async def get_memberships(self, pers_no, first, no_of_confs, unread=False, passive=False):
         if unread:
             # RegGetUnreadConfs never returns passive memberships so
@@ -1146,14 +1146,14 @@ class AioKomSession(object):
 
         return memberships, has_more
 
-    @check_connection
+    @async_check_connection
     async def get_membership_unreads(self, pers_no):
         conf_nos = await self._client.request(requests.ReqGetUnreadConfs(pers_no))
         memberships = [ await self.get_membership_unread(pers_no, conf_no)
                         for conf_no in conf_nos ]
         return [ m for m in memberships if m.no_of_unread > 0 ]
 
-    @check_connection
+    @async_check_connection
     async def get_conf_name(self, conf_no):
         return await self._client.conf_name(conf_no)
 
@@ -1166,13 +1166,13 @@ class AioKomSession(object):
         aux_items = [ await self._get_komauxitem(ai) for ai in text_stat.aux_items ]
         return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
 
-    @check_connection
+    @async_check_connection
     async def _get_uconference(self, conf_no):
         if conf_no == 0:
             raise Exception("OSKAR - conf-zero")
         return KomUConference(conf_no, uconf=await self._client.uconferences.get(conf_no))
 
-    @check_connection
+    @async_check_connection
     async def _get_conference(self, conf_no):
         conf = await self._client.conferences.get(conf_no)
         aux_items = [ await self._get_komauxitem(aux_item) for aux_item in conf.aux_items ]
@@ -1196,7 +1196,7 @@ class AioKomSession(object):
             super_conf=super_conf,
             aux_items=aux_items)
 
-    @check_connection
+    @async_check_connection
     async def get_conference(self, conf_no, micro=True):
         conf_no = int(conf_no)
         if micro:
@@ -1204,7 +1204,7 @@ class AioKomSession(object):
         else:
             return await self._get_conference(conf_no)
 
-    @check_connection
+    @async_check_connection
     async def get_text(self, text_no) -> KomText:
         text_stat = await self.get_text_stat(text_no)
         text = await self._client.request(requests.ReqGetText(text_no))
@@ -1212,7 +1212,7 @@ class AioKomSession(object):
 
     # TODO: offset/start number, so we can paginate. we probably need
     # to return the local text number for that.
-    @check_connection
+    @async_check_connection
     async def get_last_texts(self, conf_no, no_of_texts, offset=0, full_text=False):
         """Get the {no_of_texts} last texts in conference {conf_no},
         starting from {offset}.
@@ -1225,7 +1225,7 @@ class AioKomSession(object):
         texts.reverse()
         return texts
 
-    @check_connection
+    @async_check_connection
     async def create_text(self, subject, body, content_type, content_encoding=None,
                           recipient_list=None, comment_to_list=None):
         # decode if not already unicode (assuming utf-8)
@@ -1259,35 +1259,35 @@ class AioKomSession(object):
         stats.set('komsession.texts.created.last', 1, agg='sum')
         return text_no
 
-    @check_connection
+    @async_check_connection
     async def mark_as_read(self, text_no):
         text_stat = await self.get_text_stat(text_no)
         for mi in text_stat.misc_info.recipient_list:
             await self._client.mark_as_read_local(mi.recpt, mi.loc_no)
 
-    @check_connection
+    @async_check_connection
     async def mark_as_unread(self, text_no):
         text_stat = await self.get_text_stat(text_no)
         for mi in text_stat.misc_info.recipient_list:
             await self._client.mark_as_unread_local(mi.recpt, mi.loc_no)
 
-    @check_connection
+    @async_check_connection
     async def set_unread(self, conf_no, no_of_unread):
         await self._client.request(requests.ReqSetUnread(conf_no, no_of_unread))
 
-    @check_connection
+    @async_check_connection
     async def get_marks(self):
         return await self._client.request(requests.ReqGetMarks())
 
-    @check_connection
+    @async_check_connection
     async def mark_text(self, text_no, mark_type):
         await self._client.mark_text(text_no, mark_type)
 
-    @check_connection
+    @async_check_connection
     async def unmark_text(self, text_no):
         await self._client.unmark_text(text_no)
 
-    @check_connection
+    @async_check_connection
     async def get_user_area_block(self, pers_no, block_name, json_decode=True):
         """Get the block with the given block name from the user area
         for the given person. If there is no user area for the person,
@@ -1320,7 +1320,7 @@ class AioKomSession(object):
 
         return block
 
-    @check_connection
+    @async_check_connection
     async def set_user_area_block(self, pers_no, block_name, block, json_encode=True):
         """Set the block with the given block name in the user area
         for the given person. Will create a new text and set as the
