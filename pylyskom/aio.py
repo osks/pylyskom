@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # LysKOM Protocol A version 10/11 client interface for Python
-# (C) 2020 Oskar Skoog. Released under GPL.
+# (C) 2020-2021 Oskar Skoog. Released under GPL.
 
 from typing import List
 import asyncio

@@ -2,7 +2,7 @@
 # LysKOM Protocol A version 10/11 client interface for Python
 # (C) 1999-2002 Kent Engström. Released under GPL.
 # (C) 2008 Henrik Rindlöw. Released under GPL.
-# (C) 2012-2014 Oskar Skoog. Released under GPL.
+# (C) 2012-2021 Oskar Skoog. Released under GPL.
 
 from __future__ import absolute_import
 from typing import List, Optional
