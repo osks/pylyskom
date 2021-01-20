@@ -1,6 +1,6 @@
 # Changelog for pylyskom
 
-## Unreleased
+## 0.6 (2021-01-20)
 
 ### Changed
 
