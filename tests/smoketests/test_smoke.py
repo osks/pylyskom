@@ -62,7 +62,7 @@ def test_komtext_create_new_text():
     subject = "Hello"
     body = "World"
     content_type = "text/plain"
-    recipient_list = [ { "type": "to", "recpt": { "conf_no": ks.get_person_no() } } ]
+    recipient_list = [ { "type": "to", "recpt": { "conf_no": ks.get_current_person_no() } } ]
     new_text = KomText.create_new_text(
         subject, body, content_type,
         recipient_list=recipient_list)

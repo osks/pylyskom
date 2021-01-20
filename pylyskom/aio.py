@@ -21,6 +21,7 @@ from .errors import (
     NotMember,
     NoSuchLocalText,
     ProtocolError,
+    UndefinedConference,
     UnimplementedAsync)
 from .protocol import (
     to_hstring,
@@ -34,7 +35,9 @@ from .datatypes import (
     CookedMiscInfo,
     MembershipType,
     PersonalFlags,
-    TextStat)
+    TextStat,
+    UConference,
+)
 from .komsession import (
     AmbiguousName,
     NameNotFound,
@@ -42,11 +45,13 @@ from .komsession import (
     KomSessionNotConnected,
     KomSessionError,
     KomText,
+    KomConferenceName,
     KomConference,
     KomUConference,
     KomMembership,
     KomMembershipUnread,
     KomPerson,
+    KomPersonName,
     KomAuxItem,
 )
 from . import requests, utils
@@ -59,6 +64,10 @@ log = logging.getLogger("pylyskom.aio")
 # is to get async IO working without having to redesign pylyskom's
 # response parsing right now (and while keeping the blocking io
 # implementation working).
+
+
+UNDEFINED_CONFERENCE_NAME = "Conference {conf_no} (does not exist)."
+UNDEFINED_PERSON_NAME = "Person {pers_no} (does not exist)."
 
 
 class AioReceiveBuffer:
@@ -568,20 +577,6 @@ class AioCachingClient:
         self.persons.report()
         self.textstats.report()
 
-    # Common operation: get name of conference (via uconference)
-    async def conf_name(self, conf_no, default = "", include_no = 0):
-        try:
-            conf_name = (await self.uconferences.get(conf_no)).name.decode('latin1')
-            if include_no:
-                return "%s (#%d)" % (conf_name, conf_no)
-            else:
-                return conf_name
-        except Exception:
-            if default.find("%d") != -1:
-                return default % conf_no
-            else:
-                return default
-
     # Lookup function (name -> (list of tuples(no, name))
     # Special case: "#number" is not looked up
     async def lookup_name(self, name, want_pers, want_confs):
@@ -920,7 +915,6 @@ class AioKomSession(object):
         # CachingPersonClient. We should enhance the Connection
         # class and make CachingPersonClient have the same API as
         # Connection.
-        #self._nursery = nursery
         self._client_factory = client_factory
         self._client = None
         self._session_no = None
@@ -935,7 +929,7 @@ class AioKomSession(object):
         if isinstance(client_version, six.binary_type):
             client_version = client_version.decode('utf-8')
 
-        self._client = self._client_factory()#self._nursery)
+        self._client = self._client_factory()
         await self._client.connect(host, port, user=username + "%" + hostname)
 
         # todo: we shouldn't require client name/version. specify in
@@ -1017,7 +1011,7 @@ class AioKomSession(object):
         await self._client.change_conference(conf_no)
 
     @async_check_connection
-    async def create_person(self, name, passwd):
+    async def create_person(self, name, passwd) -> KomPerson:
         # decode if not already unicode (assuming utf-8)
         if isinstance(name, six.binary_type):
             name = name.decode('utf-8')
@@ -1031,13 +1025,25 @@ class AioKomSession(object):
         stats.set('komsession.persons.created.last', 1, agg='sum')
         return await self._get_person(pers_no)
 
-    @async_check_connection
-    async def _get_person(self, pers_no):
-        username = await self._client.conf_name(pers_no)
-        return KomPerson(pers_no, username)
+    async def _get_person_name(self, pers_no) -> KomPersonName:
+        try:
+            name = (await self._client.uconferences.get(pers_no)).name.decode('latin1')
+        except UndefinedConference:
+            name = UNDEFINED_PERSON_NAME.format(pers_no=pers_no)
+        return KomPersonName(pers_no, name)
 
     @async_check_connection
-    async def get_person(self, pers_no):
+    async def get_person_name(self, pers_no) -> KomPersonName:
+        """Does not raise if the person does not exist.
+        """
+        return await self._get_person_name(pers_no)
+
+    async def _get_person(self, pers_no) -> KomPerson:
+        name = (await self._client.uconferences.get(pers_no)).name.decode('latin1')
+        return KomPersonName(pers_no, name)
+
+    @async_check_connection
+    async def get_person(self, pers_no) -> KomPerson:
         return await self._get_person(pers_no)
 
     @async_check_connection
@@ -1053,6 +1059,10 @@ class AioKomSession(object):
             requests.ReqCreateConf(name.encode('latin1'), conf_type, aux_items))
         stats.set('komsession.conferences.created.last', 1, agg='sum')
         return conf_no
+
+    @async_check_connection
+    async def delete_conference(self, conf_no):
+        await self._client.request(requests.ReqDeleteConf(conf_no))
 
     @async_check_connection
     async def lookup_name(self, name, want_pers, want_confs):
@@ -1099,7 +1109,7 @@ class AioKomSession(object):
     @async_check_connection
     async def get_membership(self, pers_no, conf_no):
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
-        added_by = await self._get_person(membership.added_by)
+        added_by = await self._get_person_name(membership.added_by)
         conference = await self._get_uconference(conf_no)
         return KomMembership(pers_no, added_by=added_by, conference=conference, membership=membership)
 
@@ -1140,7 +1150,7 @@ class AioKomSession(object):
                     continue
                 memberships.append(KomMembership(
                     pers_no,
-                    added_by=await self._get_person(membership.added_by),
+                    added_by=await self._get_person_name(membership.added_by),
                     conference=await self._get_uconference(membership.conference),
                     membership=membership))
 
@@ -1154,25 +1164,31 @@ class AioKomSession(object):
         return [ m for m in memberships if m.no_of_unread > 0 ]
 
     @async_check_connection
-    async def get_conf_name(self, conf_no):
-        return await self._client.conf_name(conf_no)
+    async def get_conf_name(self, conf_no) -> KomConferenceName:
+        """Does not raise if conference does not exist.
+        """
+        try:
+            name = (await self._client.uconferences.get(conf_no)).name.decode('latin1')
+        except UndefinedConference:
+            name = UNDEFINED_CONFERENCE_NAME.format(conf_no=conf_no)
+        return KomConferenceName(conf_no, name)
 
     async def _get_komauxitem(self, aux_item: AuxItem):
-        creator = await self._get_person(aux_item.creator)
+        creator = await self._get_person_name(aux_item.creator)
         return KomAuxItem(aux_item, creator)
 
     async def _get_komtext(self, text_no, text, text_stat: TextStat):
-        author = await self._get_person(text_stat.author)
+        try:
+            author = await self._get_person_name(text_stat.author)
+        except UndefinedConference:
+            author = KomPerson(text_stat.author, UNDEFINED_PERSON_NAME.format(pers_no=text_stat.author))
+
         aux_items = [ await self._get_komauxitem(ai) for ai in text_stat.aux_items ]
         return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
 
-    @async_check_connection
     async def _get_uconference(self, conf_no):
-        if conf_no == 0:
-            raise Exception("OSKAR - conf-zero")
         return KomUConference(conf_no, uconf=await self._client.uconferences.get(conf_no))
 
-    @async_check_connection
     async def _get_conference(self, conf_no):
         conf = await self._client.conferences.get(conf_no)
         aux_items = [ await self._get_komauxitem(aux_item) for aux_item in conf.aux_items ]
@@ -1180,18 +1196,38 @@ class AioKomSession(object):
         super_conf = None
         # super_conf can be 0, but invalid to get conf-stat for it.
         if conf.super_conf != 0:
-            super_conf = await self._get_uconference(conf.super_conf)
+            try:
+                super_conf = await self._get_uconference(conf.super_conf)
+            except UndefinedConference:
+                super_conf = KomUConference(
+                    conf.super_conf,
+                    uconf=UConference(name=UNDEFINED_CONFERENCE_NAME.format(conf_no=conf.super_conf)))
 
         permitted_submitters = None
         # if permitted_submitters is 0, anyone can submit articles
         if conf.permitted_submitters != 0:
             permitted_submitters = await self._get_uconference(conf.permitted_submitters)
 
+        if conf.creator == 0:
+            creator = KomPerson(conf.creator, "Anonymous person")
+        else:
+            try:
+                creator = await self._get_person_name(conf.creator)
+            except UndefinedConference:
+                creator = KomPerson(conf.creator, UNDEFINED_PERSON_NAME.format(pers_no=conf.creator))
+
+        try:
+            supervisor = await self._get_uconference(conf.supervisor)
+        except UndefinedConference:
+            supervisor = KomUConference(
+                conf.supervisor,
+                uconf=UConference(name=UNDEFINED_CONFERENCE_NAME.format(conf_no=conf.supervisor)))
+
         return KomConference(
             conf_no,
             conf=conf,
-            creator=await self._get_person(conf.creator),
-            supervisor=await self._get_uconference(conf.supervisor),
+            creator=creator,
+            supervisor=supervisor,
             permitted_submitters=permitted_submitters,
             super_conf=super_conf,
             aux_items=aux_items)

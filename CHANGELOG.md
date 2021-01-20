@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Changed
+
+- API changes to better handle returning conf-no and pers-no together
+  with name, without anything else.
+
+### Fixed
+
+- Correctly handle conferences where the conferences for super conf,
+  creator or supervisor return undefined conference.
+
 
 ## 0.5 (2020-07-03)
 

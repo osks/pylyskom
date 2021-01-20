@@ -1,11 +1,12 @@
+import random
 import socket
 
 import pytest
 
 from pylyskom import requests, asyncmsg
 from pylyskom.aio import AioConnection, AioClient, AioKomSession
+from pylyskom.errors import UndefinedConference
 from pylyskom.komsession import KomText
-
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.smoketest]
 
@@ -125,7 +126,7 @@ async def test_komtext_create_new_text():
     subject = "Hello"
     body = "World"
     content_type = "text/plain"
-    recipient_list = [ { "type": "to", "recpt": { "conf_no": ks.get_person_no() } } ]
+    recipient_list = [ { "type": "to", "recpt": { "conf_no": pers_no } } ]
     new_text = KomText.create_new_text(
         subject, body, content_type,
         recipient_list=recipient_list)
@@ -139,3 +140,113 @@ async def test_komtext_create_new_text():
     assert new_text.text == created_text.text
     assert new_text.text_content_type == created_text.text_content_type
     assert new_text.content_type == created_text.content_type
+
+
+async def test_get_deleted_person():
+    #print()
+    # random number in case cleanup fails
+    nr = random.randint(0, 2**32)
+    temp_person = f"Test User Temporary {nr}"
+    temp_password = password
+    temp_conf_name = f"Test Conf Temporary {nr}"
+
+    # Setup
+    ks1 = AioKomSession()
+    await ks1.connect(host, port, username, hostname, client_name, client_version)
+    temp_person = await ks1.create_person(temp_person, temp_password)
+    temp_pers_no = temp_person.pers_no
+    #print(f"temp_pers_no: {temp_pers_no}")
+    await ks1.login(temp_pers_no, temp_password)
+
+    # Delete temp user
+    await ks1.delete_conference(temp_pers_no)
+    await ks1.logout()
+    await ks1.disconnect()
+
+    # Login with existing user and try to get person. Because of
+    # caching of the deleted user, we want to create a new connection.
+    ks2 = AioKomSession()
+    await ks2.connect(host, port, username, hostname, client_name, client_version)
+    await ks2.login(pers_no, password)
+
+    with pytest.raises(UndefinedConference):
+        await ks2.get_person(temp_pers_no)
+
+    with pytest.raises(UndefinedConference):
+        await ks2.get_conference(temp_pers_no, micro=False)
+
+    with pytest.raises(UndefinedConference):
+        await ks2.get_conference(temp_pers_no, micro=True)
+
+    await ks2.logout()
+    await ks2.disconnect()
+
+
+async def test_read_conference_where_author_does_not_exist():
+    print()
+    # random number in case cleanup fails
+    nr = random.randint(0, 2**32)
+    temp_person = f"Test User Temporary {nr}"
+    temp_password = password
+    temp_conf_name = f"Test Conf Temporary {nr}"
+
+    # Setup
+    ks1 = AioKomSession()
+    await ks1.connect(host, port, username, hostname, client_name, client_version)
+    temp_person = await ks1.create_person(temp_person, temp_password)
+    temp_pers_no = temp_person.pers_no
+    print(f"temp_pers_no: {temp_pers_no}")
+    await ks1.login(temp_pers_no, temp_password)
+    temp_conf_no = await ks1.create_conference(temp_conf_name)
+    print(f"temp_uconf_no: {temp_conf_no}")
+
+    # Delete temp user
+    await ks1.delete_conference(temp_pers_no)
+    await ks1.logout()
+    await ks1.disconnect()
+
+    # Login with existing user and try to get conference. Because of
+    # caching of the deleted user, we want to create a new connection.
+    ks2 = AioKomSession()
+    await ks2.connect(host, port, username, hostname, client_name, client_version)
+    await ks2.login(pers_no, password)
+    rm_temp_conf = await ks2.get_conference(temp_conf_no, micro=False)
+    rm_temp_uconf = await ks2.get_conference(temp_conf_no, micro=True)
+
+    await ks2.logout()
+    await ks2.disconnect()
+
+
+async def test_read_conference_where_author_does_not_exist():
+    #print()
+    # random number in case cleanup fails
+    nr = random.randint(0, 2**32)
+    temp_person = f"Test User Temporary {nr}"
+    temp_password = password
+    temp_conf_name = f"Test Conf Temporary {nr}"
+
+    # Setup
+    ks1 = AioKomSession()
+    await ks1.connect(host, port, username, hostname, client_name, client_version)
+    temp_person = await ks1.create_person(temp_person, temp_password)
+    temp_pers_no = temp_person.pers_no
+    #print(f"temp_pers_no: {temp_pers_no}")
+    await ks1.login(temp_pers_no, temp_password)
+    temp_conf_no = await ks1.create_conference(temp_conf_name)
+    #print(f"temp_uconf_no: {temp_conf_no}")
+
+    # Delete temp user
+    await ks1.delete_conference(temp_pers_no)
+    await ks1.logout()
+    await ks1.disconnect()
+
+    # Login with existing user and try to get conference. Because of
+    # caching of the deleted user, we want to create a new connection.
+    ks2 = AioKomSession()
+    await ks2.connect(host, port, username, hostname, client_name, client_version)
+    await ks2.login(pers_no, password)
+    rm_temp_uconf = await ks2.get_conference(temp_conf_no, micro=True)
+    rm_temp_conf = await ks2.get_conference(temp_conf_no, micro=False)
+
+    await ks2.logout()
+    await ks2.disconnect()
