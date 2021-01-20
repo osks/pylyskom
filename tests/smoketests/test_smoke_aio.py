@@ -143,19 +143,16 @@ async def test_komtext_create_new_text():
 
 
 async def test_get_deleted_person():
-    #print()
     # random number in case cleanup fails
     nr = random.randint(0, 2**32)
     temp_person = f"Test User Temporary {nr}"
     temp_password = password
-    temp_conf_name = f"Test Conf Temporary {nr}"
 
     # Setup
     ks1 = AioKomSession()
     await ks1.connect(host, port, username, hostname, client_name, client_version)
     temp_person = await ks1.create_person(temp_person, temp_password)
     temp_pers_no = temp_person.pers_no
-    #print(f"temp_pers_no: {temp_pers_no}")
     await ks1.login(temp_pers_no, temp_password)
 
     # Delete temp user
@@ -183,7 +180,6 @@ async def test_get_deleted_person():
 
 
 async def test_read_conference_where_author_does_not_exist():
-    print()
     # random number in case cleanup fails
     nr = random.randint(0, 2**32)
     temp_person = f"Test User Temporary {nr}"
@@ -198,7 +194,6 @@ async def test_read_conference_where_author_does_not_exist():
     print(f"temp_pers_no: {temp_pers_no}")
     await ks1.login(temp_pers_no, temp_password)
     temp_conf_no = await ks1.create_conference(temp_conf_name)
-    print(f"temp_uconf_no: {temp_conf_no}")
 
     # Delete temp user
     await ks1.delete_conference(temp_pers_no)
@@ -210,15 +205,13 @@ async def test_read_conference_where_author_does_not_exist():
     ks2 = AioKomSession()
     await ks2.connect(host, port, username, hostname, client_name, client_version)
     await ks2.login(pers_no, password)
-    rm_temp_conf = await ks2.get_conference(temp_conf_no, micro=False)
-    rm_temp_uconf = await ks2.get_conference(temp_conf_no, micro=True)
+    await ks2.get_conference(temp_conf_no, micro=False)
 
     await ks2.logout()
     await ks2.disconnect()
 
 
-async def test_read_conference_where_author_does_not_exist():
-    #print()
+async def test_read_uconference_where_author_does_not_exist():
     # random number in case cleanup fails
     nr = random.randint(0, 2**32)
     temp_person = f"Test User Temporary {nr}"
@@ -230,10 +223,8 @@ async def test_read_conference_where_author_does_not_exist():
     await ks1.connect(host, port, username, hostname, client_name, client_version)
     temp_person = await ks1.create_person(temp_person, temp_password)
     temp_pers_no = temp_person.pers_no
-    #print(f"temp_pers_no: {temp_pers_no}")
     await ks1.login(temp_pers_no, temp_password)
     temp_conf_no = await ks1.create_conference(temp_conf_name)
-    #print(f"temp_uconf_no: {temp_conf_no}")
 
     # Delete temp user
     await ks1.delete_conference(temp_pers_no)
@@ -245,8 +236,7 @@ async def test_read_conference_where_author_does_not_exist():
     ks2 = AioKomSession()
     await ks2.connect(host, port, username, hostname, client_name, client_version)
     await ks2.login(pers_no, password)
-    rm_temp_uconf = await ks2.get_conference(temp_conf_no, micro=True)
-    rm_temp_conf = await ks2.get_conference(temp_conf_no, micro=False)
+    await ks2.get_conference(temp_conf_no, micro=True)
 
     await ks2.logout()
     await ks2.disconnect()

@@ -2,6 +2,7 @@
 # LysKOM Protocol A version 10/11 client interface for Python
 # (C) 2020 Oskar Skoog. Released under GPL.
 
+from typing import List
 import asyncio
 import base64
 import errno
@@ -36,7 +37,6 @@ from .datatypes import (
     MembershipType,
     PersonalFlags,
     TextStat,
-    UConference,
 )
 from .komsession import (
     AmbiguousName,
@@ -1019,7 +1019,7 @@ class AioKomSession(object):
             passwd = passwd.decode('utf-8')
 
         flags = PersonalFlags()
-        aux_items = []
+        aux_items = [] # type: List
         pers_no = await self._client.request(
             requests.ReqCreatePerson(name, passwd, flags, aux_items))
         stats.set('komsession.persons.created.last', 1, agg='sum')
@@ -1040,7 +1040,7 @@ class AioKomSession(object):
 
     async def _get_person(self, pers_no) -> KomPerson:
         name = (await self._client.uconferences.get(pers_no)).name.decode('latin1')
-        return KomPersonName(pers_no, name)
+        return KomPerson(pers_no, name)
 
     @async_check_connection
     async def get_person(self, pers_no) -> KomPerson:
@@ -1107,14 +1107,14 @@ class AioKomSession(object):
         await self._client.request(requests.ReqSubMember(conf_no, pers_no))
 
     @async_check_connection
-    async def get_membership(self, pers_no, conf_no):
+    async def get_membership(self, pers_no, conf_no) -> KomMembership:
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
         added_by = await self._get_person_name(membership.added_by)
         conference = await self._get_uconference(conf_no)
         return KomMembership(pers_no, added_by=added_by, conference=conference, membership=membership)
 
     @async_check_connection
-    async def get_membership_unread(self, pers_no, conf_no):
+    async def get_membership_unread(self, pers_no, conf_no) -> KomMembershipUnread:
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=True)
         unread_texts = await self._client.get_unread_texts_from_membership(membership)
         return KomMembershipUnread(pers_no, conf_no, len(unread_texts), unread_texts)
@@ -1173,35 +1173,26 @@ class AioKomSession(object):
             name = UNDEFINED_CONFERENCE_NAME.format(conf_no=conf_no)
         return KomConferenceName(conf_no, name)
 
-    async def _get_komauxitem(self, aux_item: AuxItem):
+    async def _get_komauxitem(self, aux_item: AuxItem) -> KomAuxItem:
         creator = await self._get_person_name(aux_item.creator)
         return KomAuxItem(aux_item, creator)
 
-    async def _get_komtext(self, text_no, text, text_stat: TextStat):
-        try:
-            author = await self._get_person_name(text_stat.author)
-        except UndefinedConference:
-            author = KomPerson(text_stat.author, UNDEFINED_PERSON_NAME.format(pers_no=text_stat.author))
-
+    async def _get_komtext(self, text_no, text, text_stat: TextStat) -> KomText:
+        author = await self._get_person_name(text_stat.author)
         aux_items = [ await self._get_komauxitem(ai) for ai in text_stat.aux_items ]
         return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
 
-    async def _get_uconference(self, conf_no):
+    async def _get_uconference(self, conf_no) -> KomUConference:
         return KomUConference(conf_no, uconf=await self._client.uconferences.get(conf_no))
 
-    async def _get_conference(self, conf_no):
+    async def _get_conference(self, conf_no) -> KomConference:
         conf = await self._client.conferences.get(conf_no)
         aux_items = [ await self._get_komauxitem(aux_item) for aux_item in conf.aux_items ]
 
         super_conf = None
         # super_conf can be 0, but invalid to get conf-stat for it.
         if conf.super_conf != 0:
-            try:
-                super_conf = await self._get_uconference(conf.super_conf)
-            except UndefinedConference:
-                super_conf = KomUConference(
-                    conf.super_conf,
-                    uconf=UConference(name=UNDEFINED_CONFERENCE_NAME.format(conf_no=conf.super_conf)))
+            super_conf = await self.get_conf_name(conf.super_conf)
 
         permitted_submitters = None
         # if permitted_submitters is 0, anyone can submit articles
@@ -1209,20 +1200,11 @@ class AioKomSession(object):
             permitted_submitters = await self._get_uconference(conf.permitted_submitters)
 
         if conf.creator == 0:
-            creator = KomPerson(conf.creator, "Anonymous person")
+            creator = KomPersonName(conf.creator, "Anonymous person")
         else:
-            try:
-                creator = await self._get_person_name(conf.creator)
-            except UndefinedConference:
-                creator = KomPerson(conf.creator, UNDEFINED_PERSON_NAME.format(pers_no=conf.creator))
+            creator = await self._get_person_name(conf.creator)
 
-        try:
-            supervisor = await self._get_uconference(conf.supervisor)
-        except UndefinedConference:
-            supervisor = KomUConference(
-                conf.supervisor,
-                uconf=UConference(name=UNDEFINED_CONFERENCE_NAME.format(conf_no=conf.supervisor)))
-
+        supervisor = await self.get_conf_name(conf.supervisor)
         return KomConference(
             conf_no,
             conf=conf,

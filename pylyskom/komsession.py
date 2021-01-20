@@ -90,7 +90,7 @@ class KomMembershipUnread:
 
 
 class KomAuxItem:
-    def __init__(self, aux_item: AuxItem, creator: KomPerson):
+    def __init__(self, aux_item: AuxItem, creator: KomPersonName):
         self.aux_no = aux_item.aux_no
         self.tag = aux_item.tag
         self.created_at = aux_item.created_at
@@ -136,10 +136,10 @@ class KomUConference:
 class KomConference:
     def __init__(self, conf_no, *,
                  conf: Conference,
-                 creator: KomPerson,
-                 supervisor: KomUConference,
+                 creator: KomPersonName,
+                 supervisor: KomConferenceName,
                  permitted_submitters: Optional[KomUConference],
-                 super_conf: Optional[KomUConference],
+                 super_conf: Optional[KomConferenceName],
                  aux_items: List[KomAuxItem]):
         self.conf_no = conf_no
         self.creator = creator
@@ -163,7 +163,7 @@ class KomConference:
 
 
 class KomMembership:
-    def __init__(self, pers_no, *, membership: Membership, added_by: KomPerson, conference: KomUConference):
+    def __init__(self, pers_no, *, membership: Membership, added_by: KomPersonName, conference: KomUConference):
         self.pers_no = pers_no
         self.added_by = added_by
         self.conference = conference
@@ -177,7 +177,7 @@ class KomMembership:
 
 class KomText:
     def __init__(self, text_no=None, text: str = None, *,
-                 text_stat: TextStat = None, aux_items: List[KomAuxItem] = None, author: KomPerson = None):
+                 text_stat: TextStat = None, aux_items: List[KomAuxItem] = None, author: KomPersonName = None):
         self.text_no = text_no
         self.text = text
         self.aux_items = aux_items
