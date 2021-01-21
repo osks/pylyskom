@@ -1,5 +1,12 @@
 # Changelog for pylyskom
 
+## Unreleased
+
+### Fixed
+
+- Handle that membership added-by can be 0.
+
+
 ## 0.6 (2021-01-20)
 
 ### Changed

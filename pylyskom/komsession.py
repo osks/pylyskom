@@ -163,7 +163,7 @@ class KomConference:
 
 
 class KomMembership:
-    def __init__(self, pers_no, *, membership: Membership, added_by: KomPersonName, conference: KomUConference):
+    def __init__(self, pers_no, *, membership: Membership, added_by: Optional[KomPersonName], conference: KomUConference):
         self.pers_no = pers_no
         self.added_by = added_by
         self.conference = conference

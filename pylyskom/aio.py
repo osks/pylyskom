@@ -34,6 +34,7 @@ from .datatypes import (
     AuxItem,
     ConfType,
     CookedMiscInfo,
+    Membership,
     MembershipType,
     PersonalFlags,
     TextStat,
@@ -1106,12 +1107,19 @@ class AioKomSession(object):
     async def delete_membership(self, pers_no, conf_no):
         await self._client.request(requests.ReqSubMember(conf_no, pers_no))
 
+    async def _create_kom_membership(self, pers_no, membership: Membership) -> KomMembership:
+        if membership.added_by == 0:
+            # If the membership was created before protocol 10.
+            added_by = None
+        else:
+            added_by = await self._get_person_name(membership.added_by)
+        conference = await self._get_uconference(membership.conference)
+        return KomMembership(pers_no, added_by=added_by, conference=conference, membership=membership)
+
     @async_check_connection
     async def get_membership(self, pers_no, conf_no) -> KomMembership:
         membership = await self._client.get_membership(pers_no, conf_no, want_read_ranges=False)
-        added_by = await self._get_person_name(membership.added_by)
-        conference = await self._get_uconference(conf_no)
-        return KomMembership(pers_no, added_by=added_by, conference=conference, membership=membership)
+        return await self._create_kom_membership(pers_no, membership)
 
     @async_check_connection
     async def get_membership_unread(self, pers_no, conf_no) -> KomMembershipUnread:
@@ -1148,11 +1156,7 @@ class AioKomSession(object):
             for membership in ms_list:
                 if (not passive) and membership.type.passive:
                     continue
-                memberships.append(KomMembership(
-                    pers_no,
-                    added_by=await self._get_person_name(membership.added_by),
-                    conference=await self._get_uconference(membership.conference),
-                    membership=membership))
+                memberships.append(await self._create_kom_membership(pers_no, membership))
 
         return memberships, has_more
 
