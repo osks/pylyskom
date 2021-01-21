@@ -335,11 +335,11 @@ class AioClient:
     async def request(self, request):
         async with self._send_lock:
             ref_no = await self._conn.send_request(request)
-            log.debug("AioClient: Sent request (ref_no=%s): %s", ref_no, request)
+            #log.debug("AioClient: Sent request (ref_no=%s): %s", ref_no, request)
             assert ref_no not in self._outstanding_requests_events
             self._outstanding_requests_events[ref_no] = asyncio.Event()
 
-        log.debug("AioClient: Waiting for reply to ref_no=%s", ref_no)
+        #log.debug("AioClient: Waiting for reply to ref_no=%s", ref_no)
         await self._outstanding_requests_events[ref_no].wait()
         del self._outstanding_requests_events[ref_no]
         return self._handle_reply(ref_no)
@@ -347,7 +347,7 @@ class AioClient:
     def _handle_reply(self, ref_no):
         assert ref_no in self._reply_queue
         (ok_reply, error_reply) = self._reply_queue.pop(ref_no)
-        log.debug("AioClient: Handling reply (ref_no=%s): %s", ref_no, (ok_reply, error_reply))
+        #log.debug("AioClient: Handling reply (ref_no=%s): %s", ref_no, (ok_reply, error_reply))
         if error_reply is not None:
             # error reply
             raise error_reply
@@ -360,7 +360,7 @@ class AioClient:
         try:
             while self.is_connected():
                 response = await self._conn.read_response()
-                log.debug("AioClient: Received response: %s", response)
+                #log.debug("AioClient: Received response: %s", response)
                 await self._receive_response(response)
         except Exception as e:
             log.error(f"AioClient: Response receiver task exception: {e}")
