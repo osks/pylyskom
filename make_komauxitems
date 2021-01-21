@@ -7,7 +7,6 @@
 # komauxitems.py
 
 import re
-import string
 
 inf = open("aux-items.txt")
 outf = open("./pylyskom/komauxitems.py", "w")
@@ -18,7 +17,7 @@ for line in inf.readlines():
     m = re.match(r"@item (.*) \[([0-9]+)\] (.*)", line)
     if m:
         (name, no, comment) = m.group(1,2,3)
-        komname = "AI_" + string.upper(string.replace(name,"-","_"))
+        komname = "AI_" + name.replace("-","_").upper()
         outf.write("%s = %s # %s\n" % (komname, no, comment))
         dictlist.append((komname, name))
 
