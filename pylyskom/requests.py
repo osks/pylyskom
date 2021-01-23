@@ -905,7 +905,6 @@ response_dict = {
     Requests.GET_CLIENT_VERSION: String,
     Requests.GET_COLLATE_TABLE: String,
     Requests.GET_CONF_STAT: Conference,
-    Requests.GET_INFO: EmptyResponse,
     Requests.GET_INFO: Info,
     Requests.GET_LAST_TEXT: TextNo,
     Requests.GET_MAP: TextList,

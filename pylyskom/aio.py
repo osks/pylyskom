@@ -54,6 +54,7 @@ from .komsession import (
     KomPerson,
     KomPersonName,
     KomAuxItem,
+    KomServerInfo,
 )
 from . import requests, utils
 
@@ -452,6 +453,7 @@ class AioCachingClient:
         self._add_async_handler(AsyncMessages.NEW_RECIPIENT, self._cah_new_recipient)
         self._add_async_handler(AsyncMessages.SUB_RECIPIENT, self._cah_sub_recipient)
         self._add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cah_new_membership)
+        self._add_async_handler(AsyncMessages.NEW_PRESENTATION, self._cah_new_presentation)
 
 
     async def connect(self, host, port, user=None):
@@ -555,6 +557,13 @@ class AioCachingClient:
     async def _cah_new_membership(self, msg):
         # Joining a conference makes conferences[].no_of_members invalid
         self.conferences.invalidate(msg.conf_no)
+
+    async def _cah_new_presentation(self, msg):
+        # New presentation invalides the conf stats for the presentation
+        # and the text cache
+        self.conferences.invalidate(msg.conf_no)
+        self.textstats.invalidate(msg.old_presentation);
+        self.textstats.invalidate(msg.new_presentation);
 
 
     # Fetching functions (internal use)
@@ -1383,3 +1392,40 @@ class AioKomSession(object):
             content_type='x-kom/user-area')
         await self._client.request(requests.ReqSetUserArea(pers_no, new_user_area_text_no))
         # TODO: Should it remove the old user area?
+
+    @async_check_connection
+    async def get_server_info(self) -> KomServerInfo:
+        info = await self._client.request(requests.ReqGetInfo())
+
+        conf_pres_conf = None
+        if info.conf_pres_conf != 0:
+            conf_pres_conf = await self.get_conf_name(info.conf_pres_conf)
+
+        pers_pres_conf = None
+        if info.pers_pres_conf != 0:
+            pers_pres_conf = await self.get_conf_name(info.pers_pres_conf)
+
+        motd_conf = None
+        if info.motd_conf != 0:
+            motd_conf = await self.get_conf_name(info.motd_conf)
+
+        kom_news_conf = None
+        if info.kom_news_conf != 0:
+            kom_news_conf = await self.get_conf_name(info.kom_news_conf)
+
+        return KomServerInfo(
+            version=info.version,
+            conf_pres_conf=conf_pres_conf,
+            pers_pres_conf=pers_pres_conf,
+            motd_conf=motd_conf,
+            kom_news_conf=kom_news_conf,
+            motd_of_lyskom=info.motd_of_lyskom,
+        )
+
+    @async_check_connection
+    async def set_presentation(self, conf_no, text_no):
+        await self._client.request(requests.ReqSetPresentation(conf_no, text_no))
+
+    @async_check_connection
+    async def delete_presentation(self, conf_no):
+        await self._client.request(requests.ReqSetPresentation(conf_no, 0))

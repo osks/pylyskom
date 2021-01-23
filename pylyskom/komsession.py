@@ -318,6 +318,22 @@ class KomText:
         return komtext
 
 
+class KomServerInfo:
+    def __init__(self, *,
+                 version: int,
+                 conf_pres_conf: Optional[KomConferenceName],
+                 pers_pres_conf: Optional[KomConferenceName],
+                 motd_conf: Optional[KomConferenceName],
+                 kom_news_conf: Optional[KomConferenceName],
+                 motd_of_lyskom: int):
+        self.version = version
+        self.conf_pres_conf = conf_pres_conf
+        self.pers_pres_conf = pers_pres_conf
+        self.motd_conf = motd_conf
+        self.kom_news_conf = kom_news_conf
+        self.motd_of_lyskom = motd_of_lyskom
+
+
 def create_client(host, port, user):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((host, port))

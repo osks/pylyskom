@@ -1,5 +1,12 @@
 # Changelog for pylyskom
 
+## Unreleased
+
+### Added
+
+- Functionality for returning server info and changing / setting presentation.
+
+
 ## 0.7 (2021-01-21)
 
 ### Fixed
