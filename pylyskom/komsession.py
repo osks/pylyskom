@@ -137,7 +137,7 @@ class KomConference:
     def __init__(self, conf_no, *,
                  conf: Conference,
                  creator: KomPersonName,
-                 supervisor: KomConferenceName,
+                 supervisor: Optional[KomConferenceName],
                  permitted_submitters: Optional[KomUConference],
                  super_conf: Optional[KomConferenceName],
                  aux_items: List[KomAuxItem]):

@@ -1217,7 +1217,9 @@ class AioKomSession(object):
         else:
             creator = await self._get_person_name(conf.creator)
 
-        supervisor = await self.get_conf_name(conf.supervisor)
+        supervisor = None
+        if conf.supervisor != 0:
+            supervisor = await self.get_conf_name(conf.supervisor)
         return KomConference(
             conf_no,
             conf=conf,

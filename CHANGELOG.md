@@ -6,6 +6,10 @@
 
 - Functionality for returning server info and changing / setting presentation.
 
+### Fixed
+
+- Handle that supervisor in conf-stat can be 0.
+
 
 ## 0.7 (2021-01-21)
 
