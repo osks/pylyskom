@@ -5,6 +5,7 @@
 ### Added
 
 - Functionality for returning server info and changing / setting presentation.
+- Functionality for setting password.
 
 ### Fixed
 

@@ -1431,3 +1431,7 @@ class AioKomSession(object):
     @async_check_connection
     async def delete_presentation(self, conf_no):
         await self._client.request(requests.ReqSetPresentation(conf_no, 0))
+
+    @async_check_connection
+    async def set_passwd(self, pers_no, old_pwd, new_pwd):
+        await self._client.request(requests.ReqSetPasswd(pers_no, old_pwd, new_pwd))
