@@ -67,6 +67,10 @@ On master:
 
 10. Add ``+dev`` suffix to version number, commit and push.
 
+11. Github release: Go to https://github.com/osks/pylyskom/releases
+    and draft a new release. Select tag and set title to "Version
+    <version>", and then publish the release.
+
 
 Tools
 *****
