@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+
+## 0.8 (2022-09-12)
+
 ### Added
 
 - Functionality for returning server info and changing / setting presentation.
