@@ -16,6 +16,7 @@ import six
 from .errors import (
     error_dict,
     BadRequestId,
+    ConferenceZero,
     ReceiveError,
     BadInitialResponse,
     NotEnoughDataInBufferError,
@@ -1036,10 +1037,16 @@ class AioKomSession(object):
         return await self._get_person(pers_no)
 
     async def _get_person_name(self, pers_no) -> KomPersonName:
+        """Does not raise if the person does not exist, nor if the pers_no is
+        0 (anonymous person).
+
+        """
         try:
             name = (await self._client.uconferences.get(pers_no)).name.decode('latin1')
         except UndefinedConference:
             name = UNDEFINED_PERSON_NAME.format(pers_no=pers_no)
+        except ConferenceZero:
+            name = "Anonymous person"
         return KomPersonName(pers_no, name)
 
     @async_check_connection
@@ -1212,10 +1219,7 @@ class AioKomSession(object):
         if conf.permitted_submitters != 0:
             permitted_submitters = await self._get_uconference(conf.permitted_submitters)
 
-        if conf.creator == 0:
-            creator = KomPersonName(conf.creator, "Anonymous person")
-        else:
-            creator = await self._get_person_name(conf.creator)
+        creator = await self._get_person_name(conf.creator)
 
         supervisor = None
         if conf.supervisor != 0:
