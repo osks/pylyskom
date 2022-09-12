@@ -10,6 +10,8 @@
 ### Fixed
 
 - Handle that supervisor in conf-stat can be 0.
+- Handle AioKomsession being able to return texts by anonymous users,
+  and comments to texts by anonymous users.
 
 
 ## 0.7 (2021-01-21)
