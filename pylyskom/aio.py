@@ -182,8 +182,14 @@ class AioConnection:
         self._ref_no += 1
         ref_no = self._ref_no
         assert ref_no not in self._outstanding_requests
-        self._outstanding_requests[ref_no] = request
-        request_string = b"%d %s" % (ref_no, request.to_string())
+        if isinstance(request, bytes):
+            log.debug("AioConnection: send_request - bytes: %r", request)
+            request_string = b"%d %b\n" % (ref_no, request)
+            call_no = int(request.split(b' ')[0])
+        else:
+            request_string = b"%d %s" % (ref_no, request.to_string())
+            call_no = request.CALL_NO
+        self._outstanding_requests[ref_no] = call_no
         self._tcp_stream_writer.write(request_string)
         await self._tcp_stream_writer.drain()
         return ref_no
@@ -191,8 +197,9 @@ class AioConnection:
     async def read_response(self):
         #log.debug("AioConnection: Reading response")
         response = await self._read_response()
-        #log.debug("AioConnection: Received response: %s", response)
-        # A response is a 4-tuple: (ref_no, ok_reply, error_reply, async_msg)
+        # A response is a 5-tuple: (ref_no, ok_reply, error_reply, async_msg, reply_bytes)
+        #log.debug("AioConnection: read_response - response: %s", response)
+        log.debug("AioConnection: read_response - bytes: %r", response[4])
         return response
 
     async def _read_response(self):
@@ -233,45 +240,53 @@ class AioConnection:
         async_msg = None
         ch = read_first_non_ws(self._buffer)
         if ch == b"=":
-            ref_no, ok_reply = self._parse_ok_reply()
+            ref_no, ok_reply, reply_bytes = self._parse_ok_reply()
             stats.set('connections.responses.received.ok.last', 1, agg='sum')
         elif ch == b"%":
-            ref_no, error_reply = self._parse_error_reply()
+            ref_no, error_reply, reply_bytes = self._parse_error_reply()
             stats.set('connections.responses.received.error.last', 1, agg='sum')
         elif ch == b":":
-            async_msg = self._parse_asynchronous_message()
+            async_msg, reply_bytes = self._parse_asynchronous_message()
             stats.set('connections.responses.received.async.last', 1, agg='sum')
         else:
             stats.set('connections.responses.received.protocolerror.last', 1, agg='sum')
             raise ProtocolError("Got unexpected: %s" % (ch,))
-        return ref_no, ok_reply, error_reply, async_msg
+
+        reply_bytes = reply_bytes[:-1] # skip trailing newline
+        return ref_no, ok_reply, error_reply, async_msg, reply_bytes
 
     def _parse_ok_reply(self):
         ref_no = read_int(self._buffer)
         if ref_no not in self._outstanding_requests:
             raise BadRequestId(ref_no)
-        req = self._outstanding_requests[ref_no]
-        ok_reply = requests.response_dict[req.CALL_NO].parse(self._buffer)
+        buf_start = self._buffer._rb_pos
+        call_no = self._outstanding_requests[ref_no]
+        ok_reply = requests.response_dict[call_no].parse(self._buffer)
+        reply_bytes = self._buffer._rb[buf_start:self._buffer._rb_pos]
         del self._outstanding_requests[ref_no]
-        return ref_no, ok_reply
+        return ref_no, ok_reply, reply_bytes
 
     def _parse_error_reply(self):
         ref_no = read_int(self._buffer)
         if ref_no not in self._outstanding_requests:
             raise BadRequestId(ref_no)
+        buf_start = self._buffer._rb_pos
         error_no = read_int(self._buffer)
         error_status = read_int(self._buffer)
         error_reply = error_dict[error_no](error_status)
+        reply_bytes = self._buffer._rb[buf_start:self._buffer._rb_pos]
         del self._outstanding_requests[ref_no]
-        return ref_no, error_reply
+        return ref_no, error_reply, reply_bytes
 
     def _parse_asynchronous_message(self):
+        buf_start = self._buffer._rb_pos
         read_int(self._buffer) # read number of arguments (but we don't need it)
         msg_no = read_int(self._buffer)
         if msg_no not in async_dict:
             raise UnimplementedAsync(msg_no)
         msg = async_dict[msg_no].parse(self._buffer)
-        return msg
+        reply_bytes = self._buffer._rb[buf_start:self._buffer._rb_pos]
+        return msg, reply_bytes
 
 
 class AioClient:
@@ -286,7 +301,7 @@ class AioClient:
     def _reset_vars(self):
         # Dict with ref-no to tuple(ok, error), where error is None if it's a ok reply (ok reply can be None)
         self._reply_queue = {}
-        self._outstanding_requests_events = {} # Ref-No to Event mapping
+        self._outstanding_requests_events = {} # Ref-No to asyncio.Event mapping
         self._asyncmsg_queue = asyncio.Queue()
         self._send_request_queue = asyncio.Queue()
         self._response_receiver_task = None
@@ -336,6 +351,12 @@ class AioClient:
         self._async_handler_func = handler_func
 
     async def request(self, request):
+        return await self._request(request, return_bytes=False)
+
+    async def raw_request(self, request_bytes):
+        return await self._request(request_bytes, return_bytes=True)
+
+    async def _request(self, request, *, return_bytes=False):
         async with self._send_lock:
             ref_no = await self._conn.send_request(request)
             #log.debug("AioClient: Sent request (ref_no=%s): %s", ref_no, request)
@@ -345,12 +366,14 @@ class AioClient:
         #log.debug("AioClient: Waiting for reply to ref_no=%s", ref_no)
         await self._outstanding_requests_events[ref_no].wait()
         del self._outstanding_requests_events[ref_no]
-        return self._handle_reply(ref_no)
+        return self._handle_reply(ref_no, return_bytes=return_bytes)
 
-    def _handle_reply(self, ref_no):
+    def _handle_reply(self, ref_no, *, return_bytes=False):
         assert ref_no in self._reply_queue
-        (ok_reply, error_reply) = self._reply_queue.pop(ref_no)
+        (ok_reply, error_reply, reply_bytes) = self._reply_queue.pop(ref_no)
         #log.debug("AioClient: Handling reply (ref_no=%s): %s", ref_no, (ok_reply, error_reply))
+        if return_bytes:
+            return reply_bytes
         if error_reply is not None:
             # error reply
             raise error_reply
@@ -371,13 +394,13 @@ class AioClient:
             log.debug("AioClient: Exiting response receiver task")
 
     async def _receive_response(self, response):
-        ref_no, ok_reply, error_reply, async_msg = response
+        ref_no, ok_reply, error_reply, async_msg, reply_bytes = response
         if ref_no is None:
             # async message
             await self._asyncmsg_queue.put(async_msg)
         else:
             # ok or error reply go on reply queue
-            self._reply_queue[ref_no] = (ok_reply, error_reply)
+            self._reply_queue[ref_no] = (ok_reply, error_reply, reply_bytes)
             assert ref_no in self._outstanding_requests_events
             self._outstanding_requests_events[ref_no].set()
 
@@ -469,6 +492,9 @@ class AioCachingClient:
 
     async def request(self, request):
         return await self._client.request(request)
+
+    async def raw_request(self, request_bytes):
+        return await self._client.raw_request(request_bytes)
 
 
     # Protocol A async message handling
@@ -706,8 +732,8 @@ class AioCachingPersonClient(AioCachingClient):
         self._add_async_handler(AsyncMessages.LEAVE_CONF, self._cpah_leave_conf)
         self._add_async_handler(AsyncMessages.NEW_MEMBERSHIP, self._cpah_new_membership)
 
-    async def login(self, pers_no, password):
-        await self.request(requests.ReqLogin(pers_no, password, invisible=0))
+    async def login(self, pers_no, passwd):
+        await self.request(requests.ReqLogin(pers_no, passwd, invisible=0))
         # We need to know the current person to be able to have and
         # invalidate caches.
         self._pers_no = pers_no
@@ -990,11 +1016,19 @@ class AioKomSession(object):
             await self.close()
 
     @async_check_connection
-    async def login(self, pers_no, password):
-        if isinstance(password, six.binary_type):
-            password = password.decode('utf-8')
-        pers_no = int(pers_no)
-        await self._client.login(pers_no, password)
+    async def raw_request(self, request_bytes):
+        assert isinstance(request_bytes, bytes)
+        return await self._client.raw_request(request_bytes)
+
+    @async_check_connection
+    async def login(self, *, pers_no=None, pers_name=None, passwd):
+        if pers_no is not None:
+            pers_no = int(pers_no)
+        elif pers_name is not None:
+            pers_no = await self.lookup_name_exact(pers_name, True, False)
+        if isinstance(passwd, six.binary_type):
+            passwd = passwd.decode('utf-8')
+        await self._client.login(pers_no, passwd)
         return await self._get_person(pers_no)
 
     @async_check_connection
