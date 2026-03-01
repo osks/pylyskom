@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9 (2026-03-01)
+
 ### Added
 
 - AioKomSession.login() now supports login by name via `pers_name`
