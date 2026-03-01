@@ -1,0 +1,32 @@
+[project]
+name = "pylyskom"
+dynamic = ["version"]
+description = "Python LysKOM library"
+readme = "README.rst"
+license = "GPL-2.0-or-later"
+authors = [
+    { name = "Oskar Skoog", email = "oskar@osd.se" },
+]
+requires-python = ">=3.9"
+dependencies = [
+    "six",
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/osks/pylyskom"
+
+[tool.setuptools]
+packages = ["pylyskom"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pylyskom.version.__version__"}
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"

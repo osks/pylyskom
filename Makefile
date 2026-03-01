@@ -1,27 +1,22 @@
-all: auxitems pyflakes mypy test
+all: auxitems pyflakes test
 
 auxitems:
-	python make_komauxitems
+	uv run python make_komauxitems
 
 clean:
 	rm -rf dist
 
 dist:
 	rm -rf dist
-	python3 setup.py sdist
+	uv build
 
 pyflakes:
-	pyflakes ./pylyskom
-	pyflakes ./tests
+	uv run --with pyflakes pyflakes ./pylyskom ./tests
 
-mypy:
-	mypy ./pylyskom
+test: pyflakes
+	uv run --with pytest pytest -vv --maxfail 1 ./tests
 
-test: pyflakes mypy
-	pytest -vv --maxfail 1 ./tests
-	tox
+test-e2e:
+	bash e2e/run.sh
 
-smoketest:
-	pytest -vv -s --run-smoketests ./tests/smoketests
-
-.PHONY: all auxitems clean dist test smoketest pyflakes mypy
+.PHONY: all auxitems clean dist test test-e2e pyflakes

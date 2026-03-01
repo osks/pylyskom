@@ -2,7 +2,6 @@
 # LysKOM Protocol A version 10/11 client interface for Python
 # (C) 2020-2021 Oskar Skoog. Released under GPL.
 
-from typing import List
 import asyncio
 import base64
 import errno

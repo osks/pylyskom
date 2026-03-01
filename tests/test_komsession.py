@@ -2,7 +2,7 @@
 
 import base64
 
-from mock import MagicMock
+from unittest.mock import MagicMock
 
 from pylyskom import komauxitems
 from pylyskom.requests import Requests

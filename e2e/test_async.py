@@ -1,5 +1,4 @@
 import random
-import socket
 
 import pytest
 
@@ -8,18 +7,21 @@ from pylyskom.aio import AioConnection, AioClient, AioKomSession
 from pylyskom.errors import UndefinedConference
 from pylyskom.komsession import KomText
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.smoketest]
+from conftest import host, port, user, username, hostname, client_name, client_version, person_name, person_password
 
-client_name = "pylyskom-smoketest"
-client_version = "1.0"
-username = "pylyskom-smoketest"
-hostname = socket.getfqdn()
-user = username + "%" + hostname
-host = "localhost"
-port = 4894
-pers_no = 34
-person = "Test User"
-password = "testuser123"
+pytestmark = pytest.mark.asyncio
+
+
+async def _create_person(name=None, password=None):
+    """Create a test person and return (pers_no, password)."""
+    name = name or f"{person_name} {random.randint(0, 2**32)}"
+    password = password or person_password
+    ks = AioKomSession()
+    await ks.connect(host, port, username, hostname, client_name, client_version)
+    person = await ks.create_person(name, password)
+    await ks.disconnect()
+    await ks.close()
+    return person.pers_no, password
 
 
 async def test_aioconnection_connect_close():
@@ -38,9 +40,10 @@ async def test_aioconnection_connect_disconnect():
 
 
 async def test_aioconnection_login_logout():
+    pers_no, passwd = await _create_person()
     conn = AioConnection()
     await conn.connect(host, port, user)
-    await conn.send_request(requests.ReqLogin(pers_no, password, invisible=0))
+    await conn.send_request(requests.ReqLogin(pers_no, passwd, invisible=0))
     await conn.read_response()
     await conn.send_request(requests.ReqLogout())
     await conn.read_response()
@@ -58,29 +61,29 @@ async def test_aioclient_connect_disconnect():
 
 
 async def test_aioclient_login_logout():
+    pers_no, passwd = await _create_person()
     conn = AioConnection()
     client = AioClient(conn)
     await client.connect(host, port, user)
-    await client.request(requests.ReqLogin(pers_no, password, invisible=0))
+    await client.request(requests.ReqLogin(pers_no, passwd, invisible=0))
     await client.request(requests.ReqLogout())
     await client.request(requests.ReqDisconnect(0))
     await client.close()
 
 
 async def test_aioclient_async_send_message():
+    pers_no, passwd = await _create_person()
     conn = AioConnection()
     client = AioClient(conn)
     await client.connect(host, port, user)
-    await client.request(requests.ReqLogin(pers_no, password, invisible=0))
+    await client.request(requests.ReqLogin(pers_no, passwd, invisible=0))
 
     received_async_messages = []
     async def async_handler(msg):
-        #print(f"Received async message: MSG_NO={msg.MSG_NO}: {msg}")
         received_async_messages.append(msg)
     client.set_async_handler(async_handler)
 
     await client.request(requests.ReqSendMessage(0, "test123"))
-    # Test test assumes that the server will send back the AsyncSendMessage fast enough.
     # Send any request to trigger receiving and handling of async messages
     await client.request(requests.ReqUserActive())
 
@@ -89,44 +92,46 @@ async def test_aioclient_async_send_message():
     await client.close()
 
     def has_received_message():
-        received_message = False
         for msg in received_async_messages:
             if msg.MSG_NO == asyncmsg.AsyncMessages.SEND_MESSAGE:
                 if msg.recipient == 0 and msg.message == b"test123":
-                    received_message = True
-        return received_message
+                    return True
+        return False
 
     assert has_received_message() == True
 
 
 async def test_aioclient_async_task():
+    pers_no, passwd = await _create_person()
     conn = AioConnection()
     client = AioClient(conn)
     await client.connect(host, port, user)
-    await client.request(requests.ReqLogin(pers_no, password, invisible=0))
+    await client.request(requests.ReqLogin(pers_no, passwd, invisible=0))
     await client.request(requests.ReqLogout())
     await client.request(requests.ReqDisconnect(0))
     await client.close()
 
 
 async def test_komsession_login_logout():
+    pers_no, passwd = await _create_person()
     ks = AioKomSession()
     await ks.connect(host, port, username, hostname, client_name, client_version)
-    await ks.login(pers_no, password)
+    await ks.login(pers_no=pers_no, passwd=passwd)
     await ks.logout()
     await ks.disconnect()
     await ks.close()
 
 
 async def test_komtext_create_new_text():
+    pers_no, passwd = await _create_person()
     ks = AioKomSession()
     await ks.connect(host, port, username, hostname, client_name, client_version)
-    await ks.login(pers_no, password)
+    await ks.login(pers_no=pers_no, passwd=passwd)
 
     subject = "Hello"
     body = "World"
     content_type = "text/plain"
-    recipient_list = [ { "type": "to", "recpt": { "conf_no": pers_no } } ]
+    recipient_list = [{"type": "to", "recpt": {"conf_no": pers_no}}]
     new_text = KomText.create_new_text(
         subject, body, content_type,
         recipient_list=recipient_list)
@@ -143,28 +148,23 @@ async def test_komtext_create_new_text():
 
 
 async def test_get_deleted_person():
-    # random number in case cleanup fails
     nr = random.randint(0, 2**32)
-    temp_person = f"Test User Temporary {nr}"
-    temp_password = password
+    temp_name = f"Test User Temporary {nr}"
 
-    # Setup
     ks1 = AioKomSession()
     await ks1.connect(host, port, username, hostname, client_name, client_version)
-    temp_person = await ks1.create_person(temp_person, temp_password)
+    temp_person = await ks1.create_person(temp_name, person_password)
     temp_pers_no = temp_person.pers_no
-    await ks1.login(temp_pers_no, temp_password)
+    await ks1.login(pers_no=temp_pers_no, passwd=person_password)
 
-    # Delete temp user
     await ks1.delete_conference(temp_pers_no)
     await ks1.logout()
     await ks1.disconnect()
 
-    # Login with existing user and try to get person. Because of
-    # caching of the deleted user, we want to create a new connection.
+    pers_no, passwd = await _create_person()
     ks2 = AioKomSession()
     await ks2.connect(host, port, username, hostname, client_name, client_version)
-    await ks2.login(pers_no, password)
+    await ks2.login(pers_no=pers_no, passwd=passwd)
 
     with pytest.raises(UndefinedConference):
         await ks2.get_person(temp_pers_no)
@@ -180,31 +180,25 @@ async def test_get_deleted_person():
 
 
 async def test_read_conference_where_author_does_not_exist():
-    # random number in case cleanup fails
     nr = random.randint(0, 2**32)
-    temp_person = f"Test User Temporary {nr}"
-    temp_password = password
+    temp_name = f"Test User Temporary {nr}"
     temp_conf_name = f"Test Conf Temporary {nr}"
 
-    # Setup
     ks1 = AioKomSession()
     await ks1.connect(host, port, username, hostname, client_name, client_version)
-    temp_person = await ks1.create_person(temp_person, temp_password)
+    temp_person = await ks1.create_person(temp_name, person_password)
     temp_pers_no = temp_person.pers_no
-    print(f"temp_pers_no: {temp_pers_no}")
-    await ks1.login(temp_pers_no, temp_password)
+    await ks1.login(pers_no=temp_pers_no, passwd=person_password)
     temp_conf_no = await ks1.create_conference(temp_conf_name)
 
-    # Delete temp user
     await ks1.delete_conference(temp_pers_no)
     await ks1.logout()
     await ks1.disconnect()
 
-    # Login with existing user and try to get conference. Because of
-    # caching of the deleted user, we want to create a new connection.
+    pers_no, passwd = await _create_person()
     ks2 = AioKomSession()
     await ks2.connect(host, port, username, hostname, client_name, client_version)
-    await ks2.login(pers_no, password)
+    await ks2.login(pers_no=pers_no, passwd=passwd)
     await ks2.get_conference(temp_conf_no, micro=False)
 
     await ks2.logout()
@@ -212,30 +206,25 @@ async def test_read_conference_where_author_does_not_exist():
 
 
 async def test_read_uconference_where_author_does_not_exist():
-    # random number in case cleanup fails
     nr = random.randint(0, 2**32)
-    temp_person = f"Test User Temporary {nr}"
-    temp_password = password
+    temp_name = f"Test User Temporary {nr}"
     temp_conf_name = f"Test Conf Temporary {nr}"
 
-    # Setup
     ks1 = AioKomSession()
     await ks1.connect(host, port, username, hostname, client_name, client_version)
-    temp_person = await ks1.create_person(temp_person, temp_password)
+    temp_person = await ks1.create_person(temp_name, person_password)
     temp_pers_no = temp_person.pers_no
-    await ks1.login(temp_pers_no, temp_password)
+    await ks1.login(pers_no=temp_pers_no, passwd=person_password)
     temp_conf_no = await ks1.create_conference(temp_conf_name)
 
-    # Delete temp user
     await ks1.delete_conference(temp_pers_no)
     await ks1.logout()
     await ks1.disconnect()
 
-    # Login with existing user and try to get conference. Because of
-    # caching of the deleted user, we want to create a new connection.
+    pers_no, passwd = await _create_person()
     ks2 = AioKomSession()
     await ks2.connect(host, port, username, hostname, client_name, client_version)
-    await ks2.login(pers_no, password)
+    await ks2.login(pers_no=pers_no, passwd=passwd)
     await ks2.get_conference(temp_conf_no, micro=True)
 
     await ks2.logout()

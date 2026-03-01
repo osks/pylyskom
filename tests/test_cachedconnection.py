@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from mock import Mock
+from unittest.mock import Mock
 
 from pylyskom.errors import NoSuchLocalText
 from pylyskom.datatypes import TextMapping, ReadRange, Membership

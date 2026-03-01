@@ -24,81 +24,38 @@ as an attempt to break out komsession and the modifications to kom.py
 from httpkom.
 
 
-Code status
------------
-
-.. image:: https://travis-ci.org/osks/pylyskom.svg?branch=master
-    :target: https://travis-ci.org/osks/pylyskom
-
-
 Development
 -----------
+
+Run tests locally::
+
+    make test
 
 Preparing a release
 *******************
 
-TODO: How do we update the documentation on github pages?
-
 On master:
 
-1. Update and check CHANGELOG.md.
+1. Update CHANGELOG.md.
 
 2. Increment version number and remove ``+dev`` suffix
    (in ``pylyskom/version.py``).
 
-3. Run tests locally with ``make test``. Test manually by using jskom.
+3. Run tests locally with ``make test``.
 
-4. Commit, push.
+4. Commit and push.
 
-5. Check CI build/test results.
+5. Create a GitHub release at https://github.com/osks/pylyskom/releases
+   with tag ``v<version>`` (e.g. ``v0.9``). The release workflow will
+   run tests and publish to PyPI automatically.
 
-6. Tag (annotated) with ``v<version>`` (example: ``v0.1``) and push the tag::
-
-       git tag -a v0.1 -m "Version 0.1"
-       git push origin v0.1
-
-7. Build PyPI dist: ``make dist``
-
-8. Push to Test PyPI: ``twine upload --repository testpypi dist/*`` and check
-   https://test.pypi.org/project/pylyskom/ .
-
-9. Push to PyPI: ``twine upload dist/*`` and check
-   https://pypi.org/project/pylyskom/ .
-
-10. Add ``+dev`` suffix to version number, commit and push.
-
-11. Github release: Go to https://github.com/osks/pylyskom/releases
-    and draft a new release. Select tag and set title to "Version
-    <version>", and then publish the release.
-
-
-Tools
-*****
-
-Install and update release tools with::
-
-    pip install --upgrade setuptools wheel pip twine
-
-Twine is used for pushing the built dist to PyPI. The examples in the
-release process depends on a ``.pypirc`` file with config for the pypi
-and testpypi repositories.
-
-Example of ``.pypirc``::
-
-    [pypi]
-    username = __token__
-    password = pypi-...
-
-    [testpypi]
-    repository = https://test.pypi.org/legacy/
-    username = __token__
-    password = pypi-...
+6. Bump version to next ``+dev`` suffix, commit and push.
 
 
 Copyright and license
 ---------------------
 
-Copyright (C) 2012-2022 Oskar Skoog
+Copyright (C) 2012-2026 Oskar Skoog
 
 Copyright (C) 2008 Henrik Rindlöw
 

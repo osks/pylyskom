@@ -1,0 +1,16 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       lyskom-server netbase netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /var/run/lyskom-server \
+    && chown lyskom:root /var/run/lyskom-server
+
+VOLUME /var/lib/lyskom-server
+
+EXPOSE 4894
+
+USER lyskom
+CMD ["lyskomd", "-f"]

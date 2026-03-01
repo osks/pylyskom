@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- AioKomSession.login() now supports login by name via `pers_name`
+  keyword argument, as an alternative to `pers_no`.
+- AioKomSession.raw_request() for sending raw LysKOM protocol
+  requests. For sending over websocket (support httpkom expriment).
+
+### Changed
+
+- New release workflow using github release
+- Better e2e test setup and run from github actions
+
 
 ## 0.8 (2022-09-12)
 
