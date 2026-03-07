@@ -46,6 +46,7 @@ from .komsession import (
     KomSessionNotConnected,
     KomSessionError,
     KomText,
+    KomTextStat,
     KomConferenceName,
     KomConference,
     KomUConference,
@@ -1143,9 +1144,13 @@ class AioKomSession(object):
             raise AmbiguousName("ambiguous recipient: %s" % lookup)
         return matches[0][0]
 
-    @async_check_connection
-    async def get_text_stat(self, text_no):
+    async def _get_text_stat(self, text_no):
         return await self._client.textstats.get(text_no)
+
+    @async_check_connection
+    async def get_text_stat(self, text_no) -> 'KomTextStat':
+        text_stat = await self._get_text_stat(text_no)
+        return await self._get_komtextstat(text_no, text_stat)
 
     @async_check_connection
     async def add_membership(self, pers_no, conf_no, priority, where):
@@ -1230,10 +1235,14 @@ class AioKomSession(object):
         creator = await self._get_person_name(aux_item.creator)
         return KomAuxItem(aux_item, creator)
 
-    async def _get_komtext(self, text_no, text, text_stat: TextStat) -> KomText:
+    async def _get_komtextstat(self, text_no, text_stat: TextStat) -> 'KomTextStat':
         author = await self._get_person_name(text_stat.author)
-        aux_items = [ await self._get_komauxitem(ai) for ai in text_stat.aux_items ]
-        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
+        aux_items = [await self._get_komauxitem(ai) for ai in text_stat.aux_items]
+        return KomTextStat(text_no, text_stat, aux_items=aux_items, author=author)
+
+    async def _get_komtext(self, text_no, text, text_stat: TextStat) -> KomText:
+        ks = await self._get_komtextstat(text_no, text_stat)
+        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=ks.aux_items, author=ks.author)
 
     async def _get_uconference(self, conf_no) -> KomUConference:
         return KomUConference(conf_no, uconf=await self._client.uconferences.get(conf_no))
@@ -1276,7 +1285,7 @@ class AioKomSession(object):
 
     @async_check_connection
     async def get_text(self, text_no) -> KomText:
-        text_stat = await self.get_text_stat(text_no)
+        text_stat = await self._get_text_stat(text_no)
         text = await self._client.request(requests.ReqGetText(text_no))
         return await self._get_komtext(text_no=text_no, text=text, text_stat=text_stat)
 
@@ -1331,13 +1340,13 @@ class AioKomSession(object):
 
     @async_check_connection
     async def mark_as_read(self, text_no):
-        text_stat = await self.get_text_stat(text_no)
+        text_stat = await self._get_text_stat(text_no)
         for mi in text_stat.misc_info.recipient_list:
             await self._client.mark_as_read_local(mi.recpt, mi.loc_no)
 
     @async_check_connection
     async def mark_as_unread(self, text_no):
-        text_stat = await self.get_text_stat(text_no)
+        text_stat = await self._get_text_stat(text_no)
         for mi in text_stat.misc_info.recipient_list:
             await self._client.mark_as_unread_local(mi.recpt, mi.loc_no)
 

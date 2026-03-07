@@ -100,6 +100,19 @@ class KomAuxItem:
         self.creator = creator
 
 
+class KomTextStat:
+    def __init__(self, text_no, text_stat: TextStat, *,
+                 aux_items: List[KomAuxItem], author: KomPersonName):
+        self.text_no = text_no
+        self.author = author
+        self.creation_time = text_stat.creation_time
+        self.no_of_marks = text_stat.no_of_marks
+        self.recipient_list = text_stat.misc_info.recipient_list
+        self.comment_to_list = text_stat.misc_info.comment_to_list
+        self.comment_in_list = text_stat.misc_info.comment_in_list
+        self.aux_items = aux_items
+
+
 # KomConferenceName is intended for when only the conf-no and name are
 # wanted.
 class KomConferenceName:
@@ -538,9 +551,13 @@ class KomSession(object):
             raise AmbiguousName("ambiguous recipient: %s" % lookup)
         return matches[0][0]
 
-    @check_connection
-    def get_text_stat(self, text_no):
+    def _get_text_stat(self, text_no):
         return self._client.textstats[text_no]
+
+    @check_connection
+    def get_text_stat(self, text_no) -> KomTextStat:
+        text_stat = self._get_text_stat(text_no)
+        return self._get_komtextstat(text_no, text_stat)
 
     @check_connection
     def add_membership(self, pers_no, conf_no, priority, where):
@@ -616,10 +633,14 @@ class KomSession(object):
         creator = self._get_person(aux_item.creator)
         return KomAuxItem(aux_item, creator)
 
-    def _get_komtext(self, text_no, text, text_stat: TextStat):
+    def _get_komtextstat(self, text_no, text_stat: TextStat) -> KomTextStat:
         author = self._get_person(text_stat.author)
-        aux_items = [ self._get_komauxitem(ai) for ai in text_stat.aux_items ]
-        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=aux_items, author=author)
+        aux_items = [self._get_komauxitem(ai) for ai in text_stat.aux_items]
+        return KomTextStat(text_no, text_stat, aux_items=aux_items, author=author)
+
+    def _get_komtext(self, text_no, text, text_stat: TextStat):
+        ks = self._get_komtextstat(text_no, text_stat)
+        return KomText(text_no=text_no, text=text, text_stat=text_stat, aux_items=ks.aux_items, author=ks.author)
 
     def _get_uconference(self, conf_no):
         return KomUConference(conf_no, uconf=self._client.uconferences[conf_no])
@@ -657,7 +678,7 @@ class KomSession(object):
 
     @check_connection
     def get_text(self, text_no) -> KomText:
-        text_stat = self.get_text_stat(text_no)
+        text_stat = self._get_text_stat(text_no)
         text = self._client.request(requests.ReqGetText(text_no))
         return self._get_komtext(text_no=text_no, text=text, text_stat=text_stat)
 
@@ -712,13 +733,13 @@ class KomSession(object):
 
     @check_connection
     def mark_as_read(self, text_no):
-        text_stat = self.get_text_stat(text_no)
+        text_stat = self._get_text_stat(text_no)
         for mi in text_stat.misc_info.recipient_list:
             self._client.mark_as_read_local(mi.recpt, mi.loc_no)
 
     @check_connection
     def mark_as_unread(self, text_no):
-        text_stat = self.get_text_stat(text_no)
+        text_stat = self._get_text_stat(text_no)
         for mi in text_stat.misc_info.recipient_list:
             self._client.mark_as_unread_local(mi.recpt, mi.loc_no)
 
