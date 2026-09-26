@@ -16,6 +16,12 @@
 - New release workflow using github release
 - Better e2e test setup and run from github actions
 
+### Fixed
+
+- AioClient: requests no longer hang forever when the server closes
+  the connection. They now raise ConnectionResetError, and the client
+  is marked as disconnected.
+
 
 ## 0.8 (2022-09-12)
 

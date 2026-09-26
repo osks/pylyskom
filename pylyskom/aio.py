@@ -179,6 +179,8 @@ class AioConnection:
 
     async def send_request(self, request):
         #log.debug("AioConnection: Sending request: %s", request)
+        if self._tcp_stream_writer is None:
+            raise ConnectionResetError(errno.ECONNRESET, "Not connected to LysKOM server")
         self._ref_no += 1
         ref_no = self._ref_no
         assert ref_no not in self._outstanding_requests
@@ -362,6 +364,9 @@ class AioClient:
             #log.debug("AioClient: Sent request (ref_no=%s): %s", ref_no, request)
             assert ref_no not in self._outstanding_requests_events
             self._outstanding_requests_events[ref_no] = asyncio.Event()
+            if not self.is_connected():
+                # Connection was lost while sending, so no reply will come.
+                self._outstanding_requests_events[ref_no].set()
 
         #log.debug("AioClient: Waiting for reply to ref_no=%s", ref_no)
         await self._outstanding_requests_events[ref_no].wait()
@@ -369,7 +374,9 @@ class AioClient:
         return self._handle_reply(ref_no, return_bytes=return_bytes)
 
     def _handle_reply(self, ref_no, *, return_bytes=False):
-        assert ref_no in self._reply_queue
+        if ref_no not in self._reply_queue:
+            # Woken up by _connection_lost() without a reply.
+            raise ConnectionResetError(errno.ECONNRESET, "Connection to LysKOM server lost")
         (ok_reply, error_reply, reply_bytes) = self._reply_queue.pop(ref_no)
         #log.debug("AioClient: Handling reply (ref_no=%s): %s", ref_no, (ok_reply, error_reply))
         if return_bytes:
@@ -390,8 +397,24 @@ class AioClient:
                 await self._receive_response(response)
         except Exception as e:
             log.error(f"AioClient: Response receiver task exception: {e}")
+            await self._connection_lost()
         finally:
             log.debug("AioClient: Exiting response receiver task")
+
+    async def _connection_lost(self):
+        """Called when we can no longer read from the server. Close the
+        connection so is_connected() returns False, and wake up all
+        requests waiting for a reply so they raise ConnectionResetError
+        instead of waiting forever.
+        """
+        try:
+            await self._conn.close()
+        except Exception as e:
+            log.debug(f"AioClient: Error closing lost connection: {e}")
+        if self._asyncmsg_receiver_task is not None:
+            self._asyncmsg_receiver_task.cancel()
+        for event in self._outstanding_requests_events.values():
+            event.set()
 
     async def _receive_response(self, response):
         ref_no, ok_reply, error_reply, async_msg, reply_bytes = response
