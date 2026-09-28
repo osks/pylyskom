@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- AioClient.close() wakes requests still waiting for a reply (they raise
+  ConnectionResetError) instead of leaving them waiting forever, and no
+  longer waits for a dead peer to acknowledge the close.
+
 ## 0.9 (2026-03-01)
 
 ### Added

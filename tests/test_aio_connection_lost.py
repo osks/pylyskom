@@ -87,3 +87,27 @@ def test_request_after_connection_lost_raises():
             server.close()
 
     asyncio.run(run())
+
+
+async def never_reply(reader, writer):
+    # Read requests but never answer, like a dead connection
+    while await reader.readline():
+        pass
+
+
+def test_close_wakes_waiting_requests():
+    async def run():
+        server, port = await start_fake_server(never_reply)
+        client = AioClient(AioConnection())
+        try:
+            await client.connect("127.0.0.1", port)
+            request = asyncio.ensure_future(client.request(ReqGetTime()))
+            await asyncio.sleep(0.1)
+            await asyncio.wait_for(client.close(), TIMEOUT)
+            with pytest.raises(ConnectionResetError):
+                await asyncio.wait_for(request, TIMEOUT)
+        finally:
+            await client.close()
+            server.close()
+
+    asyncio.run(run())

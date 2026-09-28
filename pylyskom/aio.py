@@ -169,7 +169,12 @@ class AioConnection:
         try:
             if self._tcp_stream_writer is not None:
                 self._tcp_stream_writer.close()
-                await self._tcp_stream_writer.wait_closed()
+                try:
+                    # A dead peer never acknowledges the close; don't wait
+                    # for TCP to give up on it
+                    await asyncio.wait_for(self._tcp_stream_writer.wait_closed(), 5)
+                except (asyncio.TimeoutError, OSError):
+                    self._tcp_stream_writer.transport.abort()
         finally:
             self._tcp_stream_reader = None
             self._tcp_stream_writer = None
@@ -335,6 +340,10 @@ class AioClient:
             if self._conn is not None:
                 await self._conn.close()
         finally:
+            # Wake requests still waiting for a reply; they raise
+            # ConnectionResetError, as no reply will come
+            for event in self._outstanding_requests_events.values():
+                event.set()
             self._conn = None
             self._response_receiver_task = None
             self._asyncmsg_receiver_task = None
